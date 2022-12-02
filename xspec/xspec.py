@@ -108,19 +108,7 @@ class Huber:
                 theta_1 = -e.T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * beta[i] -2*b2*beta_mbi
                 theta_2 = (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
                 update = -theta_1 / theta_2
-                # Calculate threshold
-                spec_dict_diff = spec_dict[:, i:i + 1]-spec_dict[:, self.mbi:self.mbi + 1]
-                pos_spec_mask=(spec_dict_diff>1e-10).reshape((l,))
-                neg_spec_mask=(spec_dict_diff<-1e-10).reshape((l,))
-                if np.sum(pos_spec_mask)==0:
-                    T1=-np.inf
-                else:
-                    T1 = max(-spec_beta[pos_spec_mask]/spec_dict_diff[pos_spec_mask]+beta_tmp)
-                if np.sum(neg_spec_mask) == 0:
-                    T2 = np.inf
-                else:
-                    T2 = min(-spec_beta[neg_spec_mask]/spec_dict_diff[neg_spec_mask]+beta_tmp)
-                beta[i] = np.clip(beta_tmp + update, T1, T2)
+                beta[i] = np.clip(beta_tmp + update, 0, beta[self.mbi])
                 beta[self.mbi] = 1 - np.sum(beta[permuted_ind])
                 spec_beta = spec_beta + (spec_dict[:, i:i + 1]-spec_dict[:,self.mbi:self.mbi+1]) * (beta[i] - beta_tmp)
 
