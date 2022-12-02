@@ -3,444 +3,60 @@ Author: Wenrui Li
 Email: li3120@purdue.edu
 Description:
     This script includes dictionary learning algorithm to do spectrum calibration.
-    In addition, this script contains serval optimizors using ICD update.
-    - RidgeReg: L2 norm
-    - LassoReg: L1 norm
-    - ElasticNetReg: Combination of L1, L2 norm
-    - QGGMRF
-Date: Aug 8th, 2022.
+
+Date: Dec 1st, 2022.
 """
 
 
 import numpy as np
-import cv2
-from phasetorch._utils import get_wavelength
-from phasetorch.resources.spectrum_utils import conversion_ratio
-from phasetorch._refindxdata import calculate_beta_vs_E
 from scipy.signal import butter,filtfilt,find_peaks
 
-def _obt_hough_cir(phantom, blur_size=None, radius_range=None, vmin=0, vmax=None, blur_type =None):
-    """ Obtain analytical edge of a circle-like object with hough transform.
+from xspec._utils import get_wavelength
 
-    Args:
-        phantom: The 2D image.
-        blur_size: Average window size.
 
-    Returns:
-        As cv2.HoughCircles's output.
-    """
+def matching_pursuit(mp,mptype='omp',gamma=0.9,topk=1):
+    if mptype=='omp':
+        k = np.argmax(mp)
+        return [k]
+    elif mptype=='domp':
+        max_mp = np.max(mp)
+        index_list, = np.nonzero(mp>gamma*max_mp)
+        return index_list.tolist()
+    elif mptype=='gomp':
+        idx = np.argpartition(mp, -topk)[-topk:]
+        print(idx)
+        return idx.tolist()
 
-    if blur_size is None:
-        blur_size = max(3, phantom.shape[0]//256*2 +1)
 
-    if radius_range is None:
-        radius_range = [phantom.shape[0]//5, 2*phantom.shape[0]//5]
+class Huber:
+    """Slove nonliner model Huber prior using ICD update.
 
-    if vmax is None:
-        vmax = np.quantile(phantom, 0.9)
-
-    if blur_type == 'mean':
-        tg_phan = cv2.blur(phantom,(blur_size,blur_size),cv2.BORDER_DEFAULT)
-    else:
-        tg_phan = phantom
-
-    tg_phan = np.clip(tg_phan,vmin,vmax)
-    tg_img = np.uint8(255*(tg_phan/vmax))
-    detected_circles = cv2.HoughCircles(tg_img, cv2.HOUGH_GRADIENT, 1, phantom.shape[0],
-                                        param2=3/vmax,minRadius=radius_range[0],maxRadius=radius_range[1])
-    return detected_circles
-
-
-def _circle_mask(num_col, radius):
-    x = np.linspace(0, num_col - 1, num_col) - (num_col - 1) / 2.0
-    y = np.linspace(0, num_col - 1, num_col) - (num_col - 1) / 2.0
-    X, Y = np.meshgrid(x, y)
-    mask = X ** 2 + Y ** 2 < radius ** 2
-    return mask
-
-def _hough_cir_det(recon):#,use_pool=False
-    """Given a 3D volume, return center and radius.
-
-    """
-
-    num_col = recon.shape[1]
-    mask = _circle_mask(num_col, (num_col-1)/2)
-    mask = np.expand_dims(mask, axis=0)
-
-    recon *= mask
-    recon = np.clip(recon, 0, np.inf)
-
-    # Hough Circle Detection
-    ohc_vmax = np.quantile(recon, 0.9)
-    num_slice = recon.shape[0]
-
-    def obt_hough_cir_p(i):
-        dcir = _obt_hough_cir(recon[i], vmax=ohc_vmax, blur_type='mean')
-        print("Processing Slice:%d/%d:  Circle:" % (i, num_slice), dcir, end='\r')
-        return dcir
-
-#     if use_pool:
-#         n_pc = 2
-#         with Pool(processes=n_pc) as pool:
-#             results = pool.map_async(
-#                 obt_hough_cir_p,
-#                 iterable=range(num_slice), chunksize=num_slice // n_pc).get(3600)
-#     else:
-
-    results = [obt_hough_cir_p(i) for i in range(num_slice)]
-
-    return np.array(results)
-
-def gen_cyl_mask(recon):
-    """
-
-    Parameters
-    ----------
-    recon : numpy.array
-        3D Volume with size (#slice, #rows, #cols).
-
-    Returns
-    -------
-    mask : numpy.array
-        3D Volume with same size as recon.
-
-    """
-
-    nslices, nrows, ncols = recon.shape[:3]
-    cir_det_res = _hough_cir_det(recon)
-    radius = cir_det_res[0,0,0,2]
-    qtile = 1 - np.pi*radius**2/((nrows-1))**2
-    qval = np.quantile(recon,qtile)
-    mask_cir = _circle_mask(nrows,radius*1.1)
-    mask = (recon>qval)*mask_cir[np.newaxis,:,:]
-    return mask
-
-
-def _obtain_attenuation(energies, formula, density, thickness):
-    beta_vs_energy = calculate_beta_vs_E(density, formula, energies)
-    wnum = 2*np.pi/get_wavelength(energies) #Wavenumber vs. energy
-    att = np.exp(-2*wnum*beta_vs_energy*thickness)
-    return att
-
-
-def gen_spec_dict(energies, spectrum, src_fltr_params, scint_params, eta=None, return_sp_dict_info=False, add_uniform_scint_sp=False):
-    """Generate X-ray spectrum dictionary model with source filter and detector response.
-
-    Parameters
-    ----------
-    energies : numpy.ndarray
-        List of X-ray energies of a poly-energetic source in units of keV.
-    spectrum : numpy.ndarray
-        List of energies vs. unnormalized or normalized spectral response
-    src_fltr_params : List
-        List of dictionary to indicate source filter.
-        Each dictionary has {'formula': 'Si', 'density': 2.329, 'thickness_list': np.linspace(1.5,10.5,10)}.
-        Unit: (density: g/cc, thickness: mm)
-    scint_params : List
-        List of dictionary to indicate scintallator absorption.
-        Each dictionary has {'formula': 'Si', 'density': 2.329, 'thickness_list': np.linspace(1.5,10.5,10)}.
-        Unit: (density: g/cc, thickness: mm)
-    eta : numpy.ndarray
-        List of energies vs. unnormalized or normalized spectral response. The combined response of Conversion efficiency and Stray light ratio.
-
-    Returns
-    -------
-    spectrums_dict : numpy.ndarray
-        The spectrum dictionary with same number of rows as the length of energis and same number of columns generated by all possible combination of given source filter parameters and scintallator parameters.
-
-    Examples
-    --------
-    .. code-block:: python
-
-        if __name__ == '__main__': #Required for parallel compute
-            import numpy as np
-            import matplotlib.pyplot as plt
-            from phasetorch.spectrum import als_bm832, gen_spec_dict
-
-            energies, sp_als =als_bm832()
-
-            # Dictionary parameter
-            n_sf_th = 40
-            n_scint_th = 27
-
-            # Source flter parameters items. (density: g/cc, thickness: mm)
-            src_fltr_params=[{'formula': 'Si', 'density': 2.329, 'thickness_list': np.linspace(1.5,10.5,n_sf_th)},
-                             {'formula': 'Al', 'density': 2.702, 'thickness_list': np.linspace(1.5,10.5,n_sf_th)},
-                             {'formula': 'Cu', 'density': 8.92, 'thickness_list': np.linspace(0.2,1,n_sf_th)},
-                             {'formula': 'Pb', 'density': 11.35, 'thickness_list': np.linspace(0.1,0.9,n_sf_th)},
-                            ]
-
-            # Scintillator model
-            scint_params=[{'formula': 'Lu3Al5O12', 'density': 6.73, 'thickness_list': np.linspace(20,98,n_scint_th)*1e-3},
-                             {'formula': 'Lu2SiO5', 'density': 4.51, 'thickness_list': np.linspace(20,98,n_scint_th)*1e-3},
-                             {'formula': 'LaBr3', 'density': 5.06, 'thickness_list': np.linspace(20,98,n_scint_th)*1e-3}]
-
-            spectrums_dict = gen_spec_dict(energies, sp_als, src_fltr_params, scint_params, eta=None)
-
-            plt.plot(energies,spectrums_dict[:,0::n_sf_th*n_scint_th])
-    """
-    if eta is None:
-        # Currently, conversion_ratio function is estimated only for Lu3Al5O12(LuAg:Ce).
-        eta = conversion_ratio(energies)
-    else:
-        assert len(energies) == len(eta)
-    src_fltr_dict =[]
-    src_fltr_info_dict=[]
-    scint_dict = []
-    scint_info_dict=[]
-
-    # Generate source filter spectrum dictionary
-    for sfp in src_fltr_params:
-        formula = sfp['formula']
-        density = sfp['density']
-        thickness_list = sfp['thickness_list']
-        src_fltr_dict += [_obtain_attenuation(energies, formula, density, thickness) for thickness in thickness_list]
-        src_fltr_info_dict += [(formula, thickness) for thickness in thickness_list]
-    src_fltr_dict = np.array(src_fltr_dict)
-
-    # Genereate the scintillator absorption response dictionary
-    for scip in scint_params:
-        formula = scip['formula']
-        density = scip['density']
-        thickness_list = scip['thickness_list']
-        scint_dict += [1 - _obtain_attenuation(energies, formula, density, thickness) for thickness in thickness_list]
-        scint_info_dict += [(formula, thickness) for thickness in thickness_list]
-    if add_uniform_scint_sp:
-        scint_dict+=[np.ones((len(energies),))]
-        scint_info_dict += [('None', 0)]
-    scint_dict = np.array(scint_dict)
-
-
-    spectrums_dict = spectrum[np.newaxis,np.newaxis,:]*src_fltr_dict[:,np.newaxis,:]*scint_dict[np.newaxis,:,:]*eta[np.newaxis,np.newaxis,:]
-    spectrums_dict = spectrums_dict.reshape((-1,len(energies))).T
-    spectrums_dict /= np.trapz(spectrums_dict,energies,axis=0)
-
-    if return_sp_dict_info:
-        return spectrums_dict, src_fltr_info_dict, scint_info_dict
-    else:
-        return spectrums_dict
-
-
-
-class RidgeReg:
-    """Slove liner model with l2 norm.
-
-    .. math:: \\hat{\\beta}=\\arg \\min _{\\beta} L(\\beta)=\\arg \\min _{\\beta} \\frac{1}{2 m}\\|\\mathbf{y}-\\mathbf{X} \\beta\|_{2}^{2}+\\frac{\lambda}{2} \\|\\beta\\|_{2}^{2}
-
-
-    """
-
-    def __init__(self, l2=0.2):
-        """
-
-        Parameters
-        ----------
-        l2 : float
-            :math:`\\lambda` in above equation.
-
-        """
-        self.l2 = l2
-        self.mbi = 0 # Max beta index
-        
-    def set_mbi(self, mbi):
-        self.mbi = mbi
-        
-    def solve(self, X, y, spec_dict=None):
-        """
-
-        Parameters
-        ----------
-        X : numpy.ndarray
-            Dictionary matrix.
-        y : numpy.ndarray
-            Measurement data.
-
-        Returns
-        -------
-        beta : numpy.ndarray
-            Coefficients.
-
-        """
-        m, n = np.shape(X)
-        lower = np.zeros((n, n))
-        np.fill_diagonal(lower, np.sqrt(self.l2 * m))
-
-        upper_half = X
-        lower_half = lower
-
-        X = np.vstack((upper_half, lower_half))
-        y = np.append(y, np.zeros(n))
-        return np.linalg.solve(np.dot(X.T, X), np.dot(X.T, y))
-
-
-class LassoReg:
-    """Slove liner model with l1 norm using ICD update.
-
-    .. math:: \\hat{\\beta}=\\arg \\min _{\\beta} L(\\beta)=\\arg \\min _{\\beta} \\frac{1}{2 m}\\|\\mathbf{y}-\\mathbf{X} \\beta\\|_{2}^{2}+\\lambda\\|\\beta\\|_{1}
-
-    """
-    def __init__(self, l1=0.001, sigma=np.inf, max_iter=3000):
-        """
-
-        Parameters
-        ----------
-        l1 : float
-            :math:`\\lambda` in above equation.
-        sigma : float
-            :math:`\\sigma` in above equation. Larger sigma means less constraint to  :math:`\\sum `
-        max_iter : int
-            Maximum number of iterations.
-        """
-        
-        self.l1 = l1
-        self.max_iter=max_iter
-        self.sigma = sigma
-        self.mbi = 0 # Max beta index
-        
-    def set_mbi(self, mbi):
-        self.mbi = mbi
-        
-    def solve(self, X, y, spec_dict=None):
-        """
-
-        Parameters
-        ----------
-        X : numpy.ndarray
-            Dictionary matrix.
-        y : numpy.ndarray
-            Measurement data.
-
-        Returns
-        -------
-        beta : numpy.ndarray
-            Coefficients.
-
-        """
-        m, n = np.shape(X)
-        beta = np.zeros((n))
-        u=0
-        e = y.reshape((-1, 1))
-        spec_beta = spec_dict@beta.reshape((-1,1))
-
-        for k in range(self.max_iter):
-            permuted_ind = np.random.permutation(n)
-            for i in permuted_ind:
-                beta_temp = beta[i]
-                theta_1 = -e.T @ X[:, i:i + 1] / m + (u+np.sum(beta)-1)/self.sigma**2
-                theta_2 = X[:, i:i + 1].T @ X[:, i:i + 1] / m + 1/self.sigma**2
-
-                if beta[i] > (theta_1 + self.l1)/theta_2:
-                    beta[i] -= (theta_1 + self.l1)/theta_2
-                elif beta[i] < (theta_1 -self.l1)/theta_2:
-                    beta[i] -= (theta_1 - self.l1) / theta_2
-                else:
-                    beta[i] =0
-
-                beta[i] = max(beta[i], np.max((-spec_beta+spec_dict[:, i:i + 1]*beta_temp)/spec_dict[:,i:i+1]))
-                spec_beta = spec_beta - spec_dict[:, i:i + 1] * (beta[i] - beta_temp)
-                e = e - X[:, i:i + 1] * (beta[i] - beta_temp)
-                u = u +np.sum(beta)-1
-        return beta
-
-
-class ElasticNetReg:
-    """Slove liner model with combination of l1 and l2 norm using ICD update.
-
-    .. math:: \\hat{\\beta}=\\arg \\min _{\\beta} L(\\beta)=\\arg \\min _{\\beta} \\frac{1}{2 m}\\|\\mathbf{y}-\\mathbf{X} \\beta\\|_{2}^{2}+ \\frac{\\lambda_2}{2}\\|\\beta\\|_{2}^{2}+\\lambda_1\\|\\beta\\|_1
-
-    """
-    def __init__(self, l1=0.001,l2=0.2, max_iter=3000):
-        """
-
-        Parameters
-        ----------
-        l1 : float
-            :math:`\\lambda_1` in above equation.
-        l2 : float
-            :math:`\\lambda_2` in above equation.
-        max_iter : int
-            Maximum number of iterations.
-        """
-        self.l1 = l1
-        self.l2 = l2
-        self.max_iter = max_iter
-        self.mbi = 0 # Max beta index
-        
-    def set_mbi(self, mbi):
-        self.mbi = mbi
-        
-    def solve(self, X, y, spec_dict=None):
-        """
-
-        Parameters
-        ----------
-        X : numpy.ndarray
-            Dictionary matrix.
-        y : numpy.ndarray
-            Measurement data.
-
-        Returns
-        -------
-        beta : numpy.ndarray
-            Coefficients.
-
-        """
-        m, n = np.shape(X)
-        beta = np.zeros((n))
-        e = y.reshape((-1, 1))
-
-        for k in range(self.max_iter):
-            permuted_ind = np.random.permutation(n)
-            for i in permuted_ind:
-                x_temp = beta[i]
-                theta_1 = -e.T @ X[:, i:i + 1] / m
-                theta_2 = X[:, i:i + 1].T @ X[:, i:i + 1] / m + self.l2
-                update = x_temp - theta_1 / theta_2
-                beta[i] = np.sign(update) * max(np.abs(update) - self.l1 / theta_2, 0)
-                e = e - X[:, i:i + 1] * (beta[i] - x_temp)
-        return beta
-
-
-
-class QGGMRF:
-    """Slove nonliner model QGGMRF using ICD update.
-
-    .. math:: \\hat{\\beta}=\\arg \\min _{\\beta} L(\\beta)=\\frac{1}{2 m}\\|\\mathbf{y}-\\mathbf{X} \\beta\\|^{2}+\\frac{1}{p \\sigma_{\\beta}^{p}} \\left|\\beta\\right|^{p}\\left(\\frac{\\left|\\frac{\\beta}{T \\sigma_{\\beta}}\\right|^{q-p}}{1+\\left|\\frac{\\beta}{T \\sigma_{\\beta}}\\right|^{q-p}}\\right)
 
     The MAP surrogate cost function becomes,
 
-    .. math:: Q\\left(\\beta ; \\beta^{\\prime}\\right)=\\frac{1}{2 m}\\|\\mathbf{y}-\\mathbf{X} \\beta\\|^{2}+\\tilde{b}\\|\\beta\\|^{2}_{2}
 
-    Where
-
-    .. math:: \\tilde{b}  \\leftarrow\\left\\{\\begin{array}{ll} \\frac{1 }{p \\sigma_{\\beta}^{q} T^{q-p}} &  { if } \\beta^{\\prime}=0 \\\\   \\frac{\\left|\\beta^{\\prime}\\right|^{p-2}}{2 \\sigma_{\\beta}^{p}} \\frac{\\left|\\frac{\\beta^{\\prime}}{T \\sigma_{\\beta}}\\right|^{q-p}\\left(\\frac{q}{p}+\\left|\\frac{\\beta^{\\prime}}{T \\sigma_{\\beta}}\\right|^{q-p}\\right)}{\\left(1+\\left|\\frac{\\beta^{\\prime}}{T \\sigma_{\\beta}}\\right|^{q-p}\\right)^{2}} &  { else } \\end{array}\\right.
-
-    Refer to https://engineering.purdue.edu/~bouman/grad-labs/MAP-Tomography/pdf/lab.pdf.
 
     """
-    def __init__(self, p=1.2, q=2, sigma_beta=1.0, T=1.0, max_iter=3000, threshold=1e-6):
+    def __init__(self, c=1.0, l_star=0.001, max_iter=3000, threshold=1e-7):
         """
 
         Parameters
         ----------
-        p : float
-            Scalar value in range :math:`[1,2]` that specifies the qGGMRF shape parameter.
-        q : float
-            Scalar value in range :math:`[p,1]` that specifies the qGGMRF shape parameter.
-        sigma_beta : float
-            Scalar value :math:`>0` that specifies the qGGMRF scale parameter.
-        T : float
-            Scalar value :math:`>0` that specifies the qGGMRF threshold parameter.
+
+        c : float
+            Scalar value :math:`>0` that specifies the Huber threshold parameter.
+        l : float
+            Scalar value :math:`>0` that specifies the Huber regularization.
+        sigma : float
+            Scalar value :math:`>0` that specifies the :math:`||\\sum beta|| =1`.
         max_iter : int
             Maximum number of iterations.
         threshold : float
             Scalar value for stop update threshold.
 
         """
-        self.p = p
-        self.q = q
-        self.sigma_beta = sigma_beta
-        self.T = T
+        self.c = c
+        self.l_star = l_star
         self.max_iter = max_iter
         self.threshold = threshold
         self.mbi = 0 # Max beta index
@@ -465,35 +81,66 @@ class QGGMRF:
 
         """
         m, n = np.shape(X)
-        beta = np.zeros((n))
-        e = y.reshape((-1, 1))
+        beta = np.ones(n)/n
+        c = self.c
+        print('%d Dictionary'%n, beta)
+        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
+        l = spec_dict.shape[0]
+        spec_beta = spec_dict @ beta.reshape((-1, 1))
 
         for k in range(self.max_iter):
-            permuted_ind = np.random.permutation(n)
+            permuted_ind = np.arange(n)
+            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
             tol_update = 0
             for i in permuted_ind:
                 beta_tmp = beta[i]
-                if beta_tmp == 0:
-                    b = 1 / (self.p * self.sigma_beta ** self.q * self.T ** (self.q - self.p))
+                beta_mbi = beta[self.mbi]
+
+                if np.abs(beta[i])<1e-9:
+                    b1 = self.l_star/2
                 else:
-                    qp_term = np.abs(beta_tmp / self.T / self.sigma_beta) ** (self.q - self.p)
-                    b = np.abs(beta_tmp) ** (self.p - 2) / (2 * (self.sigma_beta ** self.p)) * qp_term \
-                        * (self.q / self.p + qp_term) / (1 + qp_term) ** 2
+                    b1 = self.l_star*np.clip(beta[i],-c,c)/(2*beta[i])
 
-                theta_1 = -e.T @ X[:, i:i + 1] / m + b * (2 * beta_tmp)
-                theta_2 = X[:, i:i + 1].T @ X[:, i:i + 1] / m + 2 * b
-                update = max(-theta_1 / theta_2, -beta_tmp)
-                beta[i] = beta_tmp + update
-                tol_update += np.abs(update)
-                e = e - X[:, i:i + 1] * update
-            if tol_update / n < self.threshold:
+                if np.abs(beta_mbi)<1e-9:
+                    b2 = self.l_star/2
+                else:
+                    b2 = self.l_star*np.clip(-beta_mbi,-c,c)/(-2*beta_mbi)
+                theta_1 = -e.T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * beta[i] -2*b2*beta_mbi
+                theta_2 = (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
+                update = -theta_1 / theta_2
+                # Calculate threshold
+                spec_dict_diff = spec_dict[:, i:i + 1]-spec_dict[:, self.mbi:self.mbi + 1]
+                pos_spec_mask=(spec_dict_diff>1e-10).reshape((l,))
+                neg_spec_mask=(spec_dict_diff<-1e-10).reshape((l,))
+                if np.sum(pos_spec_mask)==0:
+                    T1=-np.inf
+                else:
+                    T1 = max(-spec_beta[pos_spec_mask]/spec_dict_diff[pos_spec_mask]+beta_tmp)
+                if np.sum(neg_spec_mask) == 0:
+                    T2 = np.inf
+                else:
+                    T2 = min(-spec_beta[neg_spec_mask]/spec_dict_diff[neg_spec_mask]+beta_tmp)
+                beta[i] = np.clip(beta_tmp + update, T1, T2)
+                beta[self.mbi] = 1 - np.sum(beta[permuted_ind])
+                spec_beta = spec_beta + (spec_dict[:, i:i + 1]-spec_dict[:,self.mbi:self.mbi+1]) * (beta[i] - beta_tmp)
+
+                tol_update += np.abs(beta[i]-beta_tmp)
+                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
+            
+            if tol_update < self.threshold:
+                print('Stop at iteration:', k,'  Total update:', tol_update)
                 break
-        return beta
+                
+        
+        print('mbi, beta_mbi:',self.mbi,beta[self.mbi])
+        print('beta',beta)
+        return beta  
 
-    
-    
+
 # Orthogonal match pursuit with different optimization models.
-def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, tol=1e-6, return_component=False, normalized_output=False):
+def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
+                mp_type='omp', mp_gamma=1, mp_topk=1, tol=1e-6,
+                return_component=False, normalized_output=False, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
     This function requires users to provide a large enough spectrum dictionary to estimate the source spectrum.
@@ -593,33 +240,41 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
     wavelengths = get_wavelength(energies)
     wnum = 2 * np.pi / wavelengths
     Aexp = np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1))).reshape((-1,len(energies)))
-    print(Aexp.shape)
-    
-    norm_term = np.clip(np.sum(Aexp,axis=0),0.01,np.inf)
-    #norm_term = np.clip(np.sum(Aexp.T@Aexp,axis=0),0.01,np.inf)
-    Aexp_nm = (Aexp/norm_term)
-    
+    if verbose>0:
+        print(Aexp.shape)
+    Aexp2 = Aexp.T@Aexp
+    DAexp2 = np.trapz(spec_dict.T[:,:,np.newaxis]*Aexp2[np.newaxis,:,:],energies,axis=1)
+    if verbose>0:
+        print('DAexp2 shape:',DAexp2.shape)
+    FD2 = np.trapz(DAexp2*spec_dict.T,energies,axis=1)
+    if verbose>0:
+        print('FD2 shape:',FD2.shape)
     
     while len(S)<sparsity and np.linalg.norm(e)>tol:
         # Find new index
-        yFexp = (e.T@Aexp_nm).reshape((-1,1))
-        #yFexp = yFexp - np.mean(yFexp)
-#         if (yFexp>0).all():
-#             break
-        #plt.plot(energies,yFexp)
-        k = np.argmax(np.ma.array(np.abs(np.trapz(yFexp*spec_dict,energies,axis=0)), mask=m))
-        #err_list.append(np.ma.array(np.abs(np.trapz(yFexp*spec_dict,energies,axis=0)), mask=m))
         err_list.append(e)
-        print(k)
+        yFexp = (e.T@Aexp).reshape((-1,1))
+        mp=2*np.trapz(yFexp*spec_dict,energies,axis=0)-FD2/(len(S)+1)   
+        mp = np.ma.array(mp, mask=m)
+        k = matching_pursuit(mp,mp_type,mp_gamma,mp_topk)
+        if verbose>0:
+            print(k)
+        if len(k)==0:
+            break
         # Build new support
-        S.append(k)
+        S = S + k
+        if verbose>0:
+            print(S)
+        
         m[k] = True
-        Dk = np.trapz(Aexp*spec_dict[:,k],energies).reshape((-1,1))
+        #Dk = np.trapz(Aexp*spec_dict[:,k],energies).reshape((-1,1))
+        Dk = np.trapz(Aexp[:,:,np.newaxis]*spec_dict[np.newaxis,:,k],energies,axis=1).reshape((-1,len(k)))
+
         DS=np.concatenate([DS,Dk],axis=1)
         # Find best coefficient with new support
         beta[S,0] = optimizor.solve(DS, signal, spec_dict[:,S])
         # Compute new residual
-        e=signal - DS@beta[S]
+        e=signal - DS@beta[S]*len(S)/(len(S)+1)
         yFexp_list.append(yFexp)
         errs.append(np.sqrt(np.mean(e**2)))
         optimizor.set_mbi(np.argmax(beta[S,0].flatten()))
@@ -631,424 +286,3 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         return estimated_spec_list, errs, beta, S,yFexp_list,err_list
     else:
         return estimated_spec_list, errs
-
-class Huber:
-    """Slove nonliner model Huber prior using ICD update.
-
-
-    The MAP surrogate cost function becomes,
-
-
-
-    """
-    def __init__(self, c=1.0, l_star=0.001, max_iter=3000, threshold=1e-7):
-        """
-
-        Parameters
-        ----------
-
-        c : float
-            Scalar value :math:`>0` that specifies the Huber threshold parameter.
-        l : float
-            Scalar value :math:`>0` that specifies the Huber regularization.
-        sigma : float
-            Scalar value :math:`>0` that specifies the :math:`||\\sum beta|| =1`.
-        max_iter : int
-            Maximum number of iterations.
-        threshold : float
-            Scalar value for stop update threshold.
-
-        """
-        self.c = c
-        self.l_star = l_star
-        self.max_iter = max_iter
-        self.threshold = threshold
-        self.mbi = 0 # Max beta index
-        
-    def set_mbi(self, mbi):
-        self.mbi = mbi
-        
-    def solve(self, X, y, spec_dict=None):
-        """
-
-        Parameters
-        ----------
-        X : numpy.ndarray
-            Dictionary matrix.
-        y : numpy.ndarray
-            Measurement data.
-
-        Returns
-        -------
-        beta : numpy.ndarray
-            Coefficients.
-
-        """
-        m, n = np.shape(X)
-        beta = np.ones(n)/n
-        c = self.c
-        print('%d Dictionary'%n, beta)
-        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
-        #print(e.shape)
-        l = spec_dict.shape[0]
-        spec_beta = spec_dict @ beta.reshape((-1, 1))
-
-        for k in range(self.max_iter):
-            permuted_ind = np.arange(n)
-            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
-            tol_update = 0
-            for i in permuted_ind:
-                beta_tmp = beta[i]
-                beta_mbi = beta[self.mbi]
-
-                if np.abs(beta[i])<self.threshold:
-                    b1 = self.l_star/2
-                else:
-                    b1 = self.l_star*np.clip(beta[i],-c,c)/(2*beta[i])
-
-                if np.abs(beta_mbi)<self.threshold:
-                    b2 = self.l_star/2
-                else:
-                    b2 = self.l_star*np.clip(-beta_mbi,-c,c)/(-2*beta_mbi)
-                theta_1 = -e.T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * beta[i] -2*b2*beta_mbi
-                theta_2 = (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
-                update = -theta_1 / theta_2
-                #print(k,i,update)
-                # Calculate threshold
-                spec_dict_diff = spec_dict[:, i:i + 1]-spec_dict[:, self.mbi:self.mbi + 1]
-                pos_spec_mask=(spec_dict_diff>self.threshold).reshape((l,))
-                neg_spec_mask=(spec_dict_diff<-self.threshold).reshape((l,))
-                if np.sum(pos_spec_mask)==0:
-                    T1=-np.inf
-                else:
-                    T1 = max(-spec_beta[pos_spec_mask]/spec_dict_diff[pos_spec_mask]+beta_tmp)
-                if np.sum(neg_spec_mask) == 0:
-                    T2 = np.inf
-                else:
-                    T2 = min(-spec_beta[neg_spec_mask]/spec_dict_diff[neg_spec_mask]+beta_tmp)
-                #print('Update,T1,T2:', update, T1, T2)
-                beta[i] = np.clip(beta_tmp + update, T1, T2)
-                beta[self.mbi] = 1 - np.sum(beta[permuted_ind])
-                #print('beta_s and beta_mbi',beta[i],beta[self.mbi])
-                spec_beta = spec_beta + (spec_dict[:, i:i + 1]-spec_dict[:,self.mbi:self.mbi+1]) * (beta[i] - beta_tmp)
-                #print(np.trapz(spec_beta.flatten(),energies))
-
-                tol_update += np.abs(beta[i]-beta_tmp)
-                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
-            
-            if tol_update < self.threshold:
-                print('Stop at iteration:', k,'  Total update:', tol_update)
-                break
-                
-        
-        print('mbi, beta_mbi:',self.mbi,beta[self.mbi])
-        print('beta',beta)
-        return beta  
-    
-    
-from scipy.signal import butter,filtfilt,find_peaks
-def sep_lh_freq(spectrum, order=2, cutoff=0.2, height=1e-3):
-    """
-
-    Parameters
-    ----------
-    spectrum: numpy.ndarray
-        X-Ray spectrum to be seperate into smooth part and peaks.
-    order: int
-        The order of the filter. An input to scipy.signal.butter.
-    cutoff: float
-        Desired cutoff frequency of the filter. (0,1)
-    height: float
-        Required height of peaks.
-
-    Returns
-    -------
-    smooth: 1D numpy.ndarray
-        Smooth part of an 1D sequence.
-    high_freq: 1D numpy.ndarray
-        High frequency part of an 1D sequence.
-    peaks: list
-        1D sequence represents the indexes of peaks.
-
-    """
-
-    b, a = butter(order, cutoff, btype='low', analog=False)
-    smooth = filtfilt(b, a, spectrum)
-    high_freq = spectrum - smooth
-
-    x1, _ = find_peaks(high_freq, height)
-    #x2, _ = find_peaks(np.abs(spectrum), height)
-    x = set(x1) #& set(x2)
-    peaks = np.array(list(x))
-
-    return smooth, high_freq, peaks
-
-def normalize_sp(smooth, high_freq, peaks,energies_w=None, order=2, cutoff=0.2, height=1e-3):
-    if energies_w is None:
-        energies_w = np.ones(np.shape(spectrum))
-    smooth, high_freq, peaks=sep_lh_freq(spectrum.flatten(), order=2, cutoff=0.05, height=0.5e-3)
-    smooth = np.clip(smooth,0,np.inf)
-    B=gen_high_con_mat(peaks, energies, width=5,mat_type='Right Triangle')
-    W = np.diag(energies_w)
-    B /= np.sum(W@B)
-    sm_pks = np.sum(W@(smooth+B@high_freq[peaks]))
-    smooth/= sm_pks
-    high_freq/= sm_pks 
-    return smooth, high_freq, peaks
-
-def gen_high_con_mat(peaks, energies, width=2, mat_type='Equilateral Triangle'):
-    """Generate high contrast matrix containing normalized triangles functions as columns,
-
-    Parameters
-    ----------
-    peaks: list
-        1D sequence represents the indexes of peaks.
-    energies: numpy.ndarray
-        List of X-ray energies of a poly-energetic source in units of keV.
-    width: traingle
-
-    Returns
-    -------
-    B: 2D numpy.ndarray
-        The high contrast matrix, which is a highly sparse non-negative matrix.
-
-    """
-    xv, yv = np.meshgrid(energies[peaks], energies)
-    if mat_type == 'Equilateral Triangle':
-        B = np.clip(1-np.abs(1/width * (yv-xv)),0,1)
-    elif mat_type == 'Right Triangle':
-        mask = (yv-xv)>=0
-        B = np.clip(1-(1/width * (yv-xv)),0,1)*mask
-    elif mat_type == 'Left Triangle':
-        mask = (yv-xv)<=0
-        B = np.clip(1+(1/width * (yv-xv)),0,1)*mask
-    return B
-
-def huber_func(omega, c):
-    if np.abs(omega)<c:
-        return omega**2/2
-    else:
-        return c*np.abs(omega)-c**2/2
-def binwised_spec_cali_cost(y,x,h,F,W,B,beta,c,energies):
-    m,n = np.shape(F)
-    e=(y - F @W@ (x + B @ h))
-    cost = e.T@e/m
-    rho_cost = 0
-    for i in range(len(x)-1):
-        rho_cost+=beta*(energies[i+1]-energies[i])*huber_func((x[i+1]-x[i])/(energies[i+1]-energies[i]),c)
-        
-    return cost,rho_cost
-
-def binwised_spec_cali(signal, energies, x_init, h_init, beta_projs, 
-                       B, h_min, energies_weight=None,beta=1, c=0.01, tol=1e-6,max_iter=200, stop_iter=1e-11,
-                       s_update_threshold=1,j_update_threshold=None):
-    """
-    
-    Parameters
-    ----------
-    signal
-    energies
-    x_init
-    h_init
-    beta_projs
-    B
-    h_min
-    beta
-    c
-    tol
-
-    Returns
-    -------
-
-    """
-    if energies_weight is None:
-        energies_weight = np.ones(energies.shape)
-    W = np.diag(energies_weight)
-    signal = signal.reshape((-1, 1))
-    Ne = len(x_init)
-    Nc = len(h_init)
-    wavelengths = get_wavelength(energies)
-    wnum = 2 * np.pi / wavelengths
-    F = np.exp(-2 * wnum * beta_projs.transpose((0, 2, 3, 4, 1))).reshape((-1, len(energies)))
-    m, n = np.shape(F)
-
-    x = x_init.copy().reshape((-1,1))
-#     if x_up_bound is None:
-#         x_up_bound = x*(1+update_rate)
-#     if x_lw_bound is None:
-#         x_lw_bound = x*(1-update_rate)
-    if j_update_threshold is None:
-        j_update_threshold = 1/n
-    h = h_init.copy().reshape((-1,1))
-    e = signal - F@W @ (x + B @ h)
-    iteration=0
-    legend=[]
-    fig,ax = plt.subplots(figsize=(24,12))
-    cost_x_list=[]
-    cost_rho_list=[]
-    sp_list = []
-    total_abs_update = 0
-    total_update = 0 
-    while np.linalg.norm(e) > tol and iteration<max_iter:
-        print()
-
-        if iteration % int(max_iter*0.1)==0:
-            ax.plot(energies, x+B@h)
-            legend.append('iter:%d'%iteration)
-        iteration+=1
-        # Find index to perform direct substitution
-        #j = np.argmax(np.min([np.abs(x_up_bound-x)[:,0]*energies_weight,np.abs(x-x_lw_bound)[:,0]*energies_weight],axis=0))
-        
-        if len(sp_list) ==0:
-            j = np.argmax(x[:,0]*energies_weight)
-        else:
-            mask = np.ones(energies_weight.shape)
-            if total_abs_update<0.01:
-                mask[j] = 0
-            j = np.argmax(np.abs((x[:,0]-pre_x[:,0]))*energies_weight*mask)
-        total_abs_update = 0
-        total_update = 0
-        pre_x = x.copy()
-        permuted_ind = np.random.permutation(Ne)
-        # Update x serially
-        for s in permuted_ind:
-            if s == j:
-                continue
-            delta_1 = []
-            delta_2 = []
-            dsj = np.zeros(len(x))
-            dsj[s]=1/energies_weight[s]
-            dsj[j]=-1/energies_weight[j]
-            if s > 0:
-                we = (energies_weight[s]**2*np.abs(energies[s]-energies[s-1]))
-                dd = (x[s] - x[s - 1])/np.abs(energies[s]-energies[s-1])
-                dws = dsj[s]-dsj[s-1]
-                if np.abs(dd) <1e-8:
-                    bs1 = beta / 2/we 
-                else:
-                    bs1 = beta * np.clip(dd, -c, c) / (2 * dd)/we
-                delta_1.append(bs1*dd*dws)
-                delta_2.append(bs1*dws**2)
-
-            if s < Ne - 1:
-                we = (energies_weight[s]**2*np.abs(energies[s]-energies[s + 1]))
-                dd = (x[s] - x[s + 1])/np.abs(energies[s]-energies[s + 1])
-                dws = dsj[s]-dsj[s+1]
-                if np.abs(dd) <1e-8:
-                    bs2 = beta / 2/we 
-                else:
-                    bs2 = beta * np.clip(dd, -c, c) / (2 * dd)/we
-                delta_1.append(bs2*dd*dws)
-                delta_2.append(bs2*dws**2)
-
-            if j > 0:
-                we = (energies_weight[j]**2*np.abs(energies[j] - energies[j - 1]))
-                dd = (x[j - 1] - x[j])/np.abs(energies[j] - energies[j - 1])
-                dws = dsj[j-1]-dsj[j]
-                if np.abs(dd) <1e-8:
-                    bj1 = beta / 2 /we
-                else:
-                    bj1 = beta * np.clip(dd, -c, c) / (2 * dd)/we
-                delta_1.append(bj1*dd*dws)
-                delta_2.append(bj1*dws**2)
-
-            if j < Ne - 1:
-                we = (energies_weight[j]**2*np.abs(energies[j]-energies[j + 1]))
-                dd = (x[j + 1] - x[j])/np.abs(energies[j] - energies[j + 1])
-                dws = dsj[j+1]-dsj[j]
-                if np.abs(dd) <1e-8:
-                    bj2 = beta / 2 /we
-                else:
-                    bj2 = beta * np.clip(dd, -c, c) / (2 * dd)/we
-                delta_1.append(bj2*dd*dws)
-                delta_2.append(bj2*dws**2)
-            Fsj = F[:, s:s + 1] - F[:, j:j + 1]
-            theta_x_1 = -e.T @ Fsj / m + 2 * np.sum(np.array(delta_1))
-            theta_x_2 = Fsj.T @ Fsj / m + 2 * np.sum(np.array(delta_2))
-#             Tmin = max(-(x_up_bound[j]-x[j])*energies_weight[j]*j_update_threshold,(x_lw_bound[s]-x[s])*energies_weight[s])
-#             Tmax = min((x_up_bound[s]-x[s])*energies_weight[s],-(x_lw_bound[j]-x[j])*energies_weight[j]*j_update_threshold)
-            Tmin = max(-x[j]*energies_weight[j]*j_update_threshold,-x[s]*energies_weight[s]*s_update_threshold)
-            Tmax = min(x[s]*energies_weight[s]*s_update_threshold,x[j]*energies_weight[j]*j_update_threshold)
-
-            
-            update_alpha = np.clip(-theta_x_1 / theta_x_2, Tmin, Tmax).reshape((1,))
-            total_abs_update +=np.abs(update_alpha)
-            total_update +=update_alpha
-            x[s] += update_alpha/energies_weight[s]
-            x[j] -= update_alpha/energies_weight[j]
-            if ((x + B @ h)<0).any():
-                print('update_alpha, Tmin,Tmax:',update_alpha, Tmin,Tmax)
-                print('pre_x[s],pre_x[j],x[s],x[j],update_alpha/energies_weight[s],update_alpha/energies_weight[j]:',
-                      pre_x[s],pre_x[j],x[s],x[j],update_alpha/energies_weight[s],update_alpha/energies_weight[j])
-            e -= Fsj * update_alpha
-            
-        print('A1. Iter:', iteration,'Max index',j, 'Updated Err:', np.linalg.norm(e),
-              'True Err:',np.linalg.norm(signal - F@W @ (x + B @ h)),'W (x+Bh)=',np.sum(W@(x+B@h)))
-        cost_x,cost_rho = binwised_spec_cali_cost(signal,x,h,F,W,B,beta,c,energies)
-        cost_x_list.append(cost_x)
-        cost_rho_list.append(cost_rho)
-        print('A. iter:',iteration,'cost_x:',cost_x,'cost_rho:',cost_rho)
-        for s in range(Nc):
-            delta_1 = []
-            delta_2 = []
-            if s == j:
-                continue
-            dsj = np.zeros(len(x))
-            dsj[s]=1/energies_weight[s]
-            dsj[j]=1/energies_weight[j]                
-            if j > 0:
-                we = (energies_weight[j]**2*np.abs(energies[j] - energies[j - 1]))
-                dd = (x[j - 1] - x[j])/np.abs(energies[j] - energies[j - 1])
-                dws = dsj[j-1]-dsj[j]
-                if np.abs(dd) <1e-8:
-                    bj1 = beta / 2/we
-                else:
-                    bj1 = beta * np.clip(dd, -c, c) / (2 * dd)/we
-                delta_1.append(bj1*dd*dws)
-                delta_2.append(bj1*dws**2)
-            if j < Ne - 1:
-                we = (energies_weight[j]**2*np.abs(energies[j]-energies[j + 1]))
-                dd = (x[j + 1] - x[j])/np.abs(energies[j] - energies[j + 1])
-                dws = dsj[j+1]-dsj[j]
-                if np.abs(dd) <1e-8:
-                    bj2 = beta / 2/we
-                else:
-                    bj2 = beta * np.clip(dd, -c, c) / (2 * dd)/we
-                delta_1.append(bj2*dd*dws)
-                delta_2.append(bj2*dws**2)
-            FB = F@ W @ B[:, s:s + 1]
-            FBj = FB - F[:, j:j + 1]
-            theta_h_1 = -e.T @ FBj / m + 2 * np.sum( np.array(delta_1))
-            theta_h_2 = FBj.T @ FBj / m + 2 * np.sum(np.array(delta_2))
-#             Tmin = max(-(x_up_bound[j]-x[j])*energies_weight[j]*j_update_threshold,h_min[s] - h[s])
-#             Tmax = -(x_lw_bound[j]-x[j])*energies_weight[j]*j_update_threshold
-            Tmin = max(-x[j]*energies_weight[j]*j_update_threshold,h_min[s] - h[s])
-            Tmax = x[j]*energies_weight[j]*j_update_threshold
-            update_h = np.clip(-theta_h_1 / theta_h_2, Tmin, Tmax).reshape((1,))
-            h[s] += update_h
-            x[j] -= update_h/energies_weight[j]
-            print('h index:',s)
-            print('update_h, Tmin,Tmax:',update_alpha, Tmin,Tmax)
-            print('h[s],x[j],update_h,update_h/energies_weight[j]:',h[s],x[j],update_h,update_h/energies_weight[j])
-            total_abs_update +=np.abs(update_h)
-            total_update +=update_h
-
-            e -= FBj * update_h
-        
-        cost_x,cost_rho_s = binwised_spec_cali_cost(signal,x,h,F,W,B,beta,c,energies)
-        cost_x_list.append(cost_x)
-        cost_rho_list.append(cost_rho)
-        sp_list.append(x + B @ h)
-        print('B1. Iter:', iteration,'Max index',j, 'Updated Err:', np.linalg.norm(e),
-              'True Err:',np.linalg.norm(signal - F@W @ (x + B @ h)),'W (x+Bh)=',np.sum(W@(x+B@h)))
-        print('B. iter:',iteration,'cost_x:',cost_x,'cost_rho:',cost_rho)
-        print('Total Update:',total_update, 'Total abs update:',total_abs_update )
-        e = signal - F@W @ (x + B @ h)
-        if total_abs_update < stop_iter:
-            break
-            
-    ax.plot(energies, x+B@h)
-    legend.append('iter:%d'%iteration)
-    plt.legend(legend)
-
-    return x, h, cost_x_list, cost_rho_list, sp_list

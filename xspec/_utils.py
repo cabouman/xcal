@@ -1,3 +1,19 @@
+import numpy as np
+from numpy.core.numeric import asanyarray
+
+import matplotlib.pyplot as plt
+
+
+light_speed = 299792458.0 # Speed of light
+Planck_constant = 6.62607015E-34 # Planck's constant
+Joule_per_eV = 1.602176565E-19 # Joules per electron-volts
+
+
+def get_wavelength(energy):
+    #return cl.get_wavelength(energy)   
+    return (Planck_constant*light_speed/(energy*Joule_per_eV)) #in mm
+
+
 def trapz_weight(x, axis=-1):
     """Modified from numpy.trapz. 
        Return weights for y to integrate along the given axis using the composite trapezoidal rule.
