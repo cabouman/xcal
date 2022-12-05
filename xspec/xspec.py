@@ -275,8 +275,11 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
         beta[S,0] = optimizor.solve(DS, signal, spec_dict[:,S])
         # Compute new residual
         e=signal - DS@beta[S]*len(S)/(len(S)+1)
+        current_e = signal - DS@beta[S]
+        print('e:',np.sqrt(np.mean(e**2)))
+        print('current_e:',np.sqrt(np.mean(current_e**2)))
         yFexp_list.append(yFexp)
-        errs.append(np.sqrt(np.mean(e**2)))
+        errs.append(np.sqrt(np.mean(current_e**2)))
         optimizor.set_mbi(np.argmax(beta[S,0].flatten()))
         estimated_spec = spec_dict @ beta
         estimated_spec_list.append(estimated_spec)
