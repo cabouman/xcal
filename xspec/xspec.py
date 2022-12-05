@@ -11,7 +11,7 @@ Date: Dec 1st, 2022.
 import numpy as np
 import matplotlib.pyplot as plt
 
-from xspec._utils import get_wavelength, binwised_spec_cali_cost
+from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func
 
 
 def matching_pursuit(mp,mptype='omp',gamma=0.9,topk=1):
@@ -222,6 +222,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
     errs=[]
     yFexp_list=[]
     err_list=[]
+    cost_list=[]
     estimated_spec_list = []
     m = np.zeros(spec_dict.shape[1],dtype=bool)
 
@@ -263,15 +264,23 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
         beta[S,0] = optimizor.solve(DS, signal, spec_dict[:,S])
         # Compute new residual
         e=signal - DS@beta[S]*len(S)/(len(S)+1)
+        current_e = signal - DS@beta[S]
+        if verbose>0:
+            print('e:',np.sqrt(np.mean(e**2)))
+            print('current_e:',np.sqrt(np.mean(current_e**2)))
         yFexp_list.append(yFexp)
-        errs.append(np.sqrt(np.mean(e**2)))
+        errs.append(np.sqrt(np.mean(current_e**2)))
+        
+        huber_list = [huber_func(omega,optimizor.c) for omega in beta[S,0]]
+        cost = 0.5*np.mean(current_e**2)+optimizor.l_star*np.sum(huber_list)
+        cost_list.append(cost)
         optimizor.set_mbi(np.argmax(beta[S,0].flatten()))
         estimated_spec = spec_dict @ beta
         estimated_spec_list.append(estimated_spec)
     if normalized_output:
         estimated_spec /=np.trapz(estimated_spec.flatten(),energies)
     if return_component:
-        return estimated_spec_list, errs, beta, S,yFexp_list,err_list
+        return estimated_spec_list, errs, beta, S, cost_list, err_list
     else:
         return estimated_spec_list, errs
 
