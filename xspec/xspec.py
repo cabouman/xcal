@@ -277,13 +277,14 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
         # Compute new residual
         e=signal - DS@beta[S]*len(S)/(len(S)+1)
         current_e = signal - DS@beta[S]
-        print('e:',np.sqrt(np.mean(e**2)))
-        print('current_e:',np.sqrt(np.mean(current_e**2)))
+        if verbose>0:
+            print('e:',np.sqrt(np.mean(e**2)))
+            print('current_e:',np.sqrt(np.mean(current_e**2)))
         yFexp_list.append(yFexp)
         errs.append(np.sqrt(np.mean(current_e**2)))
         
         huber_list = [huber_func(omega,optimizor.c) for omega in beta[S,0]]
-        cost = 0.5*current_e**2+optimizor.l_star*np.sum(huber_list)
+        cost = 0.5*np.mean(current_e**2)+optimizor.l_star*np.sum(huber_list)
         cost_list.append(cost)
         optimizor.set_mbi(np.argmax(beta[S,0].flatten()))
         estimated_spec = spec_dict @ beta
