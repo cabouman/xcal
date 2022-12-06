@@ -64,7 +64,7 @@ class Huber:
     def set_mbi(self, mbi):
         self.mbi = mbi
         
-    def solve(self, X, y, spec_dict=None):
+    def solve(self, X, y, weight=None, spec_dict=None):
         """
 
         Parameters
@@ -84,9 +84,12 @@ class Huber:
         beta = np.ones(n)/n
         c = self.c
         print('%d Dictionary'%n, beta)
+        
+        if weight is None:
+            weight = np.ones(y.shape)
+        weight = weight.reshape((-1, 1))
+        
         e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
-        l = spec_dict.shape[0]
-        spec_beta = spec_dict @ beta.reshape((-1, 1))
 
         for k in range(self.max_iter):
             permuted_ind = np.arange(n)
@@ -105,12 +108,11 @@ class Huber:
                     b2 = self.l_star/2
                 else:
                     b2 = self.l_star*np.clip(-beta_mbi,-c,c)/(-2*beta_mbi)
-                theta_1 = -e.T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * beta[i] -2*b2*beta_mbi
-                theta_2 = (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
+                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * beta[i] -2*b2*beta_mbi
+                theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
                 update = -theta_1 / theta_2
-                beta[i] = np.clip(beta_tmp + update, 0, beta[self.mbi])
+                beta[i] = np.clip(beta_tmp + update, 0, beta_tmp+beta[self.mbi])
                 beta[self.mbi] = 1 - np.sum(beta[permuted_ind])
-                spec_beta = spec_beta + (spec_dict[:, i:i + 1]-spec_dict[:,self.mbi:self.mbi+1]) * (beta[i] - beta_tmp)
 
                 tol_update += np.abs(beta[i]-beta_tmp)
                 e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
@@ -126,7 +128,7 @@ class Huber:
 
 
 # Orthogonal match pursuit with different optimization models.
-def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
+def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_weight=None,
                 mp_type='omp', mp_gamma=1, mp_topk=1, tol=1e-6,
                 return_component=False, normalized_output=False, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
@@ -216,11 +218,13 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
     
     S = []
     signal = signal.reshape((-1,1))
+    if signal_weight is None:
+        signal_weight = np.ones(signal.shape)
+    signal_weight = signal_weight.reshape((-1,1))
     DS = np.zeros((len(signal),0))
     e=signal.copy()
     beta = np.zeros((spec_dict.shape[1],1))
     errs=[]
-    yFexp_list=[]
     err_list=[]
     cost_list=[]
     estimated_spec_list = []
@@ -231,7 +235,8 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
     Aexp = np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1))).reshape((-1,len(energies)))
     if verbose>0:
         print(Aexp.shape)
-    Aexp2 = Aexp.T@Aexp
+        print(np.diag(signal_weight).shape)
+    Aexp2 = Aexp.T@np.diag(signal_weight.flatten())@Aexp
     DAexp2 = np.trapz(spec_dict.T[:,:,np.newaxis]*Aexp2[np.newaxis,:,:],energies,axis=1)
     if verbose>0:
         print('DAexp2 shape:',DAexp2.shape)
@@ -242,7 +247,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
     while len(S)<sparsity and np.linalg.norm(e)>tol:
         # Find new index
         err_list.append(e)
-        yFexp = (e.T@Aexp).reshape((-1,1))
+        yFexp = ((e*signal_weight).T@Aexp).reshape((-1,1))
         mp=2*np.trapz(yFexp*spec_dict,energies,axis=0)-FD2/(len(S)+1)   
         mp = np.ma.array(mp, mask=m)
         k = matching_pursuit(mp,mp_type,mp_gamma,mp_topk)
@@ -261,19 +266,19 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor,
 
         DS=np.concatenate([DS,Dk],axis=1)
         # Find best coefficient with new support
-        beta[S,0] = optimizor.solve(DS, signal, spec_dict[:,S])
+        beta[S,0] = optimizor.solve(DS, signal, weight=signal_weight, spec_dict=spec_dict[:,S])
         # Compute new residual
         e=signal - DS@beta[S]*len(S)/(len(S)+1)
         current_e = signal - DS@beta[S]
-        if verbose>0:
-            print('e:',np.sqrt(np.mean(e**2)))
-            print('current_e:',np.sqrt(np.mean(current_e**2)))
-        yFexp_list.append(yFexp)
-        errs.append(np.sqrt(np.mean(current_e**2)))
+        errs.append(np.sqrt(np.mean(current_e**2*signal_weight)))
         
         huber_list = [huber_func(omega,optimizor.c) for omega in beta[S,0]]
-        cost = 0.5*np.mean(current_e**2)+optimizor.l_star*np.sum(huber_list)
+        cost = 0.5*np.mean(current_e**2*signal_weight)+optimizor.l_star*np.sum(huber_list)
         cost_list.append(cost)
+        if verbose>0:
+            print('e:',np.sqrt(np.mean(e**2*signal_weight)))
+            print('current_e:',np.sqrt(np.mean(current_e**2*signal_weight)))
+            print('cost:',cost)
         optimizor.set_mbi(np.argmax(beta[S,0].flatten()))
         estimated_spec = spec_dict @ beta
         estimated_spec_list.append(estimated_spec)
