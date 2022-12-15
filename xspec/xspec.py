@@ -495,3 +495,103 @@ def binwised_spec_cali(signal, energies, x_init, h_init, beta_projs,
     plt.legend(legend)
 
     return x, h, cost_x_list, cost_rho_list, sp_list
+
+
+class Snap:
+    """Slove Snap prior using pair-wise ICD update.
+
+
+
+    """
+    def __init__(self, l_star=0.001, max_iter=3000, threshold=1e-7):
+        """
+
+        Parameters
+        ----------
+
+        l : float
+            Scalar value :math:`>0` that specifies the Snap regularization.
+        max_iter : int
+            Maximum number of iterations.
+        threshold : float
+            Scalar value for stop update threshold.
+
+        """
+        self.l_star = l_star
+        self.max_iter = max_iter
+        self.threshold = threshold
+        self.mbi = 0 # Max beta index
+        
+    def set_mbi(self, mbi):
+        self.mbi = mbi
+        
+    def cost(self):
+        snap_list = [omega**2 for omega in self.beta]
+        cost = 0.5*np.mean(self.e**2*self.weight)-self.l_star*np.sum(snap_list)/2
+        return cost
+        
+    def solve(self, X, y, weight=None, spec_dict=None):
+        """
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Dictionary matrix.
+        y : numpy.ndarray
+            Measurement data.
+
+        Returns
+        -------
+        beta : numpy.ndarray
+            Coefficients.
+
+        """
+        m, n = np.shape(X)
+        beta = np.ones(n)/n
+        print('%d Dictionary'%n, beta)
+        
+        if weight is None:
+            weight = np.ones(y.shape)
+        weight = weight.reshape((-1, 1))
+        
+        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
+        l = self.l_star
+        for k in range(self.max_iter):
+            permuted_ind = np.arange(n) #np.random.permutation(n)
+            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
+            tol_update = 0
+            for i in permuted_ind:
+                beta_tmp = beta[i]
+                beta_mbi = beta[self.mbi]
+                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - l*(beta_tmp-beta_mbi)
+                theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - 2 *l
+                if theta_2<0:
+                    update = -np.sign(theta_1)
+                else:
+                    update = -theta_1 / theta_2
+                beta[i] = np.clip(beta_tmp + update, 0, beta_tmp+beta_mbi)
+                beta[self.mbi] = np.clip(beta_mbi - update, 0, beta_tmp+beta_mbi)
+                #if theta_2<0 and beta_tmp>0 and beta[i]>0:
+#                 if k>0 and beta[i]>0 and beta[self.mbi]>0:
+#                     print('theta 1:',-(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m,- l*(beta_tmp-beta_mbi) )
+#                     print('theta 2:', ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m ,- 2 *l)
+#                     print('Previous beta[i],beta[self.mbi]:', beta_tmp,beta_mbi)
+#                     print('iter k, i,self.mbi:',k,i,self.mbi)
+#                     print('Current max index:',np.argmax(beta))
+#                     print('Current beta[i],beta[self.mbi],update:', beta[i],beta[self.mbi],update)
+                tol_update += np.abs(beta[i]-beta_tmp)
+                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
+            self.mbi = np.argmax(beta)
+#             print(k,self.mbi)
+            
+            if tol_update < self.threshold:
+                print('Stop at iteration:', k,'  Total update:', tol_update)
+                break
+                
+        
+        print('mbi, beta_mbi:',self.mbi,beta[self.mbi])
+        print('beta',beta)
+        self.beta=beta
+        self.e = e
+        self.weight = weight
+        return beta  
