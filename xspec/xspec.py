@@ -240,7 +240,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
     err_list=[]
     cost_list=[]
     estimated_spec_list = []
-    m = np.zeros(spec_dict.shape[1],dtype=bool)
+    mp_mask = np.zeros(spec_dict.shape[1],dtype=bool)
 
     wavelengths = get_wavelength(energies)
     wnum = 2 * np.pi / wavelengths
@@ -261,7 +261,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         err_list.append(e)
         yFexp = ((e*signal_weight).T@Aexp).reshape((-1,1))
         mp=2*np.trapz(yFexp*spec_dict,energies,axis=0)-FD2/(len(S)+1)   
-        mp = np.ma.array(mp, mask=m)
+        mp = np.ma.array(mp, mask=mp_mask)
         k = matching_pursuit(mp,mp_type,mp_gamma,mp_topk)
         if verbose>0:
             print(k)
@@ -272,7 +272,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         if verbose>0:
             print(S)
         
-        m[k] = True
+        mp_mask[k] = True
         #Dk = np.trapz(Aexp*spec_dict[:,k],energies).reshape((-1,1))
         Dk = np.trapz(Aexp[:,:,np.newaxis]*spec_dict[np.newaxis,:,k],energies,axis=1).reshape((-1,len(k)))
 
@@ -284,8 +284,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         current_e = signal - DS@beta[S]
         errs.append(np.sqrt(np.mean(current_e**2*signal_weight)))
         
-        huber_list = [huber_func(omega,optimizor.c) for omega in beta[S,0]]
-        cost = 0.5*np.mean(current_e**2*signal_weight)+optimizor.l_star*np.sum(huber_list)
+        cost = optimizor.cost()
         cost_list.append(cost)
         if verbose>0:
             print('e:',np.sqrt(np.mean(e**2*signal_weight)))
