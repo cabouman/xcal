@@ -23,9 +23,12 @@ def matching_pursuit(mp,mptype='omp',gamma=0.9,topk=1):
         index_list, = np.nonzero(mp>gamma*max_mp)
         return index_list.tolist()
     elif mptype=='gomp':
-        idx = np.argpartition(mp, -topk)[-topk:]
+        mp_mask_ind = [i for i in range(len(mp)) if not mp.mask[i]]
+        idx = np.argpartition(mp.data[mp_mask_ind], -topk)[-topk:].tolist()
         print(idx)
-        return idx.tolist()
+        print(np.array(mp_mask_ind)[idx])
+        
+        return np.array(mp_mask_ind)[idx].tolist()
 
 
 class Huber:
