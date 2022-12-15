@@ -568,18 +568,9 @@ class Snap:
                     update = -theta_1 / theta_2
                 beta[i] = np.clip(beta_tmp + update, 0, beta_tmp+beta_mbi)
                 beta[self.mbi] = np.clip(beta_mbi - update, 0, beta_tmp+beta_mbi)
-                #if theta_2<0 and beta_tmp>0 and beta[i]>0:
-#                 if k>0 and beta[i]>0 and beta[self.mbi]>0:
-#                     print('theta 1:',-(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m,- l*(beta_tmp-beta_mbi) )
-#                     print('theta 2:', ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m ,- 2 *l)
-#                     print('Previous beta[i],beta[self.mbi]:', beta_tmp,beta_mbi)
-#                     print('iter k, i,self.mbi:',k,i,self.mbi)
-#                     print('Current max index:',np.argmax(beta))
-#                     print('Current beta[i],beta[self.mbi],update:', beta[i],beta[self.mbi],update)
                 tol_update += np.abs(beta[i]-beta_tmp)
                 e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
             self.mbi = np.argmax(beta)
-#             print(k,self.mbi)
             
             if tol_update < self.threshold:
                 print('Stop at iteration:', k,'  Total update:', tol_update)
