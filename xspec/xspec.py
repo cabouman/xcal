@@ -63,9 +63,15 @@ class Huber:
         self.max_iter = max_iter
         self.threshold = threshold
         self.mbi = 0 # Max beta index
+        self.beta=None
         
     def set_mbi(self, mbi):
         self.mbi = mbi
+        
+    def cost(self):
+        huber_list = [huber_func(omega,self.c) for omega in self.beta]
+        cost = 0.5*np.mean(self.e**2*self.weight)+self.l_star*np.sum(huber_list) 
+        return cost
         
     def solve(self, X, y, weight=None, spec_dict=None):
         """
@@ -127,6 +133,9 @@ class Huber:
         
         print('mbi, beta_mbi:',self.mbi,beta[self.mbi])
         print('beta',beta)
+        self.beta=beta
+        self.e = e
+        self.weight = weight
         return beta  
 
 
