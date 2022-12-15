@@ -60,13 +60,13 @@ class Huber:
         self.max_iter = max_iter
         self.threshold = threshold
         self.mbi = 0 # Max beta index
-        self.beta=None
+        self.Omega=None
         
     def set_mbi(self, mbi):
         self.mbi = mbi
         
     def cost(self):
-        huber_list = [huber_func(omega,self.c) for omega in self.beta]
+        huber_list = [huber_func(omega,self.c) for omega in self.Omega]
         cost = 0.5*np.mean(self.e**2*self.weight)+self.l_star*np.sum(huber_list) 
         return cost
         
@@ -87,9 +87,9 @@ class Huber:
 
         """
         m, n = np.shape(X)
-        beta = np.ones(n)/n
+        Omega = np.ones(n)/n
         c = self.c
-        print('%d Dictionary'%n, beta)
+        print('%d Dictionary'%n, Omega)
         
         if weight is None:
             weight = np.ones(y.shape)
@@ -102,39 +102,129 @@ class Huber:
             permuted_ind = permuted_ind[permuted_ind!=self.mbi]
             tol_update = 0
             for i in permuted_ind:
-                beta_tmp = beta[i]
-                beta_mbi = beta[self.mbi]
+                omega_tmp = Omega[i]
+                omega_mbi = Omega[self.mbi]
 
-                if np.abs(beta[i])<1e-9:
+                if np.abs(Omega[i])<1e-9:
                     b1 = self.l_star/2
                 else:
-                    b1 = self.l_star*np.clip(beta[i],-c,c)/(2*beta[i])
+                    b1 = self.l_star*np.clip(Omega[i],-c,c)/(2*Omega[i])
 
-                if np.abs(beta_mbi)<1e-9:
+                if np.abs(omega_mbi)<1e-9:
                     b2 = self.l_star/2
                 else:
-                    b2 = self.l_star*np.clip(-beta_mbi,-c,c)/(-2*beta_mbi)
-                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * beta[i] -2*b2*beta_mbi
+                    b2 = self.l_star*np.clip(-omega_mbi,-c,c)/(-2*omega_mbi)
+                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * Omega[i] -2*b2*omega_mbi
                 theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
                 update = -theta_1 / theta_2
-                beta[i] = np.clip(beta_tmp + update, 0, beta_tmp+beta[self.mbi])
-                beta[self.mbi] = 1 - np.sum(beta[permuted_ind])
+                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp+Omega[self.mbi])
+                Omega[self.mbi] = 1 - np.sum(Omega[permuted_ind])
 
-                tol_update += np.abs(beta[i]-beta_tmp)
-                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
+                tol_update += np.abs(Omega[i]-omega_tmp)
+                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (Omega[i]-omega_tmp)
             
             if tol_update < self.threshold:
                 print('Stop at iteration:', k,'  Total update:', tol_update)
                 break
                 
         
-        print('mbi, beta_mbi:',self.mbi,beta[self.mbi])
-        print('beta',beta)
-        self.beta=beta
+        print('mbi, Omega_mbi:',self.mbi,Omega[self.mbi])
+        print('Omega',Omega)
+        self.Omega=Omega
         self.e = e
         self.weight = weight
-        return beta  
+        return Omega  
 
+
+class Snap:
+    """Slove Snap prior using pair-wise ICD update.
+
+
+
+    """
+    def __init__(self, l_star=0.001, max_iter=3000, threshold=1e-7):
+        """
+
+        Parameters
+        ----------
+
+        l : float
+            Scalar value :math:`>0` that specifies the Snap regularization.
+        max_iter : int
+            Maximum number of iterations.
+        threshold : float
+            Scalar value for stop update threshold.
+
+        """
+        self.l_star = l_star
+        self.max_iter = max_iter
+        self.threshold = threshold
+        self.mbi = 0 # Max beta index
+        
+    def set_mbi(self, mbi):
+        self.mbi = mbi
+        
+    def cost(self):
+        snap_list = [omega**2 for omega in self.Omega]
+        cost = 0.5*np.mean(self.e**2*self.weight)-self.l_star*np.sum(snap_list)/2
+        return cost
+        
+    def solve(self, X, y, weight=None, spec_dict=None):
+        """
+
+        Parameters
+        ----------
+        X : numpy.ndarray
+            Dictionary matrix.
+        y : numpy.ndarray
+            Measurement data.
+
+        Returns
+        -------
+        omega : numpy.ndarray
+            Coefficients.
+
+        """
+        m, n = np.shape(X)
+        Omega = np.ones(n)/n
+        print('%d Dictionary'%n, Omega)
+        
+        if weight is None:
+            weight = np.ones(y.shape)
+        weight = weight.reshape((-1, 1))
+        
+        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
+        l = self.l_star
+        for k in range(self.max_iter):
+            permuted_ind = np.arange(n) #np.random.permutation(n)
+            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
+            tol_update = 0
+            for i in permuted_ind:
+                omega_tmp = Omega[i]
+                omega_mbi = Omega[self.mbi]
+                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - l*(omega_tmp-omega_mbi)
+                theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - 2 *l
+                if theta_2<0:
+                    update = -np.sign(theta_1)
+                else:
+                    update = -theta_1 / theta_2
+                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp+omega_mbi)
+                Omega[self.mbi] = np.clip(omega_mbi - update, 0, omega_tmp+omega_mbi)
+                tol_update += np.abs(Omega[i]-omega_tmp)
+                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (Omega[i]-omega_tmp)
+            self.mbi = np.argmax(Omega)
+            
+            if tol_update < self.threshold:
+                print('Stop at iteration:', k,'  Total update:', tol_update)
+                break
+                
+        
+        print('mbi, omega_mbi:',self.mbi,Omega[self.mbi])
+        print('Omega',Omega)
+        self.Omega=Omega
+        self.e = e
+        self.weight = weight
+        return Omega  
 
 # Orthogonal match pursuit with different optimization models.
 def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_weight=None,
@@ -230,35 +320,39 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
     if signal_weight is None:
         signal_weight = np.ones(signal.shape)
     signal_weight = signal_weight.reshape((-1,1))
-    DS = np.zeros((len(signal),0))
+    FDS = np.zeros((len(signal),0))
     e=signal.copy()
-    beta = np.zeros((spec_dict.shape[1],1))
+    omega = np.zeros((spec_dict.shape[1],1))
     errs=[]
     err_list=[]
     cost_list=[]
     estimated_spec_list = []
-    mp_mask = np.zeros(spec_dict.shape[1],dtype=bool)
 
+    selected_spec_mask = np.zeros(spec_dict.shape[1],dtype=bool)
     wavelengths = get_wavelength(energies)
     wnum = 2 * np.pi / wavelengths
-    Aexp = np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1))).reshape((-1,len(energies)))
+
+    F = np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1))).reshape((-1,len(energies)))
     if verbose>0:
-        print(Aexp.shape)
+        print(F.shape)
         print(np.diag(signal_weight).shape)
-    Aexp2 = Aexp.T@np.diag(signal_weight.flatten())@Aexp
-    DAexp2 = np.trapz(spec_dict.T[:,:,np.newaxis]*Aexp2[np.newaxis,:,:],energies,axis=1)
+    Fsq = F.T@np.diag(signal_weight.flatten())@F
+    D_Fsq = np.trapz(spec_dict.T[:,:,np.newaxis]*Fsq[np.newaxis,:,:],energies,axis=1)
     if verbose>0:
-        print('DAexp2 shape:',DAexp2.shape)
-    FD2 = np.trapz(DAexp2*spec_dict.T,energies,axis=1)
+        print('D_Fsq shape:',D_Fsq.shape)
+    FDsq = np.trapz(D_Fsq*spec_dict.T,energies,axis=1)
     if verbose>0:
-        print('FD2 shape:',FD2.shape)
-    
+        print('FDsq shape:',FDsq.shape)
+    FDK = np.trapz(F[:,:,np.newaxis]*spec_dict[np.newaxis,:,:],energies,axis=1).reshape((-1,spec_dict.shape[-1]))
+    if verbose>0:
+        print('FDK shape:',FDK.shape)
+
     while len(S)<sparsity and np.linalg.norm(e)>tol:
         # Find new index
         err_list.append(e)
-        yFexp = ((e*signal_weight).T@Aexp).reshape((-1,1))
-        mp=2*np.trapz(yFexp*spec_dict,energies,axis=0)-FD2/(len(S)+1)   
-        mp = np.ma.array(mp, mask=mp_mask)
+        yF = ((e*signal_weight).T@F).reshape((-1,1))
+        mp=2*np.trapz(yF*spec_dict,energies,axis=0)-FDsq/(len(S)+1)   
+        mp = np.ma.array(mp, mask=selected_spec_mask)
         k = select_new_spec(mp,mp_type,mp_gamma,mp_topk)
         if verbose>0:
             print(k)
@@ -269,31 +363,30 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         if verbose>0:
             print(S)
         
-        mp_mask[k] = True
+        selected_spec_mask[k] = True
         #Dk = np.trapz(Aexp*spec_dict[:,k],energies).reshape((-1,1))
-        Dk = np.trapz(Aexp[:,:,np.newaxis]*spec_dict[np.newaxis,:,k],energies,axis=1).reshape((-1,len(k)))
+        FDk = np.trapz(F[:,:,np.newaxis]*spec_dict[np.newaxis,:,k],energies,axis=1).reshape((-1,len(k)))
 
-        DS=np.concatenate([DS,Dk],axis=1)
+        FDS=np.concatenate([FDS,FDk],axis=1)
         # Find best coefficient with new support
-        beta[S,0] = optimizor.solve(DS, signal, weight=signal_weight, spec_dict=spec_dict[:,S])
+        omega[S,0] = optimizor.solve(FDS, signal, weight=signal_weight, spec_dict=spec_dict[:,S])
         # Compute new residual
-        e=signal - DS@beta[S]*len(S)/(len(S)+1)
-        current_e = signal - DS@beta[S]
+        e=signal - FDS@omega[S]
+        current_e = signal - FDS@omega[S]
         errs.append(np.sqrt(np.mean(current_e**2*signal_weight)))
         
         cost = optimizor.cost()
         cost_list.append(cost)
         if verbose>0:
-            print('e:',np.sqrt(np.mean(e**2*signal_weight)))
             print('current_e:',np.sqrt(np.mean(current_e**2*signal_weight)))
             print('cost:',cost)
-        optimizor.set_mbi(np.argmax(beta[S,0].flatten()))
-        estimated_spec = spec_dict @ beta
+        optimizor.set_mbi(np.argmax(omega[S,0].flatten()))
+        estimated_spec = spec_dict @ omega
         estimated_spec_list.append(estimated_spec)
     if normalized_output:
         estimated_spec /=np.trapz(estimated_spec.flatten(),energies)
     if return_component:
-        return estimated_spec_list, errs, beta, S, cost_list, err_list
+        return estimated_spec_list, errs, omega, S, cost_list, err_list
     else:
         return estimated_spec_list, errs
 
@@ -494,92 +587,3 @@ def binwised_spec_cali(signal, energies, x_init, h_init, beta_projs,
     return x, h, cost_x_list, cost_rho_list, sp_list
 
 
-class Snap:
-    """Slove Snap prior using pair-wise ICD update.
-
-
-
-    """
-    def __init__(self, l_star=0.001, max_iter=3000, threshold=1e-7):
-        """
-
-        Parameters
-        ----------
-
-        l : float
-            Scalar value :math:`>0` that specifies the Snap regularization.
-        max_iter : int
-            Maximum number of iterations.
-        threshold : float
-            Scalar value for stop update threshold.
-
-        """
-        self.l_star = l_star
-        self.max_iter = max_iter
-        self.threshold = threshold
-        self.mbi = 0 # Max beta index
-        
-    def set_mbi(self, mbi):
-        self.mbi = mbi
-        
-    def cost(self):
-        snap_list = [omega**2 for omega in self.beta]
-        cost = 0.5*np.mean(self.e**2*self.weight)-self.l_star*np.sum(snap_list)/2
-        return cost
-        
-    def solve(self, X, y, weight=None, spec_dict=None):
-        """
-
-        Parameters
-        ----------
-        X : numpy.ndarray
-            Dictionary matrix.
-        y : numpy.ndarray
-            Measurement data.
-
-        Returns
-        -------
-        beta : numpy.ndarray
-            Coefficients.
-
-        """
-        m, n = np.shape(X)
-        beta = np.ones(n)/n
-        print('%d Dictionary'%n, beta)
-        
-        if weight is None:
-            weight = np.ones(y.shape)
-        weight = weight.reshape((-1, 1))
-        
-        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
-        l = self.l_star
-        for k in range(self.max_iter):
-            permuted_ind = np.arange(n) #np.random.permutation(n)
-            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
-            tol_update = 0
-            for i in permuted_ind:
-                beta_tmp = beta[i]
-                beta_mbi = beta[self.mbi]
-                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - l*(beta_tmp-beta_mbi)
-                theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - 2 *l
-                if theta_2<0:
-                    update = -np.sign(theta_1)
-                else:
-                    update = -theta_1 / theta_2
-                beta[i] = np.clip(beta_tmp + update, 0, beta_tmp+beta_mbi)
-                beta[self.mbi] = np.clip(beta_mbi - update, 0, beta_tmp+beta_mbi)
-                tol_update += np.abs(beta[i]-beta_tmp)
-                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (beta[i]-beta_tmp)
-            self.mbi = np.argmax(beta)
-            
-            if tol_update < self.threshold:
-                print('Stop at iteration:', k,'  Total update:', tol_update)
-                break
-                
-        
-        print('mbi, beta_mbi:',self.mbi,beta[self.mbi])
-        print('beta',beta)
-        self.beta=beta
-        self.e = e
-        self.weight = weight
-        return beta  
