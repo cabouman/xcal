@@ -14,20 +14,17 @@ import matplotlib.pyplot as plt
 from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func
 
 
-def matching_pursuit(mp,mptype='omp',gamma=0.9,topk=1):
-    if mptype=='omp':
+def select_new_spec(mp,type='original',gamma=0.9,topk=1):
+    if type=='original':
         k = np.argmax(mp)
         return [k]
-    elif mptype=='domp':
+    elif type=='dynamic':
         max_mp = np.max(mp)
         index_list, = np.nonzero(mp>gamma*max_mp)
         return index_list.tolist()
-    elif mptype=='gomp':
+    elif type=='general':
         mp_mask_ind = [i for i in range(len(mp)) if not mp.mask[i]]
         idx = np.argpartition(mp.data[mp_mask_ind], -topk)[-topk:].tolist()
-        print(idx)
-        print(np.array(mp_mask_ind)[idx])
-        
         return np.array(mp_mask_ind)[idx].tolist()
 
 
@@ -262,7 +259,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         yFexp = ((e*signal_weight).T@Aexp).reshape((-1,1))
         mp=2*np.trapz(yFexp*spec_dict,energies,axis=0)-FD2/(len(S)+1)   
         mp = np.ma.array(mp, mask=mp_mask)
-        k = matching_pursuit(mp,mp_type,mp_gamma,mp_topk)
+        k = select_new_spec(mp,mp_type,mp_gamma,mp_topk)
         if verbose>0:
             print(k)
         if len(k)==0:
