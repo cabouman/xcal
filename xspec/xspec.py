@@ -127,8 +127,6 @@ class Huber:
 class Snap:
     """Slove Snap prior using pair-wise ICD update.
 
-
-
     """
 
     def __init__(self, l_star=0.001, max_iter=3000, threshold=1e-7):
@@ -233,8 +231,8 @@ class Snap:
         return Omega
 
 # Orthogonal match pursuit with different optimization models.
-def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_weight=None,
-                 tol=1e-6, return_component=False, verbose=0):
+def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_weight=None,
+           tol=1e-6, return_component=False, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
     This function requires users to provide a large enough spectrum dictionary to estimate the source spectrum.
@@ -243,7 +241,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
     Parameters
     ----------
     signal : numpy.ndarray
-        Transmission Data of size (#sets, #energies, #views, #rows, #columns). Should be the exponential term instead of the projection after taking negative log.
+        Transmission Data :math:`y` of size (#sets, #energies, #views, #rows, #columns). Should be the exponential term instead of the projection after taking negative log.
     energies : numpy.ndarray
         List of X-ray energies of a poly-energetic source in units of keV.
     beta_projs : numpy.ndarray
@@ -306,7 +304,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
             Trans_noisy = polyE_projs  + np.sqrt(polyE_projs)*0.1*0.01*np.random.standard_normal(size=polyE_projs.shape)
             Trans_noisy = np.clip(Trans_noisy,0,1)
 
-            estimated_spec, errs, coef = omp_spec_cali(signal = Trans_noisy[:, :,63:64,:],
+            estimated_spec, errs, coef = dictSE(signal = Trans_noisy[:, :,63:64,:],
                                                      energies=energies,
                                                      beta_projs=beta_projs[:,:,:,63:64,:],
                                                      spec_dict=np.array([np.roll(sp_als,i) for i in range(500)]).T,
@@ -335,10 +333,11 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
     criteria_list = []
 
     selected_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
+
     wavelengths = get_wavelength(energies)
     wnum = 2 * np.pi / wavelengths
-
     F = np.exp(-2 * wnum * beta_projs.transpose((0, 2, 3, 4, 1))).reshape((-1, len(energies)))
+
     if verbose > 0:
         print(F.shape)
         print(np.diag(signal_weight).shape)
@@ -435,6 +434,26 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         return estimated_spec, omega
 
 
+
+def cal_fw_mat(solid_vol_masks, materials, fw_projector):
+    """Calculate the forward matrix of multiple solid objects combination with given forward projector.
+
+    Parameters
+    ----------
+    solid_vol_masks: A list of 3D numpy.ndarray.
+        Each mask in the list represents a solid pure object.
+    materials: A list of dictionary corresponding to solid_vol_masks.
+        Each dictionary contains {chemical formula, density(g/cc)} for the corresponding solid pure object.
+    fw_projector: A numpy class.
+        Forward projector with a function forward(3D mask, {chemical formula, density(g/cc)}).
+
+    Returns
+    -------
+    spec_fw_mat: A numpy.ndarray.
+        Forward matrix of spectral estimation.
+
+    """
+    return 1
 
 
 def binwised_spec_cali(signal, energies, x_init, h_init, beta_projs, 
