@@ -444,14 +444,15 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
 
 
 
-def cal_fw_mat(solid_vol_masks, materials, fw_projector):
+
+def cal_fw_mat(solid_vol_masks, obj_dict, fw_projector):
     """Calculate the forward matrix of multiple solid objects combination with given forward projector.
 
     Parameters
     ----------
     solid_vol_masks: A list of 3D numpy.ndarray.
         Each mask in the list represents a solid pure object.
-    materials: A list of dictionary corresponding to solid_vol_masks.
+    obj_dict: A list of dictionary corresponding to solid_vol_masks.
         Each dictionary contains {chemical formula, density(g/cc)} for the corresponding solid pure object.
     fw_projector: A numpy class.
         Forward projector with a function forward(3D mask, {chemical formula, density(g/cc)}).
@@ -462,7 +463,8 @@ def cal_fw_mat(solid_vol_masks, materials, fw_projector):
         Forward matrix of spectral estimation.
 
     """
-    return 1
+
+    return fw_projector.forward(solid_vol_masks, obj_dict)
 
 
 def binwised_spec_cali(signal, energies, x_init, h_init, beta_projs, 
