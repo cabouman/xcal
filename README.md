@@ -1,6 +1,6 @@
 # xspec
 
-*Python code for X-ray spectral estimation using dictionary learning(dictSE).
+Python code for X-ray spectral estimation using dictionary learning(dictSE).
 
 
 ## Installing xspec
