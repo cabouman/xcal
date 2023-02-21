@@ -231,7 +231,7 @@ class Snap:
         return Omega
 
 # Orthogonal match pursuit with different optimization models.
-def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_weight=None,
+def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal_weight=None,
            tol=1e-6, return_component=False, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
@@ -244,8 +244,8 @@ def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_
         Transmission Data :math:`y` of size (#sets, #energies, #views, #rows, #columns). Should be the exponential term instead of the projection after taking negative log.
     energies : numpy.ndarray
         List of X-ray energies of a poly-energetic source in units of keV.
-    beta_projs : numpy.ndarray
-        A numpy array of volumetric values of absorption index of size (#sets, #energies, #views, #rows, #columns)
+    forward_mat : numpy.ndarray
+        A numpy array of forward matrix (#sets * #views * #rows * #columns, #energies)
     spec_dict : numpy.ndarray
         The spectrum dictionary contains N, the number of column, different X-ray spectrum.
         The number of rows M, should be same as the length of energies, should be normalized to integrate to 1.
@@ -253,21 +253,22 @@ def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_
         The max number of nonzero coefficients.
     optimizor : Python object
         Should be one of the optimizors defined above. [RidgeReg(), LassoReg(), ElasticNetReg(), QGGMRF()]
+    signal_weight: numpy.ndarray
+        Weight for transmission Data, representing uncertainty, has same size as signal.
     tol : float
         The stop threshold.
     return_component : bool
         If true return coefficient.
+    verbose: int
+        Possible values are {0,1}, where 0 is quiet, 1 prints full information.
 
 
     Returns
     -------
-    estimated_spec : numpy.ndarray
+    estimated_spec : 1D numpy.ndarray
         The estimated source-spectrum.
-    errs : List
-        List of errors while increasing sparsity.
-    beta : numpy.ndarray
-        Coefficients for spectrum dictionary wite size (#spectrums, 1).
-
+    omega : 1D numpy.ndarray
+        Coefficients to do linear combination of the basis spectra in dictionary.
 
 
     Examples
@@ -334,19 +335,19 @@ def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_
 
     selected_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
 
-    wavelengths = get_wavelength(energies)
-    wnum = 2 * np.pi / wavelengths
-    F = np.exp(-2 * wnum * beta_projs.transpose((0, 2, 3, 4, 1))).reshape((-1, len(energies)))
+    # wavelengths = get_wavelength(energies)
+    # wnum = 2 * np.pi / wavelengths
+    # forward_mat = np.exp(-2 * wnum * beta_projs.transpose((0, 2, 3, 4, 1))).reshape((-1, len(energies)))
 
     if verbose > 0:
-        print(F.shape)
+        print(forward_mat.shape)
         print(np.diag(signal_weight).shape)
 
     # Pre-calculate matrices
     ysq = np.sum(y * signal_weight * y)
-    y_F = ((y * signal_weight).T @ F).reshape((-1, 1))
+    y_F = ((y * signal_weight).T @ forward_mat).reshape((-1, 1))
     y_F_Dk = np.trapz(y_F * spec_dict, energies, axis=0)
-    Fsq = F.T @ np.diag(signal_weight.flatten()) @ F
+    Fsq = forward_mat.T @ np.diag(signal_weight.flatten()) @ forward_mat
 
     D_Fsq = np.trapz(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
     if verbose > 0:
@@ -354,7 +355,7 @@ def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_
     FDsq = np.trapz(D_Fsq * spec_dict.T, energies, axis=1)
     if verbose > 0:
         print('FDsq shape:', FDsq.shape)
-    FDK = np.trapz(F[:, :, np.newaxis] * spec_dict[np.newaxis, :, :], energies, axis=1).reshape(
+    FDK = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, :], energies, axis=1).reshape(
         (-1, spec_dict.shape[-1]))
     if verbose > 0:
         print('FDK shape:', FDK.shape)
@@ -369,7 +370,7 @@ def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_
         # Compute required matrices
         y_yhat = np.sum(y * signal_weight * yhat)
         yhat_sq = np.sum(yhat * signal_weight * yhat)
-        yhat_F = ((yhat * signal_weight).T @ F).reshape((-1, 1))
+        yhat_F = ((yhat * signal_weight).T @ forward_mat).reshape((-1, 1))
         yhat_F_Dk = np.trapz(yhat_F * spec_dict, energies, axis=0)
 
         rho1 = y_yhat + FDsq - y_F_Dk - yhat_F_Dk
@@ -403,7 +404,7 @@ def dictSE(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_
         S = S + k
         print(S)
         selected_spec_mask[k] = True
-        FDk = np.trapz(F[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
+        FDk = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
         FDS = np.concatenate([FDS, FDk], axis=1)
 
         # Find best coefficient with new support given solver.
