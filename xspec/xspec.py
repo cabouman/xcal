@@ -14,18 +14,6 @@ import matplotlib.pyplot as plt
 from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func
 
 
-def select_new_spec(mp,type='original',gamma=0.9,topk=1):
-    if type=='original':
-        k = np.argmax(mp)
-        return [k]
-    elif type=='dynamic':
-        max_mp = np.max(mp)
-        index_list, = np.nonzero(mp>gamma*max_mp)
-        return index_list.tolist()
-    elif type=='general':
-        mp_mask_ind = [i for i in range(len(mp)) if not mp.mask[i]]
-        idx = np.argpartition(mp.data[mp_mask_ind], -topk)[-topk:].tolist()
-        return np.array(mp_mask_ind)[idx].tolist()
 
 
 class Huber:
@@ -133,7 +121,7 @@ class Huber:
         self.Omega=Omega
         self.e = e
         self.weight = weight
-        return Omega  
+        return Omega
 
 
 class Snap:
@@ -142,6 +130,7 @@ class Snap:
 
 
     """
+
     def __init__(self, l_star=0.001, max_iter=3000, threshold=1e-7):
         """
 
@@ -159,17 +148,18 @@ class Snap:
         self.l_star = l_star
         self.max_iter = max_iter
         self.threshold = threshold
-        self.mbi = 0 # Max beta index
-        
+        self.mbi = 0  # Max beta index
+        self.cost_list = []
+
     def set_mbi(self, mbi):
         self.mbi = mbi
-        
+
     def cost(self):
-        snap_list = [omega**2 for omega in self.Omega]
-        cost = 0.5*np.mean(self.e**2*self.weight)-self.l_star*np.sum(snap_list)/2
+        snap_list = [omega ** 2 for omega in self.Omega]
+        cost = 0.5 * np.mean(self.e ** 2 * self.weight) + self.l_star * (1 - np.sum(snap_list)) / 2
         return cost
-        
-    def solve(self, X, y, weight=None, spec_dict=None):
+
+    def solve(self, X, y, weight=None, Omega_init=None, e_init=None, spec_dict=None):
         """
 
         Parameters
@@ -185,51 +175,66 @@ class Snap:
             Coefficients.
 
         """
+        self.cost_list = []
         m, n = np.shape(X)
-        Omega = np.ones(n)/n
-        print('%d Dictionary'%n, Omega)
-        
+        if Omega_init is not None:
+            Omega = Omega_init
+            print('Omega init:', Omega)
+        else:
+            Omega = np.ones(n) / n
+        print('%d Dictionary' % n, Omega)
+
         if weight is None:
             weight = np.ones(y.shape)
         weight = weight.reshape((-1, 1))
-        
-        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
+
+        if e_init is None:
+            e = y.reshape((-1, 1)) - np.mean(X, axis=-1, keepdims=True)
+        else:
+            e = e_init
         l = self.l_star
+        self.Omega = Omega
+        self.e = e
+        self.weight = weight
+        self.cost_list.append(self.cost())
         for k in range(self.max_iter):
-            permuted_ind = np.arange(n) #np.random.permutation(n)
-            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
+            permuted_ind = np.random.permutation(n)
+            permuted_ind = permuted_ind[permuted_ind != self.mbi]
             tol_update = 0
             for i in permuted_ind:
                 omega_tmp = Omega[i]
                 omega_mbi = Omega[self.mbi]
-                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - l*(omega_tmp-omega_mbi)
-                theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m - 2 *l
-                if theta_2<0:
+                theta_1 = -(e * weight).T @ (X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) / m - l * (
+                            omega_tmp - omega_mbi)
+                theta_2 = ((X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) * weight).T @ (
+                            X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) / m - 2 * l
+                if theta_2 < 0:
                     update = -np.sign(theta_1)
                 else:
                     update = -theta_1 / theta_2
-                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp+omega_mbi)
-                Omega[self.mbi] = np.clip(omega_mbi - update, 0, omega_tmp+omega_mbi)
-                tol_update += np.abs(Omega[i]-omega_tmp)
-                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (Omega[i]-omega_tmp)
+                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp + omega_mbi)
+                Omega[self.mbi] = np.clip(omega_mbi - update, 0, omega_tmp + omega_mbi)
+                tol_update += np.abs(Omega[i] - omega_tmp)
+                e = e - (X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) * (Omega[i] - omega_tmp)
+            self.Omega = Omega
+            self.e = e
+            self.weight = weight
             self.mbi = np.argmax(Omega)
-            
+            if tol_update > self.threshold / 10:
+                self.cost_list.append(self.cost())
+
             if tol_update < self.threshold:
-                print('Stop at iteration:', k,'  Total update:', tol_update)
+                print('Stop at iteration:', k, '  Total update:', tol_update)
                 break
-                
-        
-        print('mbi, omega_mbi:',self.mbi,Omega[self.mbi])
-        print('Omega',Omega)
-        self.Omega=Omega
-        self.e = e
-        self.weight = weight
-        return Omega  
+
+        print('mbi, omega_mbi:', self.mbi, Omega[self.mbi])
+        print('Omega', Omega)
+
+        return Omega
 
 # Orthogonal match pursuit with different optimization models.
 def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, signal_weight=None,
-                mp_type='omp', mp_gamma=1, mp_topk=1, tol=1e-6,
-                return_component=False, normalized_output=False, verbose=0):
+                 tol=1e-6, return_component=False, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
     This function requires users to provide a large enough spectrum dictionary to estimate the source spectrum.
@@ -254,8 +259,7 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
         The stop threshold.
     return_component : bool
         If true return coefficient.
-    normalized_output: bool
-        If true the output estimate will be normalized to integrate to 1.
+
 
     Returns
     -------
@@ -271,8 +275,8 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
     Examples
     --------
     .. code-block:: python
-    
-    
+
+
         import numpy as np
         import matplotlib.pyplot as plt
         from phasetorch.spectrum import als_bm832,omp_spec_cali,LassoReg,RidgeReg
@@ -309,86 +313,126 @@ def omp_spec_cali(signal, energies, beta_projs, spec_dict, sparsity, optimizor, 
                                                      sparsity=10,
                                                      optimizor=LassoReg(l1=0.001),
                                                      tol=1e-06,
-                                                     return_component=True,
-                                                     normalized_output=True)
+                                                     return_component=True)
             plt.plot( energies,sp_als)
             plt.plot( energies,estimated_spec)
     """
-    
+
     S = []
-    signal = signal.reshape((-1,1))
+    signal = signal.reshape((-1, 1))
     if signal_weight is None:
         signal_weight = np.ones(signal.shape)
-    signal_weight = signal_weight.reshape((-1,1))
-    FDS = np.zeros((len(signal),0))
-    e=signal.copy()
-    omega = np.zeros((spec_dict.shape[1],1))
-    errs=[]
-    err_list=[]
-    cost_list=[]
+    signal_weight = signal_weight.reshape((-1, 1))
+    FDS = np.zeros((len(signal), 0))
+    e = signal.copy()
+    y = signal.copy()
+    omega = np.zeros((spec_dict.shape[1], 1))
+    errs = []
+    err_list = []
+    cost_list = []
+    ICD_cost_list = []
     estimated_spec_list = []
+    criteria_list = []
 
-    selected_spec_mask = np.zeros(spec_dict.shape[1],dtype=bool)
+    selected_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
     wavelengths = get_wavelength(energies)
     wnum = 2 * np.pi / wavelengths
 
-    F = np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1))).reshape((-1,len(energies)))
-    if verbose>0:
+    F = np.exp(-2 * wnum * beta_projs.transpose((0, 2, 3, 4, 1))).reshape((-1, len(energies)))
+    if verbose > 0:
         print(F.shape)
         print(np.diag(signal_weight).shape)
-    Fsq = F.T@np.diag(signal_weight.flatten())@F
-    D_Fsq = np.trapz(spec_dict.T[:,:,np.newaxis]*Fsq[np.newaxis,:,:],energies,axis=1)
-    if verbose>0:
-        print('D_Fsq shape:',D_Fsq.shape)
-    FDsq = np.trapz(D_Fsq*spec_dict.T,energies,axis=1)
-    if verbose>0:
-        print('FDsq shape:',FDsq.shape)
-    FDK = np.trapz(F[:,:,np.newaxis]*spec_dict[np.newaxis,:,:],energies,axis=1).reshape((-1,spec_dict.shape[-1]))
-    if verbose>0:
-        print('FDK shape:',FDK.shape)
 
-    while len(S)<sparsity and np.linalg.norm(e)>tol:
-        # Find new index
-        err_list.append(e)
-        yF = ((e*signal_weight).T@F).reshape((-1,1))
-        mp=2*np.trapz(yF*spec_dict,energies,axis=0)-FDsq/(len(S)+1)   
-        mp = np.ma.array(mp, mask=selected_spec_mask)
-        k = select_new_spec(mp,mp_type,mp_gamma,mp_topk)
-        if verbose>0:
-            print(k)
-        if len(k)==0:
+    # Pre-calculate matrices
+    ysq = np.sum(y * signal_weight * y)
+    y_F = ((y * signal_weight).T @ F).reshape((-1, 1))
+    y_F_Dk = np.trapz(y_F * spec_dict, energies, axis=0)
+    Fsq = F.T @ np.diag(signal_weight.flatten()) @ F
+
+    D_Fsq = np.trapz(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
+    if verbose > 0:
+        print('D_Fsq shape:', D_Fsq.shape)
+    FDsq = np.trapz(D_Fsq * spec_dict.T, energies, axis=1)
+    if verbose > 0:
+        print('FDsq shape:', FDsq.shape)
+    FDK = np.trapz(F[:, :, np.newaxis] * spec_dict[np.newaxis, :, :], energies, axis=1).reshape(
+        (-1, spec_dict.shape[-1]))
+    if verbose > 0:
+        print('FDK shape:', FDK.shape)
+
+    while len(S) < sparsity and np.linalg.norm(e) > tol:
+        print('\nIteration %d:' % (len(S) + 1))
+
+        # Find new index.
+        if len(S) == 0:
+            yhat = np.zeros(signal.shape)
+
+        # Compute required matrices
+        y_yhat = np.sum(y * signal_weight * yhat)
+        yhat_sq = np.sum(yhat * signal_weight * yhat)
+        yhat_F = ((yhat * signal_weight).T @ F).reshape((-1, 1))
+        yhat_F_Dk = np.trapz(yhat_F * spec_dict, energies, axis=0)
+
+        rho1 = y_yhat + FDsq - y_F_Dk - yhat_F_Dk
+        rho2 = yhat_sq + FDsq - 2 * yhat_F_Dk
+
+        # Calculate \beta_k.
+        if len(S) == 0:
+            beta = np.zeros(rho1.shape)
+        else:
+            beta = rho1 / rho2
+        beta_mask = (beta >= 1)
+
+        # Substitute \beta to criteria function.
+        criteria = np.zeros(beta.shape)
+        criteria = ysq + beta ** 2 * yhat_sq + (1 - beta) ** 2 * FDsq - 2 * beta * y_yhat - 2 * (
+                    1 - beta) * y_F_Dk + 2 * beta * (1 - beta) * yhat_F_Dk
+        criteria = np.ma.array(criteria, mask=np.logical_or(selected_spec_mask, beta_mask))
+
+        criteria_list.append(criteria)
+        if criteria.mask.all():
             break
-        # Build new support
-        S = S + k
-        if verbose>0:
-            print(S)
-        
-        selected_spec_mask[k] = True
-        #Dk = np.trapz(Aexp*spec_dict[:,k],energies).reshape((-1,1))
-        FDk = np.trapz(F[:,:,np.newaxis]*spec_dict[np.newaxis,:,k],energies,axis=1).reshape((-1,len(k)))
+        k = [np.argmin(criteria)]
+        if verbose > 0:
+            print(k)
+            print(beta)
+            print(criteria)
 
-        FDS=np.concatenate([FDS,FDk],axis=1)
-        # Find best coefficient with new support
-        omega[S,0] = optimizor.solve(FDS, signal, weight=signal_weight, spec_dict=spec_dict[:,S])
+        # Build new support
+        omega[S, 0] = omega[S, 0] * beta[k[0]]
+        omega[k[0], 0] = 1 - beta[k[0]]
+        S = S + k
+        print(S)
+        selected_spec_mask[k] = True
+        FDk = np.trapz(F[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
+        FDS = np.concatenate([FDS, FDk], axis=1)
+
+        # Find best coefficient with new support given solver.
+        Omega_init = omega[S, 0]
+        e = signal - FDS @ omega[S]
+        omega[S, 0] = optimizor.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init, e_init=e,
+                                      spec_dict=spec_dict[:, S])
+        ICD_cost_list.append(optimizor.cost_list)
         # Compute new residual
-        e=signal - FDS@omega[S]
-        current_e = signal - FDS@omega[S]
-        errs.append(np.sqrt(np.mean(current_e**2*signal_weight)))
-        
+        e = signal - FDS @ omega[S]
+        yhat = FDS @ omega[S]
+        err_list.append(e)
+        errs.append(np.sqrt(np.mean(e ** 2 * signal_weight)))
+
         cost = optimizor.cost()
         cost_list.append(cost)
-        if verbose>0:
-            print('current_e:',np.sqrt(np.mean(current_e**2*signal_weight)))
-            print('cost:',cost)
+
+        print('e:', np.sqrt(np.mean(e ** 2 * signal_weight)))
+        print('cost:', cost)
         optimizor.set_mbi(np.argmax(omega[S,0].flatten()))
+        #optimizor.set_mbi(len(S))
         estimated_spec = spec_dict @ omega
         estimated_spec_list.append(estimated_spec)
-    if normalized_output:
-        estimated_spec /=np.trapz(estimated_spec.flatten(),energies)
+
     if return_component:
-        return estimated_spec_list, errs, omega, S, cost_list, err_list
+        return estimated_spec_list, errs, omega, S, cost_list, err_list, criteria_list, ICD_cost_list
     else:
-        return estimated_spec_list, errs
+        return estimated_spec, omega
 
 
 
