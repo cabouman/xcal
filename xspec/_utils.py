@@ -10,7 +10,8 @@ Joule_per_eV = 1.602176565E-19 # Joules per electron-volts
 
 
 def get_wavelength(energy):
-    #return cl.get_wavelength(energy)   
+    # How is energy related to the wavelength of radiation?
+    # https://www.e-education.psu.edu/meteo300/node/682
     return (Planck_constant*light_speed/(energy*Joule_per_eV)) #in mm
 
 
@@ -62,7 +63,10 @@ def plot_est_spec(energies, weights_list, coef_, method, src_fltr_info_dict, sci
     if save_path is not None:
         plt.savefig(save_path)
 
-        
+
+
+
+
 def plot_est_spec_versa(energies, weights_list, coef_, method, spec_info_dict, S, mutiply_coef=True,save_path=None):
     plt.figure(figsize=(16,12))
     est_sp = weights_list@ coef_
