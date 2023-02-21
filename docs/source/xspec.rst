@@ -10,4 +10,5 @@ xspec
 
    .. autosummary::
       cal_fw_mat
+      Snap
       dictSE

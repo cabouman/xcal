@@ -135,7 +135,7 @@ class Snap:
         Parameters
         ----------
 
-        l : float
+        l_star : float
             Scalar value :math:`>0` that specifies the Snap regularization.
         max_iter : int
             Maximum number of iterations.
@@ -143,27 +143,35 @@ class Snap:
             Scalar value for stop update threshold.
 
         """
+
         self.l_star = l_star
         self.max_iter = max_iter
         self.threshold = threshold
         self.mbi = 0  # Max beta index
         self.cost_list = []
 
-    def set_mbi(self, mbi):
+    def _set_mbi(self, mbi):
         self.mbi = mbi
 
     def cost(self):
+        """Return current value of MAP cost function.
+
+        Returns
+        -------
+            cost : float
+                Return current value of MAP cost function.
+        """
         snap_list = [omega ** 2 for omega in self.Omega]
         cost = 0.5 * np.mean(self.e ** 2 * self.weight) + self.l_star * (1 - np.sum(snap_list)) / 2
         return cost
 
-    def solve(self, X, y, weight=None, Omega_init=None, e_init=None, spec_dict=None):
-        """
+    def solve(self, FD, y, weight=None, Omega_init=None, e_init=None, spec_dict=None):
+        """Use pairwise ICD to solve MAP cost function with Snap prior.
 
         Parameters
         ----------
-        X : numpy.ndarray
-            Dictionary matrix.
+        FD : numpy.ndarray
+            Forward matrix multiplys subset Dictionary matrix.
         y : numpy.ndarray
             Measurement data.
 
@@ -174,7 +182,7 @@ class Snap:
 
         """
         self.cost_list = []
-        m, n = np.shape(X)
+        m, n = np.shape(FD)
         if Omega_init is not None:
             Omega = Omega_init
             print('Omega init:', Omega)
@@ -187,7 +195,7 @@ class Snap:
         weight = weight.reshape((-1, 1))
 
         if e_init is None:
-            e = y.reshape((-1, 1)) - np.mean(X, axis=-1, keepdims=True)
+            e = y.reshape((-1, 1)) - np.mean(FD, axis=-1, keepdims=True)
         else:
             e = e_init
         l = self.l_star
@@ -202,10 +210,10 @@ class Snap:
             for i in permuted_ind:
                 omega_tmp = Omega[i]
                 omega_mbi = Omega[self.mbi]
-                theta_1 = -(e * weight).T @ (X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) / m - l * (
+                theta_1 = -(e * weight).T @ (FD[:, i:i + 1] - FD[:, self.mbi:self.mbi + 1]) / m - l * (
                             omega_tmp - omega_mbi)
-                theta_2 = ((X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) * weight).T @ (
-                            X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) / m - 2 * l
+                theta_2 = ((FD[:, i:i + 1] - FD[:, self.mbi:self.mbi + 1]) * weight).T @ (
+                        FD[:, i:i + 1] - FD[:, self.mbi:self.mbi + 1]) / m - 2 * l
                 if theta_2 < 0:
                     update = -np.sign(theta_1)
                 else:
@@ -213,7 +221,7 @@ class Snap:
                 Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp + omega_mbi)
                 Omega[self.mbi] = np.clip(omega_mbi - update, 0, omega_tmp + omega_mbi)
                 tol_update += np.abs(Omega[i] - omega_tmp)
-                e = e - (X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) * (Omega[i] - omega_tmp)
+                e = e - (FD[:, i:i + 1] - FD[:, self.mbi:self.mbi + 1]) * (Omega[i] - omega_tmp)
             self.Omega = Omega
             self.e = e
             self.weight = weight
@@ -424,7 +432,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
 
         print('e:', np.sqrt(np.mean(e ** 2 * signal_weight)))
         print('cost:', cost)
-        optimizor.set_mbi(np.argmax(omega[S,0].flatten()))
+        optimizor._set_mbi(np.argmax(omega[S, 0].flatten()))
         #optimizor.set_mbi(len(S))
         estimated_spec = spec_dict @ omega
         estimated_spec_list.append(estimated_spec)
