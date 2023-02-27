@@ -27,7 +27,7 @@ extensions = [
     'sphinxcontrib.bibtex',
     'sphinx.ext.viewcode'
 ]
-
+autoclass_content = 'both'
 templates_path = ['_templates']
 
 source_suffix = {
