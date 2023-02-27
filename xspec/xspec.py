@@ -7,17 +7,14 @@ Description:
 Date: Dec 1st, 2022.
 """
 
-
 import numpy as np
 import itertools
 
 from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func
 
 
-
-
 class Huber:
-    """Slove nonliner model Huber prior using ICD update.
+    """Solve nonlinear model Huber prior using ICD update.
 
 
     The MAP surrogate cost function becomes,
@@ -25,6 +22,7 @@ class Huber:
 
 
     """
+
     def __init__(self, c=1.0, l_star=0.001, max_iter=3000, threshold=1e-7):
         """
 
@@ -33,10 +31,8 @@ class Huber:
 
         c : float
             Scalar value :math:`>0` that specifies the Huber threshold parameter.
-        l : float
+        l_star : float
             Scalar value :math:`>0` that specifies the Huber regularization.
-        sigma : float
-            Scalar value :math:`>0` that specifies the :math:`||\\sum beta|| =1`.
         max_iter : int
             Maximum number of iterations.
         threshold : float
@@ -47,17 +43,17 @@ class Huber:
         self.l_star = l_star
         self.max_iter = max_iter
         self.threshold = threshold
-        self.mbi = 0 # Max beta index
-        self.Omega=None
-        
+        self.mbi = 0  # Max beta index
+        self.Omega = None
+
     def set_mbi(self, mbi):
         self.mbi = mbi
-        
+
     def cost(self):
-        huber_list = [huber_func(omega,self.c) for omega in self.Omega]
-        cost = 0.5*np.mean(self.e**2*self.weight)+self.l_star*np.sum(huber_list) 
+        huber_list = [huber_func(omega, self.c) for omega in self.Omega]
+        cost = 0.5 * np.mean(self.e ** 2 * self.weight) + self.l_star * np.sum(huber_list)
         return cost
-        
+
     def solve(self, X, y, weight=None, spec_dict=None):
         """
 
@@ -75,50 +71,51 @@ class Huber:
 
         """
         m, n = np.shape(X)
-        Omega = np.ones(n)/n
+        Omega = np.ones(n) / n
         c = self.c
-        print('%d Dictionary'%n, Omega)
-        
+        print('%d Dictionary' % n, Omega)
+
         if weight is None:
             weight = np.ones(y.shape)
         weight = weight.reshape((-1, 1))
-        
-        e = y.reshape((-1, 1))-np.mean(X,axis=-1,keepdims=True)
+
+        e = y.reshape((-1, 1)) - np.mean(X, axis=-1, keepdims=True)
 
         for k in range(self.max_iter):
             permuted_ind = np.arange(n)
-            permuted_ind = permuted_ind[permuted_ind!=self.mbi]
+            permuted_ind = permuted_ind[permuted_ind != self.mbi]
             tol_update = 0
             for i in permuted_ind:
                 omega_tmp = Omega[i]
                 omega_mbi = Omega[self.mbi]
 
-                if np.abs(Omega[i])<1e-9:
-                    b1 = self.l_star/2
+                if np.abs(Omega[i]) < 1e-9:
+                    b1 = self.l_star / 2
                 else:
-                    b1 = self.l_star*np.clip(Omega[i],-c,c)/(2*Omega[i])
+                    b1 = self.l_star * np.clip(Omega[i], -c, c) / (2 * Omega[i])
 
-                if np.abs(omega_mbi)<1e-9:
-                    b2 = self.l_star/2
+                if np.abs(omega_mbi) < 1e-9:
+                    b2 = self.l_star / 2
                 else:
-                    b2 = self.l_star*np.clip(-omega_mbi,-c,c)/(-2*omega_mbi)
-                theta_1 = -(e*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2*b1 * Omega[i] -2*b2*omega_mbi
-                theta_2 = ((X[:, i:i + 1]-X[:,self.mbi:self.mbi+1])*weight).T @ (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) / m + 2 * b1 +2*b2
+                    b2 = self.l_star * np.clip(-omega_mbi, -c, c) / (-2 * omega_mbi)
+                theta_1 = -(e * weight).T @ (X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) / m + 2 * b1 * Omega[
+                    i] - 2 * b2 * omega_mbi
+                theta_2 = ((X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) * weight).T @ (
+                        X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) / m + 2 * b1 + 2 * b2
                 update = -theta_1 / theta_2
-                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp+Omega[self.mbi])
+                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp + Omega[self.mbi])
                 Omega[self.mbi] = 1 - np.sum(Omega[permuted_ind])
 
-                tol_update += np.abs(Omega[i]-omega_tmp)
-                e = e - (X[:, i:i + 1]-X[:,self.mbi:self.mbi+1]) * (Omega[i]-omega_tmp)
-            
+                tol_update += np.abs(Omega[i] - omega_tmp)
+                e = e - (X[:, i:i + 1] - X[:, self.mbi:self.mbi + 1]) * (Omega[i] - omega_tmp)
+
             if tol_update < self.threshold:
-                print('Stop at iteration:', k,'  Total update:', tol_update)
+                print('Stop at iteration:', k, '  Total update:', tol_update)
                 break
-                
-        
-        print('mbi, Omega_mbi:',self.mbi,Omega[self.mbi])
-        print('Omega',Omega)
-        self.Omega=Omega
+
+        print('mbi, Omega_mbi:', self.mbi, Omega[self.mbi])
+        print('Omega', Omega)
+        self.Omega = Omega
         self.e = e
         self.weight = weight
         return Omega
@@ -194,7 +191,7 @@ class Snap:
             e = y.reshape((-1, 1)) - np.mean(FD, axis=-1, keepdims=True)
         else:
             e = e_init
-        l = self.l_star
+        l_star = self.l_star
         self.Omega = Omega
         self.e = e
         self.weight = weight
@@ -207,10 +204,10 @@ class Snap:
                 j = pair_ind[1]
                 omega_tmp = Omega[i]
                 omega_mbi = Omega[j]
-                theta_1 = -(e * weight).T @ (FD[:, i:i + 1] - FD[:, j:j + 1]) / m - l * (
-                            omega_tmp - omega_mbi)
+                theta_1 = -(e * weight).T @ (FD[:, i:i + 1] - FD[:, j:j + 1]) / m - l_star * (
+                        omega_tmp - omega_mbi)
                 theta_2 = ((FD[:, i:i + 1] - FD[:, j:j + 1]) * weight).T @ (
-                        FD[:, i:i + 1] - FD[:, j:j + 1]) / m - 2 * l
+                        FD[:, i:i + 1] - FD[:, j:j + 1]) / m - 2 * l_star
                 if theta_2 < 0:
                     update = -np.sign(theta_1)
                 else:
@@ -232,6 +229,7 @@ class Snap:
         print('Omega', Omega)
 
         return Omega
+
 
 # Orthogonal match pursuit with different optimization models.
 def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal_weight=None,
@@ -385,7 +383,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         # Substitute \beta to criteria function.
         criteria = np.zeros(beta.shape)
         criteria = ysq + beta ** 2 * yhat_sq + (1 - beta) ** 2 * FDsq - 2 * beta * y_yhat - 2 * (
-                    1 - beta) * y_F_Dk + 2 * beta * (1 - beta) * yhat_F_Dk
+                1 - beta) * y_F_Dk + 2 * beta * (1 - beta) * yhat_F_Dk
         criteria = np.ma.array(criteria, mask=np.logical_or(selected_spec_mask, beta_mask))
 
         criteria_list.append(criteria)
@@ -432,9 +430,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         return estimated_spec, omega
 
 
-
-
-def cal_fw_mat(solid_vol_masks, obj_dicts,energies, fw_projector):
+def cal_fw_mat(solid_vol_masks, obj_dicts, energies, fw_projector):
     """Calculate the forward matrix of multiple solid objects combination with given forward projector.
 
     Parameters
@@ -454,7 +450,7 @@ def cal_fw_mat(solid_vol_masks, obj_dicts,energies, fw_projector):
         Forward matrix of spectral escal_fw_mattimation.
 
     """
-    linear_att_intg_list=[]
+    linear_att_intg_list = []
     for mask, obj_dict in zip(solid_vol_masks, obj_dicts):
         linear_intg = fw_projector.forward(mask, obj_dict)
         linear_att_intg_list.append(linear_intg)
@@ -462,10 +458,6 @@ def cal_fw_mat(solid_vol_masks, obj_dicts,energies, fw_projector):
     wavelengths = get_wavelength(energies)
     wnum = 2 * np.pi / wavelengths
     tot_lai = np.sum(np.array(linear_att_intg_list), axis=0)
-    fw_mat = np.exp(-2 * wnum * tot_lai.transpose((1,2,3,0)))
+    fw_mat = np.exp(-2 * wnum * tot_lai.transpose((1, 2, 3, 0)))
 
     return fw_mat
-
-
-
-
