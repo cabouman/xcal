@@ -9,7 +9,7 @@ Date: Dec 1st, 2022.
 
 import numpy as np
 import itertools
-
+import random
 from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func
 
 
@@ -121,12 +121,12 @@ class Huber:
         return Omega
 
 
-class Snap:
-    """Slove Snap prior using pair-wise ICD update.
+class L1:
+    """Solve L1 prior using pair-wise ICD update.
 
     """
 
-    def __init__(self, l_star=0.001, max_iter=3000, threshold=1e-7):
+    def __init__(self, l_star=0.001, nnc='on-coef', max_iter=3000, threshold=1e-7):
         """
 
         Parameters
@@ -134,6 +134,8 @@ class Snap:
 
         l_star : float
             Scalar value :math:`>0` that specifies the Snap regularization.
+        nnc : bool
+            Whether to use positivity constraint.
         max_iter : int
             Maximum number of iterations.
         threshold : float
@@ -142,6 +144,187 @@ class Snap:
         """
 
         self.l_star = l_star
+        self.nnc = nnc
+        self.max_iter = max_iter
+        self.threshold = threshold
+        self.cost_list = []
+
+    def cost(self):
+        """Return current value of MAP cost function.
+
+        Returns
+        -------
+            cost : float
+                Return current value of MAP cost function.
+        """
+        l1_list = [np.abs(omega) for omega in self.Omega]
+        cost = 0.5 * np.mean(self.e ** 2 * self.weight) + self.l_star * (np.sum(l1_list) - 1)
+        return cost
+
+    def forward_cost(self):
+        """Return current value of MAP cost function.
+
+        Returns
+        -------
+            cost : float
+                Return current value of MAP cost function.
+        """
+        return 0.5 * np.mean(self.e ** 2 * self.weight)
+
+    def prior_cost(self):
+        """Return current value of MAP cost function.
+
+        Returns
+        -------
+            cost : float
+                Return current value of MAP cost function.
+        """
+        l1_list = [np.abs(omega) for omega in self.Omega]
+        cost = self.l_star * (np.sum(l1_list) - 1)
+        return cost
+
+    def solve(self, FD, y, weight=None, Omega_init=None, e_init=None, spec_dict=None):
+        """Use pairwise ICD to solve MAP cost function with L1 prior.
+
+        Parameters
+        ----------
+        FD : numpy.ndarray
+            Forward matrix multiplys subset Dictionary matrix.
+        y : numpy.ndarray
+            Measurement data.
+
+        Returns
+        -------
+        omega : numpy.ndarray
+            Coefficients.
+
+        """
+        self.cost_list = []
+        m, n = np.shape(FD)
+        if Omega_init is not None:
+            Omega = Omega_init
+            print('Omega init:', Omega)
+        else:
+            Omega = np.ones(n) / n
+        print('%d Dictionary' % n, Omega)
+
+        if weight is None:
+            weight = np.ones(y.shape)
+        weight = weight.reshape((-1, 1))
+
+        if e_init is None:
+            e = y.reshape((-1, 1)) - np.mean(FD, axis=-1, keepdims=True)
+        else:
+            e = e_init
+        l_star = self.l_star
+        self.Omega = Omega.copy()
+        self.e = e
+        self.weight = weight
+        self.cost_list.append(self.cost())
+        numbers = np.arange(n)
+        pairs = np.array(list(itertools.combinations(numbers, 2)))
+        print('Cost before pairwise ICD:', self.cost(), self.forward_cost(), self.prior_cost())
+        for K in range(self.max_iter):
+            previous_omega = Omega.copy()
+            # Generate a random permutation of indices
+            perm = np.random.permutation(len(pairs))
+
+            for pair_ind in pairs[perm]:
+                k = pair_ind[0]
+                g = pair_ind[1]
+                omega_tmp_k = Omega[k].copy()
+                omega_tmp_g = Omega[g].copy()
+                theta_1 = -(e * weight).T @ (FD[:, k:k + 1] - FD[:, g:g + 1]) / m
+                theta_2 = ((FD[:, k:k + 1] - FD[:, g:g + 1]) * weight).T @ (
+                        FD[:, k:k + 1] - FD[:, g:g + 1]) / m
+                update = -theta_1 / theta_2
+
+                if self.nnc == 'on-coef':
+                    Omega[k] = np.clip(omega_tmp_k + update, 0, omega_tmp_k + omega_tmp_g)
+                    Omega[g] = np.clip(omega_tmp_g - update, 0, omega_tmp_k + omega_tmp_g)
+                elif self.nnc == 'on-spec':
+                    lt2 = 2 * l_star / theta_2
+                    if -omega_tmp_k > omega_tmp_g:
+                        osmall = omega_tmp_g
+                        olarge = -omega_tmp_k
+                    else:
+                        osmall = -omega_tmp_k
+                        olarge = omega_tmp_g
+
+                    if update > olarge + lt2:
+                        update -= lt2
+                    elif update < osmall - lt2:
+                        update += lt2
+                    elif update <= olarge + lt2 and update >= olarge:
+                        update = olarge
+                    elif update >= osmall - lt2 and update <= osmall:
+                        update = osmall
+
+                    estimated_spec = spec_dict @ Omega
+                    update_bound = np.clip(estimated_spec, 0, np.inf) / (spec_dict[:, g] - spec_dict[:, k])
+                    update_bound_nan_mask = np.isnan(update_bound)
+                    update_bound_sign = np.copysign(np.ones_like(update_bound), update_bound)
+                    if (update_bound_sign == 1).any():
+                        update_ub = np.min(update_bound[np.logical_and(update_bound_sign == 1, ~update_bound_nan_mask)])
+                        update_ub = np.max(
+                            [0, update_ub - self.threshold / 1000])  # Avoid negative value from percision.
+                    else:
+                        update_ub = 0
+                    if (update_bound_sign == -1).any():
+                        update_lb = np.max(
+                            update_bound[np.logical_and(update_bound_sign == -1, ~update_bound_nan_mask)])
+                        update_lb = np.min([0, update_lb + self.threshold / 1000])
+                    else:
+                        update_lb = 0
+                    update = np.clip(update, update_lb, update_ub)
+
+                    Omega[k] = Omega[k] + update
+                    Omega[g] = Omega[g] - update
+
+                e = e - (FD[:, k:k + 1] - FD[:, g:g + 1]) * (Omega[k] - omega_tmp_k)
+            avg_update = np.sum(np.abs(previous_omega - Omega))/n
+            total_update = np.sum(np.abs(self.Omega - Omega))
+            self.Omega = Omega.copy()
+            self.e = e
+            self.weight = weight
+            if total_update >= self.threshold:
+                if K%100==0:
+                    print('Iteration %d, Cost:' % K, self.cost())
+                self.cost_list.append(self.cost())
+
+            else:
+                print('Stop at iteration:', K, '  Average update:', avg_update)
+                break
+
+        print('Omega', Omega)
+
+        return Omega
+
+
+class Snap:
+    """Solve Snap prior using pair-wise ICD update.
+
+    """
+
+    def __init__(self, l_star=0.001, nnc='on-coef', max_iter=3000, threshold=1e-7):
+        """
+
+        Parameters
+        ----------
+
+        l_star : float
+            Scalar value :math:`>0` that specifies the Snap regularization.
+        nnc : bool
+            Whether to use positivity constraint.
+        max_iter : int
+            Maximum number of iterations.
+        threshold : float
+            Scalar value for stop update threshold.
+
+        """
+
+        self.l_star = l_star
+        self.nnc = nnc
         self.max_iter = max_iter
         self.threshold = threshold
         self.cost_list = []
@@ -192,38 +375,79 @@ class Snap:
         else:
             e = e_init
         l_star = self.l_star
-        self.Omega = Omega
+        self.Omega = Omega.copy()
         self.e = e
         self.weight = weight
         self.cost_list.append(self.cost())
-        for k in range(self.max_iter):
-            tol_update = 0
-            pairs = np.array(list(itertools.combinations(n, 2)))
-            for pair_ind in pairs:
-                i = pair_ind[0]
-                j = pair_ind[1]
-                omega_tmp = Omega[i]
-                omega_mbi = Omega[j]
-                theta_1 = -(e * weight).T @ (FD[:, i:i + 1] - FD[:, j:j + 1]) / m - l_star * (
-                        omega_tmp - omega_mbi)
-                theta_2 = ((FD[:, i:i + 1] - FD[:, j:j + 1]) * weight).T @ (
-                        FD[:, i:i + 1] - FD[:, j:j + 1]) / m - 2 * l_star
+        numbers = np.arange(n)
+        pairs = np.array(list(itertools.combinations(numbers, 2)))
+        print('Cost before pairwise ICD:', self.cost())
+        for K in range(self.max_iter):
+            # print('ICD Iteration:', K)
+            avg_update = 0
+            # Generate a random permutation of indices
+            perm = np.random.permutation(len(pairs))
+
+            for pair_ind in pairs[perm]:
+                k = pair_ind[0]
+                g = pair_ind[1]
+                omega_tmp_k = Omega[k].copy()
+                omega_tmp_g = Omega[g].copy()
+                theta_1 = -(e * weight).T @ (FD[:, k:k + 1] - FD[:, g:g + 1]) / m - l_star * (
+                        omega_tmp_k - omega_tmp_g)
+                theta_2 = ((FD[:, k:k + 1] - FD[:, g:g + 1]) * weight).T @ (
+                        FD[:, k:k + 1] - FD[:, g:g + 1]) / m - 2 * l_star
                 if theta_2 < 0:
                     update = -np.sign(theta_1)
                 else:
                     update = -theta_1 / theta_2
-                Omega[i] = np.clip(omega_tmp + update, 0, omega_tmp + omega_mbi)
-                Omega[j] = np.clip(omega_mbi - update, 0, omega_tmp + omega_mbi)
-                tol_update += np.abs(Omega[i] - omega_tmp)
-                e = e - (FD[:, i:i + 1] - FD[:, j:j + 1]) * (Omega[i] - omega_tmp)
-            self.Omega = Omega
-            self.e = e
+                if self.nnc == 'on-coef':
+                    Omega[k] = np.clip(omega_tmp_k + update, 0, omega_tmp_k + omega_tmp_g)
+                    Omega[g] = np.clip(omega_tmp_g - update, 0, omega_tmp_k + omega_tmp_g)
+                elif self.nnc == 'on-spec':
+                    estimated_spec = spec_dict @ Omega
+                    update_bound = np.clip(estimated_spec, 0, np.inf) / (spec_dict[:, g] - spec_dict[:, k])
+                    update_bound_nan_mask = np.isnan(update_bound)
+                    update_bound_sign = np.copysign(np.ones_like(update_bound), update_bound)
+                    # print(update_bound)
+                    if (update_bound_sign == 1).any():
+                        update_ub = np.min(update_bound[np.logical_and(update_bound_sign == 1, ~update_bound_nan_mask)])
+                        update_ub = np.max(
+                            [0, update_ub - self.threshold / 1000])  # Avoid negative value from percision.
+                    else:
+                        update_ub = 0
+                    if (update_bound_sign == -1).any():
+                        update_lb = np.max(
+                            update_bound[np.logical_and(update_bound_sign == -1, ~update_bound_nan_mask)])
+                        update_lb = np.min([0, update_lb + self.threshold / 1000])
+                    else:
+                        update_lb = 0
+
+                    update = np.clip(update, update_lb, update_ub)
+                    Omega[k] = Omega[k] + update
+                    Omega[g] = Omega[g] - update
+
+                    estimated_spec1 = spec_dict @ Omega
+                    if (estimated_spec1 < 0).any():
+                        print('Found negative value on the estimate spectrum.')
+                        print(k, g)
+                        print(update, update_lb, update_ub)
+                        print(estimated_spec[estimated_spec1 < 0])
+                        print(estimated_spec1[estimated_spec1 < 0])
+
+                e = e - (FD[:, k:k + 1] - FD[:, g:g + 1]) * (Omega[k] - omega_tmp_k)
+            avg_update = np.sum(np.abs(self.Omega - Omega))/n
+            total_update = np.sum(np.abs(self.Omega - Omega))
+            self.Omega = Omega.copy()
+            self.e = e.copy()
             self.weight = weight
-            if tol_update > self.threshold:
+            if total_update >= self.threshold:
+                if K%100==0:
+                    print('Iteration %d, Cost:' % K, self.cost())
                 self.cost_list.append(self.cost())
 
-            if tol_update < self.threshold:
-                print('Stop at iteration:', k, '  Total update:', tol_update)
+            else:
+                print('Stop at iteration:', K, '  Average update:', avg_update)
                 break
 
         print('Omega', Omega)
@@ -232,8 +456,8 @@ class Snap:
 
 
 # Orthogonal match pursuit with different optimization models.
-def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal_weight=None,
-           tol=1e-6, return_component=False, verbose=0):
+def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal_weight=None, nnc='on-coef',
+           tol=1e-6, return_component=False, auto_stop=True, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
     This function requires users to provide a large enough spectrum dictionary to estimate the source spectrum.
@@ -256,6 +480,8 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         Should be one of the optimizors defined above. [RidgeReg(), LassoReg(), ElasticNetReg(), QGGMRF()]
     signal_weight: numpy.ndarray
         Weight for transmission Data, representing uncertainty, has same size as signal.
+    nnc : bool
+        Whether use positivity constraint.
     tol : float
         The stop threshold.
     return_component : bool
@@ -344,7 +570,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
     ysq = np.sum(y * signal_weight * y)
     y_F = ((y * signal_weight).T @ forward_mat).reshape((-1, 1))
     y_F_Dk = np.trapz(y_F * spec_dict, energies, axis=0)
-    Fsq = forward_mat.T @ np.diag(signal_weight.flatten()) @ forward_mat
+    Fsq = np.einsum('ik,k,kj->ij', forward_mat.T, signal_weight.flatten(), forward_mat)
 
     D_Fsq = np.trapz(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
     if verbose > 0:
@@ -352,11 +578,15 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
     FDsq = np.trapz(D_Fsq * spec_dict.T, energies, axis=1)
     if verbose > 0:
         print('FDsq shape:', FDsq.shape)
-    FDK = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, :], energies, axis=1).reshape(
-        (-1, spec_dict.shape[-1]))
-    if verbose > 0:
-        print('FDK shape:', FDK.shape)
+    # FDK = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, :], energies, axis=1).reshape(
+    #     (-1, spec_dict.shape[-1]))
+    # FDK = np.array([np.trapz(forward_mat[:, :] * spec_dict[np.newaxis, :, kkk], energies, axis=1) for kkk in range(spec_dict.shape[-1])]).reshape((spec_dict.shape[-1],-1))
+    # FDK = FDK.T
+    # if verbose > 0:
+    #     print('FDK shape:', FDK.shape)
 
+    estimated_spec = spec_dict @ omega
+    cost = np.inf
     while len(S) < sparsity and np.linalg.norm(e) > tol:
         print('\nIteration %d:' % (len(S) + 1))
 
@@ -376,24 +606,72 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         # Calculate \beta_k.
         if len(S) == 0:
             beta = np.zeros(rho1.shape)
+            beta_mask = (beta * 0)
         else:
             beta = rho1 / rho2
-        beta_mask = (beta >= 1)
+            if nnc == 'on-spec':  # shrinkage function.
+                l_star = optimizor.l_star
+
+                for beta_ind in range(len(beta)):
+                    beta_srk1 = l_star * (np.sum(np.abs(omega)) + 1) / rho2[beta_ind]
+                    beta_srk2 = l_star * (np.sum(np.abs(omega)) - 1) / rho2[beta_ind]
+                    if beta[beta_ind] > beta_srk1 + 1:
+                        beta[beta_ind] -= beta_srk1
+                    elif beta[beta_ind] <= beta_srk1 + 1 and beta[beta_ind] >= beta_srk2 + 1:
+                        beta[beta_ind] = 1
+                    elif beta[beta_ind] > beta_srk2 and beta[beta_ind] < beta_srk2 + 1:
+                        beta[beta_ind] -= beta_srk2
+                    elif beta[beta_ind] < -beta_srk1:
+                        beta[beta_ind] += beta_srk1
+                    else:
+                        beta[beta_ind] = 0
+
+        if nnc == 'on-coef':
+            beta = np.clip(beta, 0, 1)
+            if auto_stop:
+                beta_mask = (beta >= 1)
+            else:
+                beta_mask = (beta > 1)
+        elif nnc == 'on-spec':
+            beta_bound = spec_dict / (spec_dict - estimated_spec)
+            print(beta_bound.shape)
+            if (beta_bound > 0).any():
+                beta_ub = np.min(beta_bound[beta_bound > 0], axis=0)
+            else:
+                beta_ub = beta * 0
+            if (beta_bound < 0).any():
+                beta_lb = np.max(beta_bound[beta_bound < 0], axis=0)
+            else:
+                beta_lb = beta * 0
+
+            beta = np.clip(beta, beta_lb, beta_ub)
+            if len(S) > 0:
+                if auto_stop:
+                    beta_mask = (beta == 1)
+                else:
+                    beta_mask = (beta * 0)
+        else:
+            beta_mask = (beta * 0)
 
         # Substitute \beta to criteria function.
         criteria = np.zeros(beta.shape)
         criteria = ysq + beta ** 2 * yhat_sq + (1 - beta) ** 2 * FDsq - 2 * beta * y_yhat - 2 * (
                 1 - beta) * y_F_Dk + 2 * beta * (1 - beta) * yhat_F_Dk
+        criteria /= 2 * signal.shape[0]
+        if nnc == 'on-spec':
+            l_star = optimizor.l_star
+            criteria += l_star * (np.abs(beta) * np.linalg.norm(omega, ord=1) + np.abs(1 - beta)) - l_star
         criteria = np.ma.array(criteria, mask=np.logical_or(selected_spec_mask, beta_mask))
 
         criteria_list.append(criteria)
         if criteria.mask.all():
             break
+
         k = [np.argmin(criteria)]
         if verbose > 0:
             print(k)
             print(beta)
-            print(criteria)
+            print(criteria[k])
 
         # Build new support
         omega[S, 0] = omega[S, 0] * beta[k[0]]
@@ -407,9 +685,11 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         # Find best coefficient with new support given solver.
         Omega_init = omega[S, 0]
         e = signal - FDS @ omega[S]
+
         omega[S, 0] = optimizor.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init, e_init=e,
                                       spec_dict=spec_dict[:, S])
         ICD_cost_list.append(optimizor.cost_list)
+        print('cost before ICD:', optimizor.cost_list[0])
         # Compute new residual
         e = signal - FDS @ omega[S]
         yhat = FDS @ omega[S]
@@ -421,7 +701,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
 
         print('e:', np.sqrt(np.mean(e ** 2 * signal_weight)))
         print('cost:', cost)
-        estimated_spec = spec_dict @ omega
+        estimated_spec = np.clip(spec_dict @ omega, 0, np.inf)
         estimated_spec_list.append(estimated_spec)
 
     if return_component:
@@ -430,15 +710,14 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         return estimated_spec, omega
 
 
-def cal_fw_mat(solid_vol_masks, obj_dicts, energies, fw_projector):
+def cal_fw_mat(solid_vol_masks, lac_vs_energies_list, energies, fw_projector):
     """Calculate the forward matrix of multiple solid objects combination with given forward projector.
 
     Parameters
     ----------
     solid_vol_masks : A list of 3D numpy.ndarray.
         Each mask in the list represents a solid pure object.
-    obj_dicts : A list of dictionary corresponding to solid_vol_masks.
-        Each dictionary contains {chemical formula, density(g/cc)} for the corresponding solid pure object.
+    lac_vs_energies_list : A list of linear attenuation coefficient(LAC) vs Energies curves corresponding to solid_vol_masks.
     energies : numpy.ndarray
         List of X-ray energies of a poly-energetic source in units of keV.
     fw_projector : A numpy class.
@@ -451,13 +730,11 @@ def cal_fw_mat(solid_vol_masks, obj_dicts, energies, fw_projector):
 
     """
     linear_att_intg_list = []
-    for mask, obj_dict in zip(solid_vol_masks, obj_dicts):
-        linear_intg = fw_projector.forward(mask, obj_dict)
-        linear_att_intg_list.append(linear_intg)
+    for mask, lac_vs_energies in zip(solid_vol_masks, lac_vs_energies_list):
+        linear_intg = fw_projector.forward(mask)
+        linear_att_intg_list.append(linear_intg[np.newaxis, :, :, :]*lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis])
 
-    wavelengths = get_wavelength(energies)
-    wnum = 2 * np.pi / wavelengths
     tot_lai = np.sum(np.array(linear_att_intg_list), axis=0)
-    fw_mat = np.exp(-2 * wnum * tot_lai.transpose((1, 2, 3, 0)))
+    fw_mat = np.exp(- tot_lai.transpose((1, 2, 3, 0)))
 
     return fw_mat
