@@ -76,7 +76,7 @@ def get_lin_att_c_vs_E(density, formula, energy_vector):
             mu_rhotot += nelem * mu_rho_elem
 
         # Calculate the linear attenuation coefficient (convert from cm^-1 to mm^-1)
-        mu = density[formula] * mu_rhotot / 10
+        mu = density * mu_rhotot / 10
 
     return mu
 
@@ -135,7 +135,7 @@ def get_lin_absp_c_vs_E(density, formula, energy_vector):
             mu_rhotot += nelem * mu_rho_elem
 
         # Calculate the linear energy-absorption coefficient (convert from cm^-1 to mm^-1)
-        mu = density[formula] * mu_rhotot / 10
+        mu = density * mu_rhotot / 10
 
     return mu
 
