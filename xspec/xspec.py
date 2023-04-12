@@ -430,15 +430,14 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         return estimated_spec, omega
 
 
-def cal_fw_mat(solid_vol_masks, obj_dicts, energies, fw_projector):
+def cal_fw_mat(solid_vol_masks, lac_vs_energies_list, energies, fw_projector):
     """Calculate the forward matrix of multiple solid objects combination with given forward projector.
 
     Parameters
     ----------
     solid_vol_masks : A list of 3D numpy.ndarray.
         Each mask in the list represents a solid pure object.
-    obj_dicts : A list of dictionary corresponding to solid_vol_masks.
-        Each dictionary contains {chemical formula, density(g/cc)} for the corresponding solid pure object.
+    lac_vs_energies_list : A list of linear attenuation coefficient(LAC) vs Energies curves corresponding to solid_vol_masks.
     energies : numpy.ndarray
         List of X-ray energies of a poly-energetic source in units of keV.
     fw_projector : A numpy class.
@@ -451,13 +450,11 @@ def cal_fw_mat(solid_vol_masks, obj_dicts, energies, fw_projector):
 
     """
     linear_att_intg_list = []
-    for mask, obj_dict in zip(solid_vol_masks, obj_dicts):
-        linear_intg = fw_projector.forward(mask, obj_dict)
-        linear_att_intg_list.append(linear_intg)
+    for mask, lac_vs_energies in zip(solid_vol_masks, lac_vs_energies_list):
+        linear_intg = fw_projector.forward(mask)
+        linear_att_intg_list.append(linear_intg[np.newaxis, :, :, :]*lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis])
 
-    wavelengths = get_wavelength(energies)
-    wnum = 2 * np.pi / wavelengths
     tot_lai = np.sum(np.array(linear_att_intg_list), axis=0)
-    fw_mat = np.exp(-2 * wnum * tot_lai.transpose((1, 2, 3, 0)))
+    fw_mat = np.exp(- tot_lai.transpose((1, 2, 3, 0)))
 
     return fw_mat
