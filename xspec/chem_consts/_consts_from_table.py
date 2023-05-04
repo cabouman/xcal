@@ -67,25 +67,24 @@ def get_lin_att_c_vs_E(density, formula, energy_vector):
     # Initialize the total mass attenuation coefficient array
     mu_rhotot = np.zeros_like(energy_vector)
 
+    molecular_mass = calculate_molecular_mass(formula)
+
     # Read the mass attenuation coefficient data file
     # Calculate the linear attenuation coefficient for the given formula
     with h5py.File(cc_path, 'r') as fid:
         for elem, nelem in formula_dict.items():
+            wi = nelem * atom_weights[elem] / molecular_mass
+
             d = np.array(fid[f"/{elem}/data"])
+
             E = d[:, 0]
-            mu_rho = d[:, 1]
+            mu_rho_tab = d[:, 1]
 
-            # Remove negative values
-            mask = mu_rho > 0.
-            E = E[mask]
-            mu_rho = mu_rho[mask]
-
-            # Interpolate in log-log space using the prescribed method
-            logmu_rho = np.interp(np.log(energy_vector), np.log(E), np.log(mu_rho), left=0.0, right=0.0)
-            mu_rho_elem = np.exp(logmu_rho)
-
-            # Accumulate the total mass attenuation coefficient
-            mu_rhotot += nelem * mu_rho_elem
+            mu_rhotot += wi * np.interp(energy_vector,
+                                     E,
+                                     mu_rho_tab,
+                                     left=0.0,
+                                     right=0.0)
 
         # Calculate the linear attenuation coefficient (convert from cm^-1 to mm^-1)
         mu = density * mu_rhotot / 10
