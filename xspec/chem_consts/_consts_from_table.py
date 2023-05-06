@@ -78,13 +78,14 @@ def get_lin_att_c_vs_E(density, formula, energy_vector):
             d = np.array(fid[f"/{elem}/data"])
 
             E = d[:, 0]
-            mu_rho_tab = d[:, 1]
+            mu_rho = d[:, 1]
 
-            mu_rhotot += wi * np.interp(energy_vector,
-                                     E,
-                                     mu_rho_tab,
-                                     left=0.0,
-                                     right=0.0)
+            # Interpolate in log-log space using the prescribed method
+            logmu_rho = np.interp(np.log(energy_vector), np.log(E), np.log(mu_rho), left=0.0, right=0.0)
+            mu_rho_loginterp = np.exp(logmu_rho)
+
+            # Accumulate the total mass attenuation coefficient
+            mu_rhotot += wi * mu_rho_loginterp
 
         # Calculate the linear attenuation coefficient (convert from cm^-1 to mm^-1)
         mu = density * mu_rhotot / 10
@@ -136,13 +137,14 @@ def get_lin_absp_c_vs_E(density, formula, energy_vector):
             d = np.array(fid[f"/{elem}/data"])
 
             E = d[:, 0]
-            mu_rho_tab = d[:, 2]
+            mu_rho = d[:, 2]
 
-            mu_rhotot += wi * np.interp(energy_vector,
-                                     E,
-                                     mu_rho_tab,
-                                     left=0.0,
-                                     right=0.0)
+            # Interpolate in log-log space using the prescribed method
+            logmu_rho = np.interp(np.log(energy_vector), np.log(E), np.log(mu_rho), left=0.0, right=0.0)
+            mu_rho_loginterp = np.exp(logmu_rho)
+
+            # Accumulate the total mass energy-absorption coefficient
+            mu_rhotot += wi * mu_rho_loginterp
 
         # Calculate the linear energy-absorption coefficient (convert from cm^-1 to mm^-1)
         mu = density * mu_rhotot / 10
