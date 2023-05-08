@@ -2,4 +2,4 @@ sphinx>=2.2
 sphinxcontrib-bibtex==1.0
 ipython>=6.3.1
 ruamel.yaml~=0.16.12
-sphinx-rtd-theme~=0.5.1
+sphinx-rtd-theme~=1.2.0

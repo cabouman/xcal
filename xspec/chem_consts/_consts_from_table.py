@@ -2,7 +2,19 @@ import numpy as np
 import os
 import h5py
 import chemparse
+from ._periodictabledata import atom_weights
 
+def calculate_molecular_mass(formula):
+    """
+    interpret the formula as either a dictionary
+    or a chemical formula
+    """
+    formula_dict = interpret_formula(formula)
+    M = 0.
+    for k,v in formula_dict.items():
+        M += v * atom_weights[k]
+
+    return M
 
 def interpret_formula(formula):
     """
@@ -55,25 +67,25 @@ def get_lin_att_c_vs_E(density, formula, energy_vector):
     # Initialize the total mass attenuation coefficient array
     mu_rhotot = np.zeros_like(energy_vector)
 
+    molecular_mass = calculate_molecular_mass(formula)
+
     # Read the mass attenuation coefficient data file
     # Calculate the linear attenuation coefficient for the given formula
     with h5py.File(cc_path, 'r') as fid:
         for elem, nelem in formula_dict.items():
+            wi = nelem * atom_weights[elem] / molecular_mass
+
             d = np.array(fid[f"/{elem}/data"])
+
             E = d[:, 0]
             mu_rho = d[:, 1]
 
-            # Remove negative values
-            mask = mu_rho > 0.
-            E = E[mask]
-            mu_rho = mu_rho[mask]
-
             # Interpolate in log-log space using the prescribed method
             logmu_rho = np.interp(np.log(energy_vector), np.log(E), np.log(mu_rho), left=0.0, right=0.0)
-            mu_rho_elem = np.exp(logmu_rho)
+            mu_rho_loginterp = np.exp(logmu_rho)
 
             # Accumulate the total mass attenuation coefficient
-            mu_rhotot += nelem * mu_rho_elem
+            mu_rhotot += wi * mu_rho_loginterp
 
         # Calculate the linear attenuation coefficient (convert from cm^-1 to mm^-1)
         mu = density * mu_rhotot / 10
@@ -115,24 +127,24 @@ def get_lin_absp_c_vs_E(density, formula, energy_vector):
     # Initialize the total mass energy-absorption coefficient array
     mu_rhotot = np.zeros_like(energy_vector)
 
+    molecular_mass = calculate_molecular_mass(formula)
+
     # Read the mass energy-absorption coefficient data file
     with h5py.File(cc_path, 'r') as fid:
         for elem, nelem in formula_dict.items():
+            wi = nelem * atom_weights[elem] / molecular_mass
+
             d = np.array(fid[f"/{elem}/data"])
+
             E = d[:, 0]
             mu_rho = d[:, 2]
 
-            # Remove negative values
-            mask = mu_rho > 0.
-            E = E[mask]
-            mu_rho = mu_rho[mask]
-
             # Interpolate in log-log space using the prescribed method
             logmu_rho = np.interp(np.log(energy_vector), np.log(E), np.log(mu_rho), left=0.0, right=0.0)
-            mu_rho_elem = np.exp(logmu_rho)
+            mu_rho_loginterp = np.exp(logmu_rho)
 
             # Accumulate the total mass energy-absorption coefficient
-            mu_rhotot += nelem * mu_rho_elem
+            mu_rhotot += wi * mu_rho_loginterp
 
         # Calculate the linear energy-absorption coefficient (convert from cm^-1 to mm^-1)
         mu = density * mu_rhotot / 10
