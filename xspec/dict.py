@@ -26,7 +26,8 @@ def gen_filts_specD(energies, composition=[]):
 
 def _obtain_absorption(energies, formula, density, thickness):
     mu_en = get_lin_absp_c_vs_E(density, formula, energies)
-    absr = (1 - np.exp(-mu_en * thickness))
+    mu = get_lin_att_c_vs_E(density, formula, energies)
+    absr = energies*mu_en/mu*(1-np.exp(-mu*thickness))
     return absr
 
 
