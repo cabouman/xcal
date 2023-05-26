@@ -7,9 +7,14 @@ Description:
 Date: Dec 1st, 2022.
 """
 
-import numpy as np
-import itertools
 import random
+import itertools
+from multiprocessing import Pool
+import contextlib
+from functools import partial
+from psutil import cpu_count
+
+import numpy as np
 from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func
 
 
@@ -466,7 +471,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
     Parameters
     ----------
     signal : numpy.ndarray
-        Transmission Data :math:`y` of size (#sets, #energies, #views, #rows, #columns). Should be the exponential term instead of the projection after taking negative log.
+        Transmission Data :math:`y` of size (#sets, #views, #rows, #columns). Should be the exponential term instead of the projection after taking negative log.
     energies : numpy.ndarray
         List of X-ray energies of a poly-energetic source in units of keV.
     forward_mat : numpy.ndarray
@@ -707,7 +712,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
     if return_component:
         return estimated_spec_list, errs, omega, S, cost_list, err_list, criteria_list, ICD_cost_list
     else:
-        return estimated_spec, omega
+        return estimated_spec, omega, S, cost_list
 
 
 def cal_fw_mat(solid_vol_masks, lac_vs_energies_list, energies, fw_projector):
@@ -738,3 +743,87 @@ def cal_fw_mat(solid_vol_masks, lac_vs_energies_list, energies, fw_projector):
     fw_mat = np.exp(- tot_lai.transpose((1, 2, 3, 0)))
 
     return fw_mat
+
+
+def uncertainty_analysis(signal, back_ground_area,
+                         energies, forward_mat, spec_dict, sparsity,
+                        num_sim=100, num_cores=None, anal_mode='add_noise_to_signal'):
+    """
+
+    Parameters
+    ----------
+    signal : numpy.ndarray
+        Transmission Data :math:`y` of size (#sets, #views, #rows, #columns). Should be the exponential term instead of the projection after taking negative log.
+    back_ground_area : int numpy array. [[row_index, col_index],[height, width]]
+        row and column range of background to estimate variance.
+    num_sim: int
+        Number of simulations that user want to run.
+    energies : numpy.ndarray
+        List of X-ray energies of a poly-energetic source in units of keV.
+    forward_mat : numpy.ndarray
+        A numpy array of forward matrix (#sets * #views * #rows * #columns, #energies)
+    spec_dict : numpy.ndarray
+        The spectrum dictionary contains N, the number of column, different X-ray spectrum.
+        The number of rows M, should be same as the length of energies, should be normalized to integrate to 1.
+    sparsity : int
+        The max number of nonzero coefficients.
+    num_cores : Number of cores that user want to use for simulations.
+    anal_mode : 'add_noise_to_signal' or 'use_est_as_gt'
+
+    Returns
+    -------
+
+    """
+    npt_set = []
+    back_ground_area = np.array(back_ground_area).astype('int')
+    row_index,col_index,height,width = back_ground_area.flatten()
+
+    if num_cores is None:
+        num_cores = cpu_count(logical=False)
+    lst = np.arange(num_sim)
+
+    for sig in signal:
+        npt_set.append(np.std(sig[:,row_index:row_index+height,col_index:col_index+width]))
+    npt_set = np.array(npt_set)
+    print('Estimated Standard deviation of each set:', npt_set)
+
+    if anal_mode == 'add_noise_to_signal':
+        with contextlib.closing( Pool(num_cores) ) as pool:
+            result_list = pool.map(partial(dictse_wrapper, signal=signal, npt_set=npt_set, energies=energies,
+                                                   spec_F_train=forward_mat, spec_dict=spec_dict, sparsity=sparsity), lst)
+    elif anal_mode == "use_est_as_gt_sq2":
+        Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
+        estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
+                  spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
+                  signal_weight=1.0 / signal, auto_stop=True, return_component=False,
+                  verbose=0)
+        ideal_proj = np.trapz(forward_mat * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape)
+        print(np.array(signal).shape)
+        print(ideal_proj.shape)
+        with contextlib.closing( Pool(num_cores) ) as pool:
+            result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=np.sqrt(2)*npt_set, energies=energies,
+                                                   spec_F_train=forward_mat, spec_dict=spec_dict, sparsity=sparsity), lst)
+    elif anal_mode == "use_est_as_gt":
+        Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
+        estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
+                  spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
+                  signal_weight=1.0 / signal, auto_stop=True, return_component=False,
+                  verbose=0)
+        ideal_proj = np.trapz(forward_mat * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape)
+        print(np.array(signal).shape)
+        print(ideal_proj.shape)
+        with contextlib.closing( Pool(num_cores) ) as pool:
+            result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=npt_set, energies=energies,
+                                                   spec_F_train=forward_mat, spec_dict=spec_dict, sparsity=sparsity), lst)
+    else:
+        print('No analysis mode call:', anal_mode)
+    return result_list
+
+
+def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, sparsity):
+    signal_train = np.array([sig + np.sqrt(sig) * np.random.normal(0, npt, size=sig.shape) for sig,npt in zip(signal, npt_set)])
+    Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
+    return dictSE(signal_train, energies, spec_F_train,
+                spec_dict.reshape(-1,spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
+                signal_weight=1.0/signal_train, auto_stop=True, return_component=False,
+                verbose=0)
