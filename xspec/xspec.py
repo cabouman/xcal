@@ -790,7 +790,7 @@ def uncertainty_analysis(signal, back_ground_area,
     if anal_mode == 'add_noise_to_signal':
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=signal, npt_set=npt_set, energies=energies,
-                                                   spec_F_train=forward_mat, spec_dict=spec_dict, sparsity=sparsity), lst)
+                                                   spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
     elif anal_mode == "use_est_as_gt_sq2":
         Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
         estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
@@ -802,7 +802,7 @@ def uncertainty_analysis(signal, back_ground_area,
         print(ideal_proj.shape)
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=np.sqrt(2)*npt_set, energies=energies,
-                                                   spec_F_train=forward_mat, spec_dict=spec_dict, sparsity=sparsity), lst)
+                                                   spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
     elif anal_mode == "use_est_as_gt":
         Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
         estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
@@ -814,14 +814,14 @@ def uncertainty_analysis(signal, back_ground_area,
         print(ideal_proj.shape)
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=npt_set, energies=energies,
-                                                   spec_F_train=forward_mat, spec_dict=spec_dict, sparsity=sparsity), lst)
+                                                   spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
     else:
         print('No analysis mode call:', anal_mode)
     return result_list
 
 
-def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, sparsity):
-    signal_train = np.array([sig + np.sqrt(sig) * np.random.normal(0, npt, size=sig.shape) for sig,npt in zip(signal, npt_set)])
+def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_cores, sparsity):
+    signal_train = np.array([sig + np.sqrt(sig) * np.random.normal(0, npt, size=(num_cores,)+sig.shape)[ii%num_cores] for sig,npt in zip(signal, npt_set)])
     Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
     return dictSE(signal_train, energies, spec_F_train,
                 spec_dict.reshape(-1,spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
