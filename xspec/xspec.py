@@ -677,7 +677,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
         #k = [np.argmin(criteria)]
         candidate_list = np.argsort(criteria)[:num_candidate]
         candidate_list = candidate_list[~selected_spec_mask[candidate_list]]
-        k = [np.random.choice(np.argsort(criteria)[:num_candidate])]
+        k = [np.random.choice(candidate_list)]
 
         if verbose > 0:
             print(k)
