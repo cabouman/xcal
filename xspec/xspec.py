@@ -461,7 +461,7 @@ class Snap:
 
 
 # Orthogonal match pursuit with different optimization models.
-def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal_weight=None, nnc='on-coef',
+def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_candidate=1, signal_weight=None, nnc='on-coef',
            tol=1e-6, return_component=False, auto_stop=True, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
@@ -674,7 +674,8 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
         if criteria.mask.all():
             break
 
-        k = [np.argmin(criteria)]
+        #k = [np.argmin(criteria)]
+        k = [np.random.choice(np.argsort(criteria)[:num_candidate])]
         if verbose > 0:
             print(k)
             print(beta)
