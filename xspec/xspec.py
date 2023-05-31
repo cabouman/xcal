@@ -555,7 +555,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
 
     if signal_weight is None:
         signal_weight = np.ones(signal.shape)
-    signal_weight = signal_weight.reshape((-1, 1))
+    signal_weight = np.concatenate([sig.reshape((-1, 1)) for sig in signal_weight])
     FDS = np.zeros((len(signal), 0))
     e = signal.copy()
     y = signal.copy()
@@ -797,7 +797,7 @@ def uncertainty_analysis(signal, back_ground_area,
         Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
         estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
-                  signal_weight=1.0 / signal, auto_stop=True, return_component=False,
+                  signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
                   verbose=0)
         ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape) for fwm in forward_mat]
         with contextlib.closing( Pool(num_cores) ) as pool:
@@ -807,7 +807,7 @@ def uncertainty_analysis(signal, back_ground_area,
         Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
         estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
-                  signal_weight=1.0 / signal, auto_stop=True, return_component=False,
+                  signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
                   verbose=0)
         ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape) for fwm in forward_mat]
         with contextlib.closing( Pool(num_cores) ) as pool:
@@ -823,5 +823,5 @@ def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_c
     Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
     return dictSE(signal_train, energies, spec_F_train,
                 spec_dict.reshape(-1,spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
-                signal_weight=1.0/signal_train, auto_stop=True, return_component=False,
+                signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
                 verbose=0)
