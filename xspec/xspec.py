@@ -690,8 +690,11 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
             print(criteria[k])
 
         # Build new support
-        omega[S, 0] = omega[S, 0] * beta[k[0]]
-        omega[k[0], 0] = 1 - beta[k[0]]
+        if len(k) ==1:
+            omega[S, 0] = omega[S, 0] * beta[k[0]]
+            omega[k[0], 0] = 1 - beta[k[0]]
+        else:
+            omega[k, 0] = 1.0/len(k)
         S = S + k
         print(S)
         selected_spec_mask[k] = True
