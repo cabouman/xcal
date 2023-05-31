@@ -799,7 +799,7 @@ def uncertainty_analysis(signal, back_ground_area,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
                   signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
                   verbose=0)
-        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape) for fwm in forward_mat]
+        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(sig.shape) for sig, fwm in zip(signal, forward_mat)]
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=np.sqrt(2)*npt_set, energies=energies,
                                                    spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
@@ -809,7 +809,7 @@ def uncertainty_analysis(signal, back_ground_area,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
                   signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
                   verbose=0)
-        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape) for fwm in forward_mat]
+        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(sig.shape) for sig, fwm in zip(signal, forward_mat)]
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=npt_set, energies=energies,
                                                    spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
