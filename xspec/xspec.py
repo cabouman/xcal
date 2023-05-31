@@ -799,9 +799,7 @@ def uncertainty_analysis(signal, back_ground_area,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
                   signal_weight=1.0 / signal, auto_stop=True, return_component=False,
                   verbose=0)
-        ideal_proj = np.trapz(forward_mat * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape)
-        print(np.array(signal).shape)
-        print(ideal_proj.shape)
+        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape) for fwm in forward_mat]
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=np.sqrt(2)*npt_set, energies=energies,
                                                    spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
@@ -811,9 +809,7 @@ def uncertainty_analysis(signal, back_ground_area,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
                   signal_weight=1.0 / signal, auto_stop=True, return_component=False,
                   verbose=0)
-        ideal_proj = np.trapz(forward_mat * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape)
-        print(np.array(signal).shape)
-        print(ideal_proj.shape)
+        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(signal.shape) for fwm in forward_mat]
         with contextlib.closing( Pool(num_cores) ) as pool:
             result_list = pool.map(partial(dictse_wrapper, signal=ideal_proj, npt_set=npt_set, energies=energies,
                                                    spec_F_train=forward_mat, spec_dict=spec_dict, num_cores=num_cores, sparsity=sparsity), lst)
@@ -823,7 +819,7 @@ def uncertainty_analysis(signal, back_ground_area,
 
 
 def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_cores, sparsity):
-    signal_train = np.array([sig + np.sqrt(sig) * np.random.normal(0, npt, size=(num_cores,)+sig.shape)[ii%num_cores] for sig,npt in zip(signal, npt_set)])
+    signal_train = [sig + np.sqrt(sig) * np.random.normal(0, npt, size=(num_cores,)+sig.shape)[ii%num_cores] for sig,npt in zip(signal, npt_set)]
     Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
     return dictSE(signal_train, energies, spec_F_train,
                 spec_dict.reshape(-1,spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
