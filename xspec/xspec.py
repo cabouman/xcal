@@ -550,7 +550,9 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, signal
     """
 
     S = []
-    signal = signal.reshape((-1, 1))
+    signal = np.concatenate([sig.reshape((-1, 1)) for sig in signal])
+    forward_mat = np.concatenate([fwm.reshape((-1, forward_mat.shape[-1])) for fwm in forward_mat]).reshape((-1, 1))
+
     if signal_weight is None:
         signal_weight = np.ones(signal.shape)
     signal_weight = signal_weight.reshape((-1, 1))
