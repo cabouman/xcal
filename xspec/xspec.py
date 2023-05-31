@@ -682,7 +682,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
         elif support_selection == 'candidate':
             k = [np.random.choice(candidate_list)]
         elif support_selection == 'random':
-            k = [np.random.choice(candidate_list, sparsity, replace=False)]
+            k = list(np.random.choice(candidate_list, sparsity, replace=False))
 
         if verbose > 0:
             print(k)
