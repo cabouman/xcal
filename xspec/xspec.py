@@ -461,8 +461,9 @@ class Snap:
 
 
 # Orthogonal match pursuit with different optimization models.
-def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_candidate=1,
-           signal_weight=None, nnc='on-coef', tol=1e-6, return_component=False, auto_stop=True, verbose=0):
+def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_candidate=1, max_num_supports=None,
+           signal_weight=None, nnc='on-coef',
+           tol=1e-6, return_component=False, auto_stop=True, verbose=0):
     """A spectral calibration algorithm using dictionary learning.
 
     This function requires users to provide a large enough spectrum dictionary to estimate the source spectrum.
@@ -557,7 +558,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
         signal_weight = np.ones(signal.shape)
     signal_weight = np.concatenate([sig.reshape((-1, 1)) for sig in signal_weight])
     FDS = np.zeros((len(signal), 0))
-    e = signal.copy()
+
     y = signal.copy()
     omega = np.zeros((spec_dict.shape[1], 1))
     errs = []
@@ -567,7 +568,15 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
     estimated_spec_list = []
     criteria_list = []
 
-    selected_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
+    S_list = [[]]
+    omega_list = [omega]
+    FDS_list = [np.zeros((len(signal), 0))]
+    res_S_list = []
+    res_omega_list = []
+    res_estimated_spec_list = []
+    res_cost_list = []
+
+    appeared_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
 
     if verbose > 0:
         print(forward_mat.shape)
@@ -594,133 +603,169 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
 
     estimated_spec = spec_dict @ omega
     cost = np.inf
-    while len(S) < sparsity and np.linalg.norm(e) > tol:
-        print('\nIteration %d:' % (len(S) + 1))
+    # while len(S) < sparsity and np.linalg.norm(e) > tol:
+    while len(S_list) > 0:
+        print('\nIteration %d:' % (len(S_list[0]) + 1))
+        print(S_list)
+        appeared_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
 
-        # Find new index.
-        if len(S) == 0:
-            yhat = np.zeros(signal.shape)
+        new_S_list = []
+        new_omega_list = []
+        new_FDS_list = []
+        new_cost_list = []
+        for S, omega, pre_FDS in zip(S_list, omega_list, FDS_list):
+            appeared_spec_mask[S] = True
+            selected_spec_mask = np.zeros(spec_dict.shape[1], dtype=bool)
+            selected_spec_mask[S] = True
+            estimated_spec = spec_dict @ omega
+            print('S:', S)
+            print('omega:', omega[S])
 
-        # Compute required matrices
-        y_yhat = np.sum(y * signal_weight * yhat)
-        yhat_sq = np.sum(yhat * signal_weight * yhat)
-        yhat_F = ((yhat * signal_weight).T @ forward_mat).reshape((-1, 1))
-        yhat_F_Dk = np.trapz(yhat_F * spec_dict, energies, axis=0)
-
-        rho1 = y_yhat + FDsq - y_F_Dk - yhat_F_Dk
-        rho2 = yhat_sq + FDsq - 2 * yhat_F_Dk
-
-        # Calculate \beta_k.
-        if len(S) == 0:
-            beta = np.zeros(rho1.shape)
-            beta_mask = (beta * 0)
-        else:
-            beta = rho1 / rho2
-            if nnc == 'on-spec':  # shrinkage function.
-                l_star = optimizor.l_star
-
-                for beta_ind in range(len(beta)):
-                    beta_srk1 = l_star * (np.sum(np.abs(omega)) + 1) / rho2[beta_ind]
-                    beta_srk2 = l_star * (np.sum(np.abs(omega)) - 1) / rho2[beta_ind]
-                    if beta[beta_ind] > beta_srk1 + 1:
-                        beta[beta_ind] -= beta_srk1
-                    elif beta[beta_ind] <= beta_srk1 + 1 and beta[beta_ind] >= beta_srk2 + 1:
-                        beta[beta_ind] = 1
-                    elif beta[beta_ind] > beta_srk2 and beta[beta_ind] < beta_srk2 + 1:
-                        beta[beta_ind] -= beta_srk2
-                    elif beta[beta_ind] < -beta_srk1:
-                        beta[beta_ind] += beta_srk1
-                    else:
-                        beta[beta_ind] = 0
-
-        if nnc == 'on-coef':
-            beta = np.clip(beta, 0, 1)
-            if auto_stop:
-                beta_mask = (beta >= 1)
+            # Find new index.
+            if len(S) == 0:
+                yhat = np.zeros(signal.shape)
+                e = signal - yhat
             else:
-                beta_mask = (beta > 1)
-        elif nnc == 'on-spec':
-            beta_bound = spec_dict / (spec_dict - estimated_spec)
-            print(beta_bound.shape)
-            if (beta_bound > 0).any():
-                beta_ub = np.min(beta_bound[beta_bound > 0], axis=0)
-            else:
-                beta_ub = beta * 0
-            if (beta_bound < 0).any():
-                beta_lb = np.max(beta_bound[beta_bound < 0], axis=0)
-            else:
-                beta_lb = beta * 0
+                yhat = pre_FDS @ omega[S]
+                e = signal - yhat
 
-            beta = np.clip(beta, beta_lb, beta_ub)
-            if len(S) > 0:
+            # Compute required matrices
+            y_yhat = np.sum(y * signal_weight * yhat)
+            yhat_sq = np.sum(yhat * signal_weight * yhat)
+            yhat_F = ((yhat * signal_weight).T @ forward_mat).reshape((-1, 1))
+            yhat_F_Dk = np.trapz(yhat_F * spec_dict, energies, axis=0)
+
+            rho1 = y_yhat + FDsq - y_F_Dk - yhat_F_Dk
+            rho2 = yhat_sq + FDsq - 2 * yhat_F_Dk
+
+            # Calculate \beta_k.
+            if len(S) == 0:
+                beta = np.zeros(rho1.shape)
+                beta_mask = (beta * 0)
+            else:
+                beta = rho1 / rho2
+                if nnc == 'on-spec':  # shrinkage function.
+                    l_star = optimizor.l_star
+
+                    for beta_ind in range(len(beta)):
+                        beta_srk1 = l_star * (np.sum(np.abs(omega)) + 1) / rho2[beta_ind]
+                        beta_srk2 = l_star * (np.sum(np.abs(omega)) - 1) / rho2[beta_ind]
+                        if beta[beta_ind] > beta_srk1 + 1:
+                            beta[beta_ind] -= beta_srk1
+                        elif beta[beta_ind] <= beta_srk1 + 1 and beta[beta_ind] >= beta_srk2 + 1:
+                            beta[beta_ind] = 1
+                        elif beta[beta_ind] > beta_srk2 and beta[beta_ind] < beta_srk2 + 1:
+                            beta[beta_ind] -= beta_srk2
+                        elif beta[beta_ind] < -beta_srk1:
+                            beta[beta_ind] += beta_srk1
+                        else:
+                            beta[beta_ind] = 0
+
+            if nnc == 'on-coef':
+                beta = np.clip(beta, 0, 1)
                 if auto_stop:
-                    beta_mask = (beta == 1)
+                    beta_mask = (beta >= 1)
                 else:
-                    beta_mask = (beta * 0)
+                    beta_mask = (beta > 1)
+            elif nnc == 'on-spec':
+                beta_bound = spec_dict / (spec_dict - estimated_spec)
+                print(beta_bound.shape)
+                if (beta_bound > 0).any():
+                    beta_ub = np.min(beta_bound[beta_bound > 0], axis=0)
+                else:
+                    beta_ub = beta * 0
+                if (beta_bound < 0).any():
+                    beta_lb = np.max(beta_bound[beta_bound < 0], axis=0)
+                else:
+                    beta_lb = beta * 0
+
+                beta = np.clip(beta, beta_lb, beta_ub)
+                if len(S) > 0:
+                    if auto_stop:
+                        beta_mask = (beta == 1)
+                    else:
+                        beta_mask = (beta * 0)
+            else:
+                beta_mask = (beta * 0)
+
+            # Substitute \beta to criteria function.
+            criteria = np.zeros(beta.shape)
+            criteria = ysq + beta ** 2 * yhat_sq + (1 - beta) ** 2 * FDsq - 2 * beta * y_yhat - 2 * (
+                    1 - beta) * y_F_Dk + 2 * beta * (1 - beta) * yhat_F_Dk
+            criteria /= 2 * signal.shape[0]
+            if nnc == 'on-spec':
+                l_star = optimizor.l_star
+                criteria += l_star * (np.abs(beta) * np.linalg.norm(omega, ord=1) + np.abs(1 - beta)) - l_star
+            criteria = np.ma.array(criteria, mask=np.logical_or(appeared_spec_mask, beta_mask))
+
+            criteria_list.append(criteria)
+            if criteria.mask.all():
+                res_S_list.append(S)
+                res_omega_list.append(omega)
+                res_estimated_spec_list.append(estimated_spec)
+                res_cost_list.append(cal_cost(e, signal_weight))
+                continue
+            elif criteria.count() >= num_candidate:
+                candidate_list = np.argsort(criteria)[:num_candidate]
+            else:
+                candidate_list = np.argsort(criteria)[:criteria.count()]
+
+            for cl in candidate_list:
+                # appeared_spec_mask[cl]=True
+                k = [cl]
+
+                new_S = S + k
+                new_omega = omega.copy()
+
+                if verbose > 0:
+                    print(k)
+                    print(beta)
+                    print(criteria[k])
+
+                # Build new support
+
+                new_omega[S, 0] = new_omega[S, 0] * beta[k[0]]
+                new_omega[k[0], 0] = 1 - beta[k[0]]
+
+                print(new_S)
+                selected_spec_mask[k] = True
+                FDk = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
+                FDS = np.concatenate([pre_FDS, FDk], axis=1)
+
+                # Find best coefficient with new support given solver.
+                Omega_init = new_omega[new_S, 0]
+                e = signal - FDS @ new_omega[new_S]
+
+                new_omega[new_S, 0] = optimizor.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init,
+                                                      e_init=e,
+                                                      spec_dict=spec_dict[:, S])
+                if len(new_S) == sparsity or np.linalg.norm(e) <= tol:
+                    res_S_list.append(new_S)
+                    res_omega_list.append(new_omega)
+                    res_estimated_spec_list.append(estimated_spec)
+                    res_cost_list.append(cal_cost(e, signal_weight))
+                else:
+                    new_S_list.append(new_S)
+                    new_omega_list.append(new_omega)
+                    new_FDS_list.append(FDS)
+                    cost = optimizor.cost()
+                    new_cost_list.append(cost)
+                    print('cost:', cost)
+
+        if len(new_cost_list) > 0:
+            print('new_cost_list:', new_cost_list)
+            print('new_S_list:', new_S_list)
+            ncl_id = np.argsort(new_cost_list)[:max_num_supports]
+            ncl_id.sort()
+            print(ncl_id)
+            S_list = [new_S_list[nnid] for nnid in ncl_id]
+            omega_list = [new_omega_list[nnid] for nnid in ncl_id]
+            FDS_list = [new_FDS_list[nnid] for nnid in ncl_id]
+            print('S_list:', S_list)
         else:
-            beta_mask = (beta * 0)
+            S_list = []
 
-        # Substitute \beta to criteria function.
-        criteria = np.zeros(beta.shape)
-        criteria = ysq + beta ** 2 * yhat_sq + (1 - beta) ** 2 * FDsq - 2 * beta * y_yhat - 2 * (
-                1 - beta) * y_F_Dk + 2 * beta * (1 - beta) * yhat_F_Dk
-        criteria /= 2 * signal.shape[0]
-        if nnc == 'on-spec':
-            l_star = optimizor.l_star
-            criteria += l_star * (np.abs(beta) * np.linalg.norm(omega, ord=1) + np.abs(1 - beta)) - l_star
-        criteria = np.ma.array(criteria, mask=np.logical_or(selected_spec_mask, beta_mask))
-
-        criteria_list.append(criteria)
-        if criteria.mask.all():
-            break
-
-        candidate_list = np.argsort(criteria)[:num_candidate]
-        candidate_list = candidate_list[~selected_spec_mask[candidate_list]]
-        k = [candidate_list[0]]
-
-        if verbose > 0:
-            print(k)
-            print(beta)
-            print(criteria[k])
-
-        # Build new support
-        if len(k) ==1:
-            omega[S, 0] = omega[S, 0] * beta[k[0]]
-            omega[k[0], 0] = 1 - beta[k[0]]
-        else:
-            omega[k, 0] = 1.0/len(k)
-        S = S + k
-        print(S)
-        selected_spec_mask[k] = True
-        FDk = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
-        FDS = np.concatenate([FDS, FDk], axis=1)
-
-        # Find best coefficient with new support given solver.
-        Omega_init = omega[S, 0]
-        e = signal - FDS @ omega[S]
-
-        omega[S, 0] = optimizor.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init, e_init=e,
-                                      spec_dict=spec_dict[:, S])
-        ICD_cost_list.append(optimizor.cost_list)
-        print('cost before ICD:', optimizor.cost_list[0])
-        # Compute new residual
-        e = signal - FDS @ omega[S]
-        yhat = FDS @ omega[S]
-        err_list.append(e)
-        errs.append(np.sqrt(np.mean(e ** 2 * signal_weight)))
-
-        cost = optimizor.cost()
-        cost_list.append(cost)
-
-        print('e:', np.sqrt(np.mean(e ** 2 * signal_weight)))
-        print('cost:', cost)
-        estimated_spec = np.clip(spec_dict @ omega, 0, np.inf)
-        estimated_spec_list.append(estimated_spec)
-
-    if return_component:
-        return estimated_spec_list, errs, omega, S, cost_list, err_list, criteria_list, ICD_cost_list
-    else:
-        return estimated_spec, omega, S, cost_list
+    return res_estimated_spec_list, res_S_list, res_omega_list, res_cost_list
 
 
 def cal_fw_mat(solid_vol_masks, lac_vs_energies_list, energies, fw_projector):
