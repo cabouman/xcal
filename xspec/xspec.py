@@ -305,6 +305,17 @@ class L1:
 
         return Omega
 
+def cal_cost(e, weight):
+    """Return current value of MAP cost function.
+
+    Returns
+    -------
+        cost : float
+            Return current value of MAP cost function.
+    """
+
+    cost = 0.5 * np.mean(e ** 2 * weight)
+    return cost
 
 class Snap:
     """Solve Snap prior using pair-wise ICD update.
@@ -557,6 +568,9 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
     if signal_weight is None:
         signal_weight = np.ones(signal.shape)
     signal_weight = np.concatenate([sig.reshape((-1, 1)) for sig in signal_weight])
+    if max_num_supports is None:
+        max_num_supports = num_candidate
+
     FDS = np.zeros((len(signal), 0))
 
     y = signal.copy()
@@ -764,8 +778,10 @@ def dictSE(signal, energies, forward_mat, spec_dict, sparsity, optimizor, num_ca
             print('S_list:', S_list)
         else:
             S_list = []
-
-    return res_estimated_spec_list, res_S_list, res_omega_list, res_cost_list
+    if return_component:
+        return res_estimated_spec_list, res_S_list, res_omega_list, res_cost_list
+    else:
+        return res_estimated_spec_list
 
 
 def cal_fw_mat(solid_vol_masks, lac_vs_energies_list, energies, fw_projector):
@@ -849,7 +865,7 @@ def uncertainty_analysis(signal, back_ground_area, energies, forward_mat, spec_d
         Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
         estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
                   spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior, nnc='on-coef',
-                  signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
+                  signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=True,
                   verbose=0)
         ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(sig.shape) for sig, fwm in zip(signal, forward_mat)]
         with contextlib.closing( Pool(num_cores) ) as pool:
@@ -866,5 +882,5 @@ def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_c
     Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
     return dictSE(signal_train, energies, spec_F_train,
                 spec_dict.reshape(-1,spec_dict.shape[-1]), sparsity, optimizor=Snapprior, num_candidate=num_candidate,
-                nnc='on-coef', signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=False,
+                nnc='on-coef', signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=True,
                 verbose=0)
