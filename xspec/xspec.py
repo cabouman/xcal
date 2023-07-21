@@ -606,7 +606,196 @@ class LS:
 
         return Omega
 
+def cal_first_derivative(a, b, c, d, e, x):
+    numerator = b * (d + 2 * c * x) - a * (2 * e + d * x)
+    denominator = (b + a * x)**3
+    result = numerator / denominator
+    return result
 
+def update_xi_matrix(omega_src, omega_fltr, omega_scint):
+    # get length of each omega
+    l_omega_src = len(omega_src)
+    l_omega_fltr = len(omega_fltr)
+    l_omega_scint = len(omega_scint)
+
+    # reshape arrays to be able to use broadcasting
+    omega_src = omega_src.flatten()[:, None, None, None]
+    omega_fltr = omega_fltr.flatten()[None, :, None, None]
+    omega_scint = omega_scint.flatten()[None, None, :, None]
+
+    # create identity matrix with extra dimensions
+    src_eye = np.eye(l_omega_src)[:, None, None, :]
+    fltr_eye = np.eye(l_omega_fltr)[None, :, None, :]
+    scint_eye = np.eye(l_omega_scint)[None, None, :, :]
+
+    # compute xi's using broadcasting and in-place multiplication
+    xi_src = src_eye * omega_fltr * omega_scint
+    xi_fltr = omega_src * fltr_eye * omega_scint
+    xi_scint = omega_src * omega_fltr * scint_eye
+
+    # reshape arrays and transpose
+    xi_src = xi_src.reshape(-1, l_omega_src)
+    xi_fltr = xi_fltr.reshape(-1, l_omega_fltr)
+    xi_scint = xi_scint.reshape(-1, l_omega_scint)
+
+    xi_list = [xi_src, xi_fltr, xi_scint]
+
+    return xi_list
+
+
+class LS_sep_model:
+    """Solve least square using pair-wise ICD update.
+
+    """
+
+    def __init__(self, max_iter=3000, threshold=1e-7):
+        """
+
+        Parameters
+        ----------
+
+        max_iter : int
+            Maximum number of iterations.
+        threshold : float
+            Scalar value for stop update threshold.
+
+        """
+
+        self.max_iter = max_iter
+        self.threshold = threshold
+        self.cost_list = []
+
+    def cost(self, Z, omega):
+        """Return current value of MAP cost function.
+
+        Returns
+        -------
+            cost : float
+                Return current value of MAP cost function.
+        """
+        cost = 0.5 * np.mean((self.e/(Z@omega)) ** 2 * self.weight)
+        return cost
+
+    def solve(self, FD, y, Z, Omega_init, weight=None, e_init=None):
+        """Use pairwise ICD to solve MAP cost function with Snap prior.
+
+        Parameters
+        ----------
+        FD : numpy.ndarray
+            Forward matrix multiplys subset Dictionary matrix.
+        y : numpy.ndarray
+            Measurement data.
+
+
+        Returns
+        -------
+        omega : numpy.ndarray
+            Coefficients.
+
+        """
+        self.cost_list = []
+        m, n = np.shape(FD)
+
+        omega_src, omega_fltr, omega_scint = Omega_init
+        print('omega_src:', omega_src)
+        print('omega_fltr:', omega_fltr)
+        print('omega_scint:', omega_scint)
+        Omega = (omega_src[:, np.newaxis, np.newaxis] \
+                 * omega_fltr[np.newaxis, :, np.newaxis] \
+                 * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
+
+        if weight is None:
+            weight = np.ones(y.shape)
+        weight = weight.reshape((-1, 1))
+
+        print('Z.shape:', Z.shape)
+        yZ_FD= y@Z-FD
+        print('yZ_FD.shape:', yZ_FD.shape)
+
+        if e_init is None:
+            e = y.reshape((-1, 1))@(Z@Omega) - FD@Omega
+        else:
+            e = e_init
+
+        self.Omega = Omega.copy()
+        self.e = e.copy()
+        self.weight = weight
+        self.cost_list.append(self.cost(Z, Omega))
+
+        pairs_src = np.array(list(itertools.combinations(np.arange(len(omega_src)), 2)))
+        pairs_fltr = np.array(list(itertools.combinations(np.arange(len(omega_fltr)), 2)))
+        pairs_scint = np.array(list(itertools.combinations(np.arange(len(omega_scint)), 2)))
+
+        pairs_list = [pairs_src, pairs_fltr, pairs_scint]
+
+
+        print('Cost before pairwise ICD:', self.cost(Z, Omega))
+        for K in range(self.max_iter):
+
+            for ind, pairs in enumerate(pairs_list):
+                omega_src, omega_fltr, omega_scint = Omega_init
+                xi_list = update_xi_matrix(omega_src, omega_fltr, omega_scint)
+
+                xi = xi_list[ind]
+                omega = Omega_init[ind]
+                # Generate a random permutation of indices
+                perm = np.random.permutation(len(pairs))
+                yZ_FD_xi = yZ_FD @ xi
+
+                for pair_ind in pairs[perm]:
+                    k = pair_ind[0]
+                    g = pair_ind[1]
+                    # print(k, g)
+                    omega_tmp_k = omega[k].copy()
+                    omega_tmp_g = omega[g].copy()
+
+                    theta_1 = (e * weight).T @ (yZ_FD_xi[:, k:k + 1] - yZ_FD_xi[:, g:g + 1]) / m
+                    theta_2 = ((yZ_FD_xi[:, k:k + 1] - yZ_FD_xi[:, g:g + 1]) * weight).T @ (
+                            yZ_FD_xi[:, k:k + 1] - yZ_FD_xi[:, g:g + 1]) / m
+
+                    a = Z@xi[:, k] - Z@xi[:, g]
+                    b = Z@xi @ omega
+                    c = theta_2
+                    d = theta_1*2
+                    e1 = ((yZ_FD_xi@omega).reshape((-1,1)) * weight).T @ (yZ_FD_xi@omega).reshape((-1,1)) / m
+
+                    if np.abs(a*d-2*b*c) < 1e-6:
+                        update = np.inf
+                    else:
+                        update = (b*d-2*a*e1) / (a*d-2*b*c)
+
+                    if update < - omega_tmp_k or update > omega_tmp_g:
+                        if cal_first_derivative(a, b, c, d, e1, 0)>0:
+                            update = - omega_tmp_k
+                        elif cal_first_derivative(a, b, c, d, e1, 0)< 0:
+                            update = omega_tmp_g
+
+                    omega[k] = np.clip(omega_tmp_k + update, 0, omega_tmp_k + omega_tmp_g)
+                    omega[g] = np.clip(omega_tmp_g - update, 0, omega_tmp_k + omega_tmp_g)
+                    Omega_init[ind] = omega
+                    # print('After 1 pair ICD:', Omega, self.cost(Z, Omega))
+
+                    e = e + (yZ_FD_xi[:, k:k + 1] - yZ_FD_xi[:, g:g + 1]) * (omega[k] - omega_tmp_k)
+            omega_src, omega_fltr, omega_scint = Omega_init
+            Omega = (omega_src[:, np.newaxis, np.newaxis] \
+                     * omega_fltr[np.newaxis, :, np.newaxis] \
+                     * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
+            total_update = np.sum(np.abs(self.Omega - Omega))
+            self.Omega = Omega.copy()
+            self.e = e.copy()
+            self.weight = weight
+            if total_update >= self.threshold:
+                if K % 100 == 0:
+                    print('Iteration %d, Cost:' % K, self.cost(Z, Omega))
+                self.cost_list.append(self.cost(Z, Omega))
+
+            else:
+                print('Stop at iteration:', K, '  Total update:', total_update)
+                break
+
+        print('Omega', Omega_init)
+
+        return Omega_init
 
 def _compute_criteria_and_beta(yhat_F, spec_dict, energies, y_yhat, FDsq, y_F_Dk, yhat_sq, S, auto_stop, ysq, signal):
     """
@@ -1070,14 +1259,6 @@ def dictSE2(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, 
     yZsq = ysq * Z.T @ Z
     print('yZsq shape:', yZsq.shape)
 
-    # FD = np.zeros((forward_mat.shape[0], spec_dict.shape[-1]))
-    # for k in range(spec_dict.shape[-1]):
-    #     print('\rPre-calculate matrices: %.3f%%' % ((k+1)/spec_dict.shape[-1]*100), end='')
-    #     fdk = np.trapz(forward_mat * spec_dict[:, k], energies, axis=1)
-    #     FD[:, k] = fdk
-    # print()
-    # print('FD shape:', FD.shape)
-
     Fsq = np.einsum('ik,k,kj->ij', forward_mat.T, signal_weight.flatten(), forward_mat)
     print('Fsq shape:', Fsq.shape)
     D_Fsq = np.trapz(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
@@ -1104,18 +1285,6 @@ def dictSE2(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, 
 
     diag_yZFDsq = np.diag(yZFDsq).reshape((yZFDsq.shape[0],1))
     print('diag_yZFDsq shape:', diag_yZFDsq.shape)
-
-    # np.save('/Users/damonli/Downloads/y.npy', y)
-    # np.save('/Users/damonli/Downloads/Z.npy', Z)
-    # np.save('/Users/damonli/Downloads/weight.npy', signal_weight)
-    # np.save('/Users/damonli/Downloads/FD.npy', FD)
-    # np.save('/Users/damonli/Downloads/yZ.npy', yZ)
-    # np.save('/Users/damonli/Downloads/yZsq.npy', yZsq)
-    # np.save('/Users/damonli/Downloads/FDsq.npy', FDsq)
-    # np.save('/Users/damonli/Downloads/ZyLFD.npy', ZyLFD)
-    # np.save('/Users/damonli/Downloads/yZFDsq.npy', yZFDsq)
-    # np.save('/Users/damonli/Downloads/diag_yZFDsq.npy', diag_yZFDsq)
-
 
     while len(S_list) > 0:
         print('\nIteration %d:' % (len(S_list[0]) + 1))
@@ -1402,8 +1571,8 @@ def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_c
 def dictSE_sep_model(signal, energies, forward_mat,
                      src_dict, fltr_dict, scint_dict,
                      src_info, fltr_info_dict, scints_info_dict,
-                     sparsity, optimizor,
-                     signal_weight=None, tol=1e-6,
+                     sparsity_src, sparsity_fltr, sparsity_scint, optimizor,
+                     signal_weight=None, tol=1e-6, neighborhood=False,
                      return_component=False, auto_stop=True, verbose=0):
     signal = np.concatenate([sig.reshape((-1, 1)) for sig in signal])
     forward_mat = np.concatenate([fwm.reshape((-1, fwm.shape[-1])) for fwm in forward_mat])
@@ -1424,46 +1593,70 @@ def dictSE_sep_model(signal, energies, forward_mat,
     omega_src = np.zeros((src_dict.shape[1], 1))
     omega_fltr = np.zeros((fltr_dict.shape[1], 1))
     omega_scint = np.zeros((scint_dict.shape[1], 1))
+    omega_sfs = [omega_src, omega_fltr, omega_scint]
 
     S_src = []
     S_fltr = []
     S_scint = []
+    S = [S_src, S_fltr, S_scint]
     cost_list = []
 
     if verbose > 0:
         print(forward_mat.shape)
         print(np.diag(signal_weight).shape)
 
+    assert src_dict.shape[0] == fltr_dict.shape[0] == scint_dict.shape[0], "Number of energy bins are not equal among source responses, flter responses, and scintillator responses."
+
     # Pre-calculate matrices
     spec_dict = (src_dict[:, :, np.newaxis, np.newaxis] \
                 * fltr_dict[:, np.newaxis, :, np.newaxis] \
                 * scint_dict[:, np.newaxis, np.newaxis, :]).reshape((src_dict.shape[0], -1))
-    spec_dict /= np.trapz(spec_dict, energies, axis=0)
+    Z = np.trapz(spec_dict, energies, axis=0).reshape((1, spec_dict.shape[-1]))
+
+    yZ = y.reshape((-1, 1)) @ Z
+    print('yZ shape:', yZ.shape)
 
     ysq = np.sum(y * signal_weight * y)
-    y_F = ((y * signal_weight).T @ forward_mat).reshape((-1, 1))
-    y_F_Dk = np.trapz(y_F * spec_dict, energies, axis=0)
+    yZsq = ysq * Z.T @ Z
+    print('yZsq shape:', yZsq.shape)
+
     Fsq = np.einsum('ik,k,kj->ij', forward_mat.T, signal_weight.flatten(), forward_mat)
-
+    print('Fsq shape:', Fsq.shape)
     D_Fsq = np.trapz(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
-    FDsq = np.trapz(D_Fsq * spec_dict.T, energies, axis=1)
+    print('D_Fsq shape:', D_Fsq.shape)
 
-    e = signal.copy()
+    FDsq = np.zeros((spec_dict.shape[-1], spec_dict.shape[-1]))
+    for k in range(spec_dict.shape[-1]):
+        print('\rPre-calculate FDsq matrices: %.3f%%' % ((k + 1) / spec_dict.shape[-1] * 100), end='')
+        FDsqk = np.trapz(D_Fsq * spec_dict[:, k], energies, axis=1)
+        FDsq[:, k] = FDsqk
+    print()
+    print('FDsq shape:', FDsq.shape)
 
-    while len(S_src) + len(S_fltr) + len(S_scint) < sparsity+3 or np.linalg.norm(e) <= tol:
-        print('Iteration:', len(S_src)+len(S_fltr)+len(S_scint))
+    y_F = ((y * signal_weight).T @ forward_mat).reshape((-1, 1))
+    yLFD = np.trapz(y_F * spec_dict, energies, axis=0).reshape((1, -1))
+    ZyLFD = Z.T @ yLFD
+
+    print('y_F shape:', y_F.shape)
+    print('yLFD shape:', yLFD.shape)
+    print('ZyLFD shape:', ZyLFD.shape)
+
+    yZFDsq = yZsq + FDsq - ZyLFD - ZyLFD.T
+    print('yZFDsq shape:', yZFDsq.shape)
+
+    diag_yZFDxisq = np.diag(yZFDsq).reshape((yZFDsq.shape[0], 1))
+    print('diag_yZFDsq shape:', diag_yZFDxisq.shape)
+    iter_id =1
+    while len(S_src)<sparsity_src or len(S_fltr)<sparsity_fltr or len(S_scint) < sparsity_scint:
+        print('Iteration:', iter_id)
+        iter_id += 1
+        S_src, S_fltr, S_scint = S
+        omega_src, omega_fltr, omega_scint = omega_sfs
 
         appeared_src_mask = np.zeros(src_dict.shape[1], dtype=bool)
         appeared_fltr_mask = np.zeros(fltr_dict.shape[1], dtype=bool)
         appeared_scint_mask = np.zeros(scint_dict.shape[1], dtype=bool)
 
-        omega = (omega_src[:, np.newaxis, np.newaxis] \
-                * omega_fltr[np.newaxis, :, np.newaxis] \
-                * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
-        appeared_src_mask[S_src] = True
-        appeared_fltr_mask[S_fltr] = True
-        appeared_scint_mask[S_scint] = True
-        estimated_spec = spec_dict @ omega
         print('S_src:', S_src)
         print('S_fltr:', S_fltr)
         print('S_scint:', S_scint)
@@ -1471,167 +1664,175 @@ def dictSE_sep_model(signal, energies, forward_mat,
         print('omega_fltr:', omega_fltr[S_fltr])
         print('omega_scint:', omega_scint[S_scint])
 
+        omega = (omega_src[:, np.newaxis, np.newaxis] \
+                * omega_fltr[np.newaxis, :, np.newaxis] \
+                * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
+        appeared_src_mask[S_src] = True
+        appeared_fltr_mask[S_fltr] = True
+        appeared_scint_mask[S_scint] = True
+
+        estimated_src = src_dict @ omega_src
+        estimated_fltr = fltr_dict @ omega_fltr
+        estimated_scint = scint_dict @ omega_scint
+        estimated_spec = spec_dict @ omega
+        print('Verify estimated spectral response:', np.sum(estimated_spec-estimated_src*estimated_fltr*estimated_scint))
+
+
+
         # Find new index.
-        if len(S_src) == 0 and len(S_fltr) == 0 and len(S_scint) == 0:
-            yhat = np.zeros(signal.shape)
-            e = signal - yhat
-        else:
-            yhat = np.trapz(forward_mat[:, :, np.newaxis] * estimated_spec[np.newaxis, :, :], energies, axis=1)
-            e = signal - yhat
         print('Find new index')
-        print('yhat.shape:',yhat.shape)
-
-        # Compute required matrices
-        y_yhat = np.sum(y * signal_weight * yhat)
-        yhat_sq = np.sum(yhat * signal_weight * yhat)
-        yhat_F = ((yhat * signal_weight).T @ forward_mat).reshape((-1, 1))
-        print('Compute required matrices')
-
         if len(S_src) == 0 and len(S_fltr) == 0 and len(S_scint) == 0:
-            S = []
-            criteria, beta, beta_mask = _compute_criteria_and_beta(yhat_F, spec_dict, energies, y_yhat, FDsq, y_F_Dk,
-                                                                   yhat_sq, S,
-                                                                   auto_stop, ysq, signal)
-            init_S = np.argsort(criteria)[0]
+
+            criteria = diag_yZFDxisq
+            criteria_norm = (Z.T)**2
+            criteria = criteria / criteria_norm
+            criteria /= 2 * signal.shape[0]
+
+            init_S = np.argmin(criteria)
             S_src.append(init_S // fltr_len // scint_len)
             S_fltr.append(init_S // scint_len % fltr_len)
             S_scint.append(init_S % scint_len)
+            S = [S_src, S_fltr, S_scint]
             omega_src[S_src[0]] = 1
             omega_fltr[S_fltr[0]] = 1
             omega_scint[S_scint[0]] = 1
-
-
+            cost_list.append(criteria[init_S][0])
         else:
-
-            # Optimize omega_src, fixed omega_fltr, omega_scint to obtain spec_dict_src
-            print('src_dict.shape:', src_dict.shape)
-            # spec_dict_src = (src_dict[:, :] * ((fltr_dict @ omega_fltr) * (scint_dict @ omega_scint)))
-            # spec_dict_src /= np.trapz(spec_dict_src, energies, axis=0)
             src_eye = np.eye(len(omega_src))
-            Omega_src = np.array([src_eye[:,iii:iii+1][:, np.newaxis, np.newaxis] \
+            xi_src = np.array([src_eye[:,iii:iii+1][:, np.newaxis, np.newaxis] \
                 * omega_fltr[np.newaxis, :, np.newaxis] \
                 * omega_scint[np.newaxis, np.newaxis, :] for iii in range(len(omega_src))]).reshape((len(omega_src), -1)).T
-            print(Omega_src.shape)
-            spec_dict_src = spec_dict @ Omega_src
-            # Optimize omega_fltr, fixed omega_src, omega_scint to obtain spec_dict_fltr
-            print('fltr_dict.shape:', fltr_dict.shape)
-            # spec_dict_fltr = (fltr_dict[:, :] * ((src_dict @ omega_src) * (scint_dict @ omega_scint)))
-            # spec_dict_fltr /= np.trapz(spec_dict_fltr, energies, axis=0)
             fltr_eye = np.eye(len(omega_fltr))
-            Omega_fltr = np.array([omega_src[:, np.newaxis, np.newaxis] \
+            xi_fltr = np.array([omega_src[:, np.newaxis, np.newaxis] \
                 * fltr_eye[:,iii:iii+1][np.newaxis, :, np.newaxis] \
                 * omega_scint[np.newaxis, np.newaxis, :] for iii in range(len(omega_fltr))]).reshape((len(omega_fltr), -1)).T
-            print(Omega_fltr.shape)
-            spec_dict_fltr = spec_dict @ Omega_fltr
-            # Optimize omega_scint, fixed omega_fltr, omega_src to obtain spec_dict_scint
-            print('scint_dict.shape:', scint_dict.shape)
-            # spec_dict_scint = (scint_dict[:, :] * ((fltr_dict @ omega_fltr) * (src_dict @ omega_src)))
-            # spec_dict_scint /= np.trapz(spec_dict_scint, energies, axis=0)
             scint_eye = np.eye(len(omega_scint))
-            Omega_scint = np.array([omega_src[:, np.newaxis, np.newaxis] \
+            xi_scint = np.array([omega_src[:, np.newaxis, np.newaxis] \
                 * omega_fltr[np.newaxis, :, np.newaxis] \
                 * scint_eye[:,iii:iii+1][np.newaxis, np.newaxis, :] for iii in range(len(omega_scint))]).reshape((len(omega_scint), -1)).T
-            print(Omega_scint.shape)
-            spec_dict_scint = spec_dict @ Omega_scint
 
-            FDS_src = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict_src[np.newaxis, :, S_src], energies, axis=1)
-            print('FDS_src.shape:', FDS_src.shape)
-            e = signal - FDS_src @ omega_src[S_src]
-            print('Source Cost before Support selection:', cal_cost(e, signal_weight))
+            yZFD_omegasq = omega.T @ yZFDsq @ omega
+            a = Z @ omega
 
-            FDS_fltr = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict_fltr[np.newaxis, :, S_fltr], energies, axis=1)
-            print('FDS_fltr.shape:', FDS_fltr.shape)
-            e = signal - FDS_fltr @ omega_fltr[S_fltr]
-            print('Filter Cost before Support selection:', cal_cost(e, signal_weight))
+            cc_list = []
+            cc_ind_list = []
+            cc_beta_list =[]
+            xi_list = [xi_src, xi_fltr, xi_scint]
+            S_src, S_fltr, S_scint = S
+            appeared_mask_list=[appeared_src_mask, appeared_fltr_mask, appeared_scint_mask]
+            for xi, appeared_spec_mask, sparsity in zip(xi_list, appeared_mask_list, [sparsity_src, sparsity_fltr, sparsity_scint]):
+                if np.sum(appeared_spec_mask) >= sparsity:
+                    print('Cannot find a new basis response along this direction.')
+                    print('Current number of nonzero element in of this response dictionary:', np.sum(appeared_spec_mask), ' is greater/equal to ', sparsity)
+                    cc_list.append(np.inf)
+                    cc_ind_list.append(None)
+                    cc_beta_list.append(None)
+                    continue
+                yZFDsq_omega = xi.T@yZFDsq @omega
+                diag_yZFDxisq = np.diag(xi.T@yZFDsq@xi).reshape((xi.shape[1], 1))
+                print('diag_yZFDsq shape:', diag_yZFDxisq.shape)
+                # Compute rho1 and rho2
+                rho1 = diag_yZFDxisq - yZFDsq_omega
+                rho2 = diag_yZFDxisq - 2 * yZFDsq_omega + yZFD_omegasq
+                b = (Z @ xi).T
+                c = rho2
+                d = -rho1*2
+                e1 = diag_yZFDxisq
 
-            FDS_scint = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict_scint[np.newaxis, :, S_scint], energies, axis=1)
-            print('FDS_scint.shape:', FDS_scint.shape)
+                print("""
+                Shape of a: {}
+                Shape of b: {}
+                Shape of yZFDsq_omega: {}
+                Shape of diag_yZFDxisq: {}
+                Shape of rho1: {}
+                Shape of rho2: {}
+                Shape of c: {}
+                Shape of d: {}
+                Shape of e1: {}
+                """.format(a.shape, b.shape, yZFDsq_omega.shape, diag_yZFDxisq.shape, rho1.shape, rho2.shape, c.shape,
+                           d.shape, e1.shape))
 
-            e = signal - FDS_scint @ omega_scint[S_scint]
-            print('Scintillator Cost before Support selection:', cal_cost(e, signal_weight))
+                beta = (b * (d + 2 * e1) - 2 * a * e1) / (a * d - b * (2 * c + d))
+                if auto_stop:
+                    beta_mask = np.logical_or((beta>=1),(beta<0))
+                else:
+                    beta_mask = (beta > 1)
+                beta = np.clip(beta, 0, 1)
 
-            print('New dictionary generated.')
+                if neighborhood:
+                    S_indices = [i1 for i1, value in enumerate(appeared_spec_mask) if value]
+                    beta_mask[:np.min(S_indices)-2]=True
+                    beta_mask[np.max(S_indices)+3:] = True
 
-            new_cost = []
-            new_S_list = []
-            new_omega_list = []
-            pre_cost = cal_cost(e, signal_weight)
-            cost_list.append(pre_cost)
-            print('cost_list:', cost_list)
-            print('pre_cost:', pre_cost)
-            for spec_dict_axis, S, omega_axis, appeared_spec_mask in zip(
-                    [spec_dict_src, spec_dict_fltr, spec_dict_scint],
-                    [S_src, S_fltr, S_scint], [omega_src, omega_fltr, omega_scint],
-                    [appeared_src_mask, appeared_fltr_mask, appeared_scint_mask]):
-                print()
 
-                y_F_Dk_axis = np.trapz(y_F * spec_dict_axis, energies, axis=0)
-                D_Fsq_axis = np.trapz(spec_dict_axis.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
-                FDsq_axis = np.trapz(D_Fsq_axis * spec_dict_axis.T, energies, axis=1)
-                criteria, beta, beta_mask = _compute_criteria_and_beta(yhat_F, spec_dict_axis, energies, y_yhat,
-                                                                       FDsq_axis, y_F_Dk_axis,
-                                                                       yhat_sq, S_src, auto_stop, ysq, signal)
+                beta_mask = beta_mask.flatten()
+                # Calculate criteria
+                criteria = beta ** 2 * yZFD_omegasq + (1 - beta) ** 2 * diag_yZFDxisq + 2 * beta * (1 - beta) * yZFDsq_omega
+                criteria_norm = ((Z@(omega*beta.flatten()[np.newaxis, :]+xi@np.diag(1-beta.flatten()))).T)**2
+                criteria = criteria / criteria_norm
+
+                criteria /= 2 * signal.shape[0]
+                criteria = criteria.flatten()
                 criteria = np.ma.array(criteria, mask=np.logical_or.reduce((appeared_spec_mask, beta_mask)))
 
                 if criteria.mask.all():
                     print('Cannot find a new basis response along this direction.')
-                    new_S = S
-                    new_omega = omega_axis.copy()
+                    cc_list.append(np.inf)
+                    cc_ind_list.append(None)
+                    cc_beta_list.append(None)
                 else:
-                    print(criteria)
-                    k = list(np.argsort(criteria)[:1])
-                    new_S = S + k
-                    new_omega = omega_axis.copy()
+                    k = np.argmin(criteria)
+                    cc_list.append(criteria[k])
+                    cc_ind_list.append(k)
+                    cc_beta_list.append(beta[k])
 
-                    new_omega[S, 0] = new_omega[S, 0] * beta[k[0]]
-                    new_omega[k[0], 0] = 1 - beta[k[0]]
-
-                    print('new_S:',new_S)
-                    print('new_omega:',new_omega[new_S])
-
-                FDS = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict_axis[np.newaxis, :, new_S], energies, axis=1)
-
-                # Find best coefficient with new support given solver.
-                Omega_init = new_omega[new_S, 0]
-                e = signal - FDS @ new_omega[new_S]
-                print('Cost before ICD:', cal_cost(e, signal_weight))
-
-                new_omega[new_S, 0] = optimizor.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init,
-                                                      e_init=e,
-                                                      spec_dict=spec_dict_axis[:, new_S])
-                e = signal - FDS @ new_omega[new_S]
-                print('Cost after ICD:', cal_cost(e, signal_weight))
-
-                new_cost.append(cal_cost(e, signal_weight))
-                new_S_list.append(new_S)
-                new_omega_list.append(new_omega)
-
-            if np.min(new_cost) / pre_cost > (1-0.0001):
+            if all(cc_ind is None for cc_ind in cc_ind_list):
+                print('Cannot find a new basis response among all dictionaries.')
                 break
-            else:
-                # cost_list.append(np.min(new_cost))
-                if np.argmin(new_cost) == 0:
-                    print('Update along source responses')
-                    S_src = new_S_list[0]
-                    omega_src = new_omega_list[0]
-                    print(omega_src[S_src])
-                elif np.argmin(new_cost) == 1:
-                    print('Update along flter responses')
-                    S_fltr = new_S_list[1]
-                    omega_fltr = new_omega_list[1]
-                    print(omega_fltr[S_fltr])
-                else:
-                    print('Update along scintillator responses')
-                    S_scint = new_S_list[2]
-                    omega_scint = new_omega_list[2]
-                    print(omega_scint[S_scint])
 
+            rri = np.argmin([cc for cc in cc_list if cc is not None])
+            k = cc_ind_list[rri]
+            beta_k = cc_beta_list[rri]
+            S[rri] = S[rri] + [k]
+            omega_sfs[rri][S[rri], 0] = omega_sfs[rri][S[rri], 0] * beta_k
+            omega_sfs[rri][k, 0] = 1 - beta_k
+
+            omega_src, omega_fltr, omega_scint = omega_sfs
+            S_src, S_fltr, S_scint = S
+            omega = (omega_src[:, np.newaxis, np.newaxis] \
+                     * omega_fltr[np.newaxis, :, np.newaxis] \
+                     * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
+
+            # Find best coefficient with new support given solver.
+            SS = [a*fltr_len*scint_len+b*scint_len+c for a in S_src for b in S_fltr for c in S_scint]
+            FDS = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, SS], energies, axis=1)
+
+            # Omega_init = (omega_src[S_src, np.newaxis, np.newaxis] \
+            #          * omega_fltr[np.newaxis, S_fltr, np.newaxis] \
+            #          * omega_scint[np.newaxis, np.newaxis, S_scint]).reshape((-1, 1))
+            e = (yZ[:,SS] - FDS) @ omega[SS]
+            print('Cost before ICD:', cal_cost(e/(Z[:,SS]@ omega[SS]), signal_weight))
+            omega_src[S_src], omega_fltr[S_fltr], omega_scint[S_scint] = optimizor.solve(FDS, signal, Z[:, SS],
+                Omega_init=[omega_src[S_src], omega_fltr[S_fltr], omega_scint[S_scint]],
+                weight=signal_weight,
+                e_init=e)
+            omega_sfs = [omega_src, omega_fltr, omega_scint]
+
+            new_omega = (omega_src[:, np.newaxis, np.newaxis] \
+                     * omega_fltr[np.newaxis, :, np.newaxis] \
+                     * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
+            e = (yZ[:, SS] - FDS) @ new_omega[SS]
+            updated_cost = cal_cost(e / (Z[:, SS] @ new_omega[SS]), signal_weight)
+            print('Cost after ICD:', updated_cost)
+            cost_list.append(updated_cost)
+
+    omega_src, omega_fltr, omega_scint = omega_sfs
     omega = (omega_src[:, np.newaxis, np.newaxis] \
             * omega_fltr[np.newaxis, :, np.newaxis] \
             * omega_scint[np.newaxis, np.newaxis, :]).reshape((-1, 1))
     estimated_spec = spec_dict @ omega
 
     if return_component:
-        return estimated_spec, [S_src, S_fltr, S_scint], [omega_src, omega_fltr, omega_scint], cost_list
+        return estimated_spec, S, omega_sfs, cost_list
     else:
         return estimated_spec
