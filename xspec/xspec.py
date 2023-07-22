@@ -472,6 +472,41 @@ class Snap:
 
         return Omega
 
+def cal_first_derivative(a, b, c, d, e, x):
+    numerator = b * (d + 2 * c * x) - a * (2 * e + d * x)
+    denominator = (b + a * x)**3
+    result = numerator / denominator
+    return result
+
+def update_xi_matrix(omega_src, omega_fltr, omega_scint):
+    # get length of each omega
+    l_omega_src = len(omega_src)
+    l_omega_fltr = len(omega_fltr)
+    l_omega_scint = len(omega_scint)
+
+    # reshape arrays to be able to use broadcasting
+    omega_src = omega_src.flatten()[:, None, None, None]
+    omega_fltr = omega_fltr.flatten()[None, :, None, None]
+    omega_scint = omega_scint.flatten()[None, None, :, None]
+
+    # create identity matrix with extra dimensions
+    src_eye = np.eye(l_omega_src)[:, None, None, :]
+    fltr_eye = np.eye(l_omega_fltr)[None, :, None, :]
+    scint_eye = np.eye(l_omega_scint)[None, None, :, :]
+
+    # compute xi's using broadcasting and in-place multiplication
+    xi_src = src_eye * omega_fltr * omega_scint
+    xi_fltr = omega_src * fltr_eye * omega_scint
+    xi_scint = omega_src * omega_fltr * scint_eye
+
+    # reshape arrays and transpose
+    xi_src = xi_src.reshape(-1, l_omega_src)
+    xi_fltr = xi_fltr.reshape(-1, l_omega_fltr)
+    xi_scint = xi_scint.reshape(-1, l_omega_scint)
+
+    xi_list = [xi_src, xi_fltr, xi_scint]
+
+    return xi_list
 
 class LS_sep_model:
     """Solve least square using pair-wise ICD update.
