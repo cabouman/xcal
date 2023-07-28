@@ -1100,8 +1100,7 @@ def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_c
 # Orthogonal match pursuit with different optimization models.
 def dictSE_sep_model(signal, energies, forward_mat,
                      src_dict, fltr_dict, scint_dict, optimizor,
-                     signal_weight=None, num_init_response=1, tol=1e-6,
-                     return_component=False, verbose=0):
+                     signal_weight=None, return_component=False, verbose=0):
     signal = np.concatenate([sig.reshape((-1, 1)) for sig in signal])
     forward_mat = np.concatenate([fwm.reshape((-1, fwm.shape[-1])) for fwm in forward_mat])
 
@@ -1117,7 +1116,6 @@ def dictSE_sep_model(signal, energies, forward_mat,
     omega_src = np.zeros((src_dict.shape[1], 1))
     omega_fltr = np.zeros((fltr_dict.shape[1], 1))
     omega_scint = np.zeros((scint_dict.shape[1], 1))
-    omega_sfs = [omega_src, omega_fltr, omega_scint]
 
     S_src = []
     S_fltr = []
@@ -1201,7 +1199,6 @@ def dictSE_sep_model(signal, energies, forward_mat,
 
     best_cdi = np.argmin(cost_list)
     omega_sfs = omega_sfs_list[best_cdi]
-    S = S_list[best_cdi]
     omega_src, omega_fltr, omega_scint = omega_sfs
     omega = (omega_src[:, np.newaxis, np.newaxis] \
             * omega_fltr[np.newaxis, :, np.newaxis] \
@@ -1209,6 +1206,6 @@ def dictSE_sep_model(signal, energies, forward_mat,
     estimated_spec = spec_dict @ omega
 
     if return_component:
-        return estimated_spec, S, omega_sfs, cost_list, #S_list, omega_sfs_list
+        return estimated_spec, S_list, omega_sfs_list, cost_list, #S_list, omega_sfs_list
     else:
         return estimated_spec
