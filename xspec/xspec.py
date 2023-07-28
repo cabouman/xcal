@@ -7,7 +7,6 @@ Description:
 Date: Dec 1st, 2022.
 """
 
-import random
 import itertools
 from multiprocessing import Pool
 import contextlib
@@ -15,7 +14,7 @@ from functools import partial
 from psutil import cpu_count
 
 import numpy as np
-from xspec._utils import get_wavelength, binwised_spec_cali_cost, huber_func, remove_isolated_points
+from xspec._utils import huber_func
 
 
 class Huber:
