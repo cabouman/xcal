@@ -4,8 +4,11 @@ from xspec.chem_consts._consts_from_table import get_lin_att_c_vs_E, get_lin_abs
 
 def _obtain_attenuation(energies, formula, density, thickness):
     # thickness is mm
-    mu = get_lin_att_c_vs_E(density, formula, energies)
-    att = np.exp(-mu * thickness)
+    if formula == 'air':
+        att = np.ones(energies.shape)
+    else:
+        mu = get_lin_att_c_vs_E(density, formula, energies)
+        att = np.exp(-mu * thickness)
     return att
 
 
