@@ -1195,6 +1195,7 @@ def dictSE_sep_model(signal, energies, forward_mat,
                 updated_cost = cal_cost(e / (Z[:, SS] @ new_omega[SS]), signal_weight)
                 print('Cost after ICD:', updated_cost)
                 cost_list.append(updated_cost)
+                #cost_list.append(optimizor.cost_list)
 
 
     best_cdi = np.argmin(cost_list)
