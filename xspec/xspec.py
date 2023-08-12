@@ -8,6 +8,7 @@ Date: Dec 1st, 2022.
 """
 
 import itertools
+import torch
 from multiprocessing import Pool
 import contextlib
 from functools import partial
@@ -15,6 +16,7 @@ from psutil import cpu_count
 
 import numpy as np
 from xspec._utils import huber_func
+from xspec.dict import *
 
 
 class Huber:
@@ -305,7 +307,7 @@ class L1:
         return Omega
 
 
-def cal_cost(e, weight):
+def cal_cost(e, weight, torch_mode=False):
     """Return current value of MAP cost function.
 
     Returns
@@ -313,8 +315,10 @@ def cal_cost(e, weight):
         cost : float
             Return current value of MAP cost function.
     """
-
-    cost = 0.5 * np.mean(e ** 2 * weight)
+    if torch_mode:
+        cost = 0.5 * torch.mean(e ** 2 * weight)
+    else:
+        cost = 0.5 * np.mean(e ** 2 * weight)
     return cost
 
 
@@ -1210,3 +1214,113 @@ def dictSE_sep_model(signal, energies, forward_mat,
         return estimated_spec, S_list, omega_sfs_list, cost_list, #S_list, omega_sfs_list
     else:
         return estimated_spec
+
+
+def gen_system_response(energies, src_response, M_fl, M_sc, th_fl, th_sc):
+    # Calculate filter response
+    fltr_params = [
+        {'formula': M_fl['formula'], 'density': M_fl['density'], 'thickness_list': [th_fl]},
+    ]
+    fltr_response, fltr_info = gen_filts_specD(energies, composition=fltr_params)
+    #     print('Filter response:', fltr_response.T.shape)
+
+    # Calculate scintillator response
+    scint_params = [
+        {'formula': M_sc['formula'], 'density': M_sc['density'], 'thickness_list': [th_sc]},
+    ]
+    scint_response, scint_info = gen_scints_specD(energies, composition=scint_params)
+    #     print('Scintillator response:', scint_response.T.shape)
+
+    # Calculate total system response as a product of source, filter, and scintillator responses.
+    sys_response = (src_response * fltr_response * scint_response).T
+
+    return sys_response
+
+
+def anal_cost(energies, y, F, src_response, M_fl, M_sc, th_fl, th_sc, signal_weight=None, torch_mode=True):
+    signal = np.concatenate([sig.reshape((-1, 1)) for sig in y])
+    forward_mat = np.concatenate([fwm.reshape((-1, fwm.shape[-1])) for fwm in F])
+    if signal_weight is None:
+        signal_weight = np.ones(signal.shape)
+    signal_weight = np.concatenate([sig.reshape((-1, 1)) for sig in signal_weight])
+
+    if torch_mode:
+        src_response = torch.tensor(src_response)
+        signal = torch.tensor(signal)
+        forward_mat = torch.tensor(forward_mat)
+        signal_weight = torch.tensor(signal_weight)
+
+    # Calculate filter response
+    fltr_params = [
+        {'formula': M_fl['formula'], 'density': M_fl['density'], 'thickness_list': [th_fl]},
+    ]
+    fltr_response, fltr_info = gen_filts_specD(energies, composition=fltr_params, torch_mode=torch_mode)
+
+    # Calculate scintillator response
+    scint_params = [
+        {'formula': M_sc['formula'], 'density': M_sc['density'], 'thickness_list': [th_sc]},
+    ]
+    scint_response, scint_info = gen_scints_specD(energies, composition=scint_params, torch_mode=torch_mode)
+
+    # Calculate total system response as a product of source, filter, and scintillator responses.
+    sys_response = (src_response * fltr_response * scint_response).T
+
+    if torch_mode:
+        Fx = torch.trapz(forward_mat * sys_response.T, torch.tensor(energies), axis=1).reshape((-1, 1))
+        e = signal - Fx / torch.trapz(sys_response, torch.tensor(energies), axis=0)
+    else:
+        Fx = np.trapz(forward_mat * sys_response.T, energies, axis=1).reshape((-1, 1))
+        e = signal - Fx / np.trapz(sys_response, energies, axis=0)
+
+    return cal_cost(e, signal_weight, torch_mode)
+
+
+def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list, fltr_param, scint_param,
+                   init_fltr_th=1, init_scint_th=0.1,
+                   learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
+
+    if return_history:
+        fltr_th_list = []
+        scint_th_list = []
+        cost_list = []
+
+    fltr_th = torch.tensor(init_fltr_th, requires_grad=True)
+    scint_th = torch.tensor(init_scint_th, requires_grad=True)
+    prev_fltr_th, prev_scint_th = fltr_th.clone().detach(), scint_th.clone().detach()
+    for i in range(iterations):
+        cost = 0
+        for signal_train, src_response in zip(signal_train_list, src_response_list):
+            cost += anal_cost(energies, signal_train, spec_F_train, src_response,
+                          fltr_param,
+                          scint_param,
+                          fltr_th,
+                          scint_th, signal_weight=[1.0 / sig for sig in signal_train])
+        if i % 100 ==0:
+            print('Iteration:%d: cost: %e'%(i, cost.item()))
+        cost.backward()
+
+        with torch.no_grad():
+            fltr_th -= learning_rate * fltr_th.grad
+            scint_th -= learning_rate * scint_th.grad
+
+            if return_history:
+                cost_list.append(cost.item())
+                fltr_th_list.append(fltr_th.item())
+                scint_th_list.append(scint_th.item())
+
+            # Check the stopping criterion based on changes in x and y
+            if torch.abs(scint_th - prev_scint_th) < tolerance and torch.abs(fltr_th - prev_fltr_th) < tolerance:
+                print(f"Stopping after {i} iterations")
+                break
+
+            # Clear gradients and update previous values for the next iteration
+            fltr_th.grad.zero_()
+            scint_th.grad.zero_()
+            prev_fltr_th, prev_scint_th = fltr_th.clone().detach(), scint_th.clone().detach()
+
+    print(f"The minimum occurs at x = {scint_th.item()}, y = {fltr_th.item()}")
+
+    if return_history:
+        return cost_list, fltr_th_list, scint_th_list
+    else:
+        return fltr_th.item(), scint_th.item()
