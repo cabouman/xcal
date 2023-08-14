@@ -9,6 +9,7 @@ Date: Dec 1st, 2022.
 
 import itertools
 import torch
+import torch.optim as optim
 from multiprocessing import Pool
 import contextlib
 from functools import partial
@@ -1286,8 +1287,10 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
 
     fltr_th = torch.tensor(init_fltr_th, requires_grad=True)
     scint_th = torch.tensor(init_scint_th, requires_grad=True)
-    prev_fltr_th, prev_scint_th = fltr_th.clone().detach(), scint_th.clone().detach()
-    for i in range(iterations):
+
+    optimizer = optim.Adam([fltr_th, scint_th], lr=learning_rate)
+    prev_cost = None
+    for i in range(1, iterations+1):
         cost = 0
         for signal_train, src_response in zip(signal_train_list, src_response_list):
             cost += anal_cost(energies, signal_train, spec_F_train, src_response,
@@ -1295,30 +1298,42 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
                           scint_param,
                           fltr_th,
                           scint_th, signal_weight=[1.0 / sig for sig in signal_train])
-        if i % 100 ==0:
-            print('Iteration:%d: cost: %e'%(i, cost.item()))
-        cost.backward()
+        if i ==0:
+            print('Initial cost: %e'%(cost.item()))
+        if i %50 == 0:
+            print('Iteration:%d: before update cost: %e, filter thickness: %e, scintillator thickness: %e'%(i, cost.item(), fltr_th.item(), scint_th.item()))
+
 
         with torch.no_grad():
-            fltr_th -= learning_rate * fltr_th.grad
-            scint_th -= learning_rate * scint_th.grad
+            optimizer.zero_grad()
+            cost.backward()
+            optimizer.step()
 
+            if fltr_th.item() <= 0 or scint_th.item() <= 0.01:
+                fltr_th.clamp_(min=0)
+                scint_th.clamp_(min=0.01)
+            if fltr_th.item() <= 0 and scint_th.item() <= 0.01:
+                print(f"Stopping after {i} iterations, reach thickness boundary")
+                break
+            if fltr_th.item() >= 10:
+                print(f"Stopping after {i} iterations, reach thickness boundary")
+                break
+
+            # Check the stopping criterion based on changes in x and y
+            if prev_cost is not None and torch.abs(cost - prev_cost)/prev_cost < tolerance:
+                print(f"Stopping after {i} iterations")
+                break
+
+            prev_cost = cost.item()
+
+            # Clear gradients and update previous values for the next iteration
             if return_history:
                 cost_list.append(cost.item())
                 fltr_th_list.append(fltr_th.item())
                 scint_th_list.append(scint_th.item())
 
-            # Check the stopping criterion based on changes in x and y
-            if torch.abs(scint_th - prev_scint_th) < tolerance and torch.abs(fltr_th - prev_fltr_th) < tolerance:
-                print(f"Stopping after {i} iterations")
-                break
 
-            # Clear gradients and update previous values for the next iteration
-            fltr_th.grad.zero_()
-            scint_th.grad.zero_()
-            prev_fltr_th, prev_scint_th = fltr_th.clone().detach(), scint_th.clone().detach()
-
-    print(f"The minimum occurs at x = {scint_th.item()}, y = {fltr_th.item()}")
+    print(f"The minimum occurs at filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
 
     if return_history:
         return cost_list, fltr_th_list, scint_th_list
