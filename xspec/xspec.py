@@ -1280,6 +1280,9 @@ def penalized_objective(x, lower_bound, upper_bound, penalty_weight=1.0):
     upper_penalty = torch.clamp(x - upper_bound, min=0)  # enforce x <= upper_bound
     return penalty_weight * (lower_penalty**2 + upper_penalty**2)
 
+def project_onto_constraints(x, lower_bound, upper_bound):
+    return torch.clamp(x, min=lower_bound, max=upper_bound)
+
 def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list, fltr_param, scint_param,
                    init_fltr_th=1, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
                    learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
@@ -1303,12 +1306,12 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
                           fltr_th,
                           scint_th, signal_weight=[1.0 / sig for sig in signal_train])
 
-        cost += penalized_objective(fltr_th, lower_bound=fltr_th_bound[0], upper_bound=fltr_th_bound[1], penalty_weight=4)
-        cost += penalized_objective(scint_th, lower_bound=scint_th_bound[0], upper_bound=scint_th_bound[1], penalty_weight=4)
+        # cost += penalized_objective(fltr_th, lower_bound=fltr_th_bound[0], upper_bound=fltr_th_bound[1], penalty_weight=penalty_weight)
+        # cost += penalized_objective(scint_th, lower_bound=scint_th_bound[0], upper_bound=scint_th_bound[1], penalty_weight=penalty_weight)
 
-        if i ==0:
+        if i == 1:
             print('Initial cost: %e'%(cost.item()))
-        if i %50 == 0:
+        if i % 50 == 0:
             print('Iteration:%d: before update cost: %e, filter thickness: %e, scintillator thickness: %e'%(i, cost.item(), fltr_th.item(), scint_th.item()))
 
 
@@ -1316,6 +1319,10 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
             optimizer.zero_grad()
             cost.backward()
             optimizer.step()
+
+            # Project the updated x back onto the feasible set
+            fltr_th.data = project_onto_constraints(fltr_th.data, fltr_th_bound[0], fltr_th_bound[1])
+            scint_th.data = project_onto_constraints(scint_th.data, scint_th_bound[0], scint_th_bound[1])
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and torch.abs(cost - prev_cost)/prev_cost < tolerance:
