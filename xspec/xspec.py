@@ -1303,8 +1303,8 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
                           fltr_th,
                           scint_th, signal_weight=[1.0 / sig for sig in signal_train])
 
-        cost += penalized_objective(fltr_th, lower_bound=fltr_th_bound[0], upper_bound=fltr_th_bound[1], penalty_weight=10)
-        cost += penalized_objective(scint_th, lower_bound=scint_th_bound[0], upper_bound=scint_th_bound[1], penalty_weight=10)
+        cost += penalized_objective(fltr_th, lower_bound=fltr_th_bound[0], upper_bound=fltr_th_bound[1], penalty_weight=4)
+        cost += penalized_objective(scint_th, lower_bound=scint_th_bound[0], upper_bound=scint_th_bound[1], penalty_weight=4)
 
         if i ==0:
             print('Initial cost: %e'%(cost.item()))
@@ -1331,7 +1331,7 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
                 scint_th_list.append(scint_th.item())
 
 
-    print(f"The minimum occurs at filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
+    print(f"The minimum cost value: {cost.item()}, occurs at filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
 
     if return_history:
         return cost_list, fltr_th_list, scint_th_list
