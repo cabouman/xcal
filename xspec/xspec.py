@@ -1275,9 +1275,13 @@ def anal_cost(energies, y, F, src_response, M_fl, M_sc, th_fl, th_sc, signal_wei
 
     return cal_cost(e, signal_weight, torch_mode)
 
+def penalized_objective(x, lower_bound, upper_bound, penalty_weight=1.0):
+    lower_penalty = torch.clamp(lower_bound - x, min=0)  # enforce x >= lower_bound
+    upper_penalty = torch.clamp(x - upper_bound, min=0)  # enforce x <= upper_bound
+    return penalty_weight * (lower_penalty**2 + upper_penalty**2)
 
 def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list, fltr_param, scint_param,
-                   init_fltr_th=1, init_scint_th=0.1,
+                   init_fltr_th=1, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
                    learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
     if return_history:
@@ -1298,6 +1302,10 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
                           scint_param,
                           fltr_th,
                           scint_th, signal_weight=[1.0 / sig for sig in signal_train])
+
+        cost += penalized_objective(fltr_th, lower_bound=fltr_th_bound[0], upper_bound=fltr_th_bound[1], penalty_weight=10)
+        cost += penalized_objective(scint_th, lower_bound=scint_th_bound[0], upper_bound=scint_th_bound[1], penalty_weight=10)
+
         if i ==0:
             print('Initial cost: %e'%(cost.item()))
         if i %50 == 0:
@@ -1308,16 +1316,6 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
             optimizer.zero_grad()
             cost.backward()
             optimizer.step()
-
-            if fltr_th.item() <= 0 or scint_th.item() <= 0.01:
-                fltr_th.clamp_(min=0)
-                scint_th.clamp_(min=0.01)
-            if fltr_th.item() <= 0 and scint_th.item() <= 0.01:
-                print(f"Stopping after {i} iterations, reach thickness boundary")
-                break
-            if fltr_th.item() >= 10:
-                print(f"Stopping after {i} iterations, reach thickness boundary")
-                break
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and torch.abs(cost - prev_cost)/prev_cost < tolerance:
