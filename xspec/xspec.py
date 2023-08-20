@@ -14,6 +14,7 @@ from multiprocessing import Pool
 import contextlib
 from functools import partial
 from psutil import cpu_count
+from itertools import product
 
 import numpy as np
 from xspec._utils import huber_func
@@ -1238,7 +1239,7 @@ def gen_system_response(energies, src_response, M_fl, M_sc, th_fl, th_sc):
     return sys_response
 
 
-def anal_cost(energies, y, F, src_response, M_fl, M_sc, th_fl, th_sc, signal_weight=None, torch_mode=True):
+def anal_cost(energies, y, F, src_response, fltr_mat, scint_mat, th_fl, th_sc, signal_weight=None, torch_mode=True):
     signal = np.concatenate([sig.reshape((-1, 1)) for sig in y])
     forward_mat = np.concatenate([fwm.reshape((-1, fwm.shape[-1])) for fwm in F])
     if signal_weight is None:
@@ -1253,13 +1254,13 @@ def anal_cost(energies, y, F, src_response, M_fl, M_sc, th_fl, th_sc, signal_wei
 
     # Calculate filter response
     fltr_params = [
-        {'formula': M_fl['formula'], 'density': M_fl['density'], 'thickness_list': [th_fl]},
+        {'formula': fltr_mat['formula'], 'density': fltr_mat['density'], 'thickness_list': [th_fl]},
     ]
     fltr_response, fltr_info = gen_filts_specD(energies, composition=fltr_params, torch_mode=torch_mode)
 
     # Calculate scintillator response
     scint_params = [
-        {'formula': M_sc['formula'], 'density': M_sc['density'], 'thickness_list': [th_sc]},
+        {'formula': scint_mat['formula'], 'density': scint_mat['density'], 'thickness_list': [th_sc]},
     ]
     scint_response, scint_info = gen_scints_specD(energies, composition=scint_params, torch_mode=torch_mode)
 
@@ -1275,16 +1276,11 @@ def anal_cost(energies, y, F, src_response, M_fl, M_sc, th_fl, th_sc, signal_wei
 
     return cal_cost(e, signal_weight, torch_mode)
 
-def penalized_objective(x, lower_bound, upper_bound, penalty_weight=1.0):
-    lower_penalty = torch.clamp(lower_bound - x, min=0)  # enforce x >= lower_bound
-    upper_penalty = torch.clamp(x - upper_bound, min=0)  # enforce x <= upper_bound
-    return penalty_weight * (lower_penalty**2 + upper_penalty**2)
-
 def project_onto_constraints(x, lower_bound, upper_bound):
     return torch.clamp(x, min=lower_bound, max=upper_bound)
 
-def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list, fltr_param, scint_param,
-                   init_fltr_th=1, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
+def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=None, fltr_mat=None, scint_mat=None,
+                   init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
                    learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
     if return_history:
@@ -1294,20 +1290,17 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
 
     fltr_th = torch.tensor(init_fltr_th, requires_grad=True)
     scint_th = torch.tensor(init_scint_th, requires_grad=True)
-
     optimizer = optim.Adam([fltr_th, scint_th], lr=learning_rate)
     prev_cost = None
     for i in range(1, iterations+1):
         cost = 0
         for signal_train, src_response in zip(signal_train_list, src_response_list):
             cost += anal_cost(energies, signal_train, spec_F_train, src_response,
-                          fltr_param,
-                          scint_param,
-                          fltr_th,
-                          scint_th, signal_weight=[1.0 / sig for sig in signal_train])
+                              fltr_mat,
+                              scint_mat,
+                              fltr_th,
+                              scint_th, signal_weight=[1.0 / sig for sig in signal_train])
 
-        # cost += penalized_objective(fltr_th, lower_bound=fltr_th_bound[0], upper_bound=fltr_th_bound[1], penalty_weight=penalty_weight)
-        # cost += penalized_objective(scint_th, lower_bound=scint_th_bound[0], upper_bound=scint_th_bound[1], penalty_weight=penalty_weight)
 
         if i == 1:
             print('Initial cost: %e'%(cost.item()))
@@ -1344,3 +1337,34 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list,
         return cost_list, fltr_th_list, scint_th_list
     else:
         return fltr_th.item(), scint_th.item()
+
+
+def parallel_anal_sep_model(num_processes, src_response_list_combs,
+                            fltr_mat_list, scint_mat_list,
+                            init_fltr_th_values, init_scint_th_values, *args, **kwargs):
+    # Create parameter combinations
+    params_combinations = product(src_response_list_combs, fltr_mat_list, scint_mat_list, init_fltr_th_values,
+                                  init_scint_th_values)
+
+    with Pool(processes=num_processes) as pool:
+        result_objects = [
+            pool.apply_async(
+                anal_sep_model,
+                args=args,
+                kwds={
+                    **kwargs,
+                    "src_response_list": src_response_list,
+                    "fltr_mat": fltr_mat,
+                    "scint_mat": scint_mat,
+                    "init_fltr_th": fltr_th,
+                    "init_scint_th": scint_th
+                }
+            )
+            for src_response_list, fltr_mat, scint_mat, fltr_th, scint_th in params_combinations
+        ]
+
+        # Gather results
+        print('result_objects',result_objects)
+        results = [r.get() for r in result_objects]
+
+    return results
