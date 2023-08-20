@@ -1336,7 +1336,7 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=
     if return_history:
         return cost_list, fltr_th_list, scint_th_list
     else:
-        return fltr_th.item(), scint_th.item()
+        return fltr_th.item(), scint_th.item(), cost.item()
 
 
 def parallel_anal_sep_model(num_processes, src_response_list_combs,

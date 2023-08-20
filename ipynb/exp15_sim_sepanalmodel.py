@@ -411,9 +411,9 @@ if __name__ == '__main__':
         # Parallel Computation
         num_threads = 8
         res = xspec.parallel_anal_sep_model(num_threads,
-            [[np.array([src_spec_list[i]])] for i in range(len(simkV_list))],
-            fltr_params,
-            scint_params,
+            [[np.array([src_spec_list[i]])] for i in range(len(simkV_list))][3:4],
+            fltr_params[0:1],
+            scint_params[3:4],
             np.linspace(0, 10, 3, endpoint=True),
             np.linspace(0.02, 0.5, 3, endpoint=True),
             energies, [signal_train], spec_F_train,
