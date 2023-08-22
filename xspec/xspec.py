@@ -1290,6 +1290,12 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=
 
     fltr_th = torch.tensor(init_fltr_th, requires_grad=True)
     scint_th = torch.tensor(init_scint_th, requires_grad=True)
+    if 'thickness_bound' in fltr_mat:
+        if fltr_mat['thickness_bound'] is not None:
+            fltr_th_bound = fltr_mat['thickness_bound']
+    if 'thickness_bound' in scint_mat:
+        if scint_mat['thickness_bound'] is not None:
+            scint_th_bound = scint_mat['thickness_bound']
     optimizer = optim.Adam([fltr_th, scint_th], lr=learning_rate)
     prev_cost = None
     for i in range(1, iterations+1):
@@ -1301,14 +1307,16 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=
                               fltr_th,
                               scint_th, signal_weight=[1.0 / sig for sig in signal_train])
 
-
+        sv_list = [np.sum(src_response[0]!=0) for src_response in src_response_list]
         if i == 1:
             print('Initial cost: %e'%(cost.item()))
         if i % 50 == 0:
-            print('Iteration:%d: before update cost: %e, filter thickness: %e, scintillator thickness: %e'%(i, cost.item(), fltr_th.item(), scint_th.item()))
+            print(
+                'Iteration:{0}: before update cost: {1:e}, source voltage: {2} filter {3} thickness: {4:e}, scintillator {5} thickness: {6:e}'
+                .format(i, cost.item(), sv_list, fltr_mat['formula'], fltr_th.item(), scint_mat['formula'],
+                        scint_th.item()))
 
-
-        with torch.no_grad():
+        with (torch.no_grad()):
             optimizer.zero_grad()
             cost.backward()
             optimizer.step()
@@ -1318,11 +1326,16 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=
             scint_th.data = project_onto_constraints(scint_th.data, scint_th_bound[0], scint_th_bound[1])
 
             # Check the stopping criterion based on changes in x and y
-            if prev_cost is not None and torch.abs(cost - prev_cost)/prev_cost < tolerance:
+            if prev_cost is not None and \
+               torch.abs(cost - prev_cost) / prev_cost < tolerance and \
+               torch.abs(fltr_th - prev_fltr_th) < tolerance and \
+               torch.abs(scint_th - prev_scint_th) < tolerance:
                 print(f"Stopping after {i} iterations")
                 break
 
             prev_cost = cost.item()
+            prev_fltr_th = fltr_th.item()
+            prev_scint_th = scint_th.item()
 
             # Clear gradients and update previous values for the next iteration
             if return_history:
@@ -1367,4 +1380,4 @@ def parallel_anal_sep_model(num_processes, src_response_list_combs,
         print('result_objects',result_objects)
         results = [r.get() for r in result_objects]
 
-    return results
+    return results, params_combinations
