@@ -1279,7 +1279,7 @@ def anal_cost(energies, y, F, src_response, fltr_mat, scint_mat, th_fl, th_sc, s
 def project_onto_constraints(x, lower_bound, upper_bound):
     return torch.clamp(x, min=lower_bound, max=upper_bound)
 
-def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=None, fltr_mat=None, scint_mat=None,
+def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_list=None, fltr_mat=None, scint_mat=None,
                    init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
                    learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
@@ -1300,7 +1300,7 @@ def anal_sep_model(energies, signal_train_list, spec_F_train, src_response_list=
     prev_cost = None
     for i in range(1, iterations+1):
         cost = 0
-        for signal_train, src_response in zip(signal_train_list, src_response_list):
+        for signal_train, src_response, spec_F_train in zip(signal_train_list, src_response_list, spec_F_train_list):
             cost += anal_cost(energies, signal_train, spec_F_train, src_response,
                               fltr_mat,
                               scint_mat,
