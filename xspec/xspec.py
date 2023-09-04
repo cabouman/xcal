@@ -1279,8 +1279,25 @@ def anal_cost(energies, y, F, src_response, fltr_mat, scint_mat, th_fl, th_sc, s
 def project_onto_constraints(x, lower_bound, upper_bound):
     return torch.clamp(x, min=lower_bound, max=upper_bound)
 
+
+def interp_src_spectra(voltage_list, src_spec_list, interp_voltage):
+    index = torch.searchsorted(voltage_list, interp_voltage)
+    v0 = voltage_list[index - 1]
+    v1 = voltage_list[index]
+    f0 = src_spec_list[index - 1]
+    f1 = src_spec_list[index]
+
+    for v in range(v0, v1):
+        if v == v1:
+            f0[:, v] = 0
+        else:
+            r = (v - v0) / (v1 - v0)
+            f0[:, v] = -r / (1 - r) * f1[:, v]
+    rr = (interp_voltage - v0) / (v1 - v0)
+    return torch.clamp((rr * f1 + (1 - rr) * f0)[0], min=0)
+
 def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_list=None, fltr_mat=None, scint_mat=None,
-                   init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
+                   init_src_vol=50.0, init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
                    learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
     if return_history:
