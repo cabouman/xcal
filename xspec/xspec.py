@@ -1306,6 +1306,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
         Interpolated source spectral response at the specified `interp_voltage`.
     """
 
+    # Find corresponding voltage bin.
     if torch_mode:
         index = torch.searchsorted(voltage_list, interp_voltage)
     else:
@@ -1318,13 +1319,18 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     if not torch_mode:
         f0 = f0[np.newaxis,:]
         f1 = f1[np.newaxis, :]
+
+    # Extend 𝑓0 (v) to be negative for v>v0.
     for v in range(v0, v1):
         if v == v1:
             f0[:, v] = 0
         else:
             r = (v - v0) / (v1 - v0)
             f0[:, v] = -r / (1 - r) * f1[:, v]
+
+    # Interpolation
     rr = (interp_voltage - v0) / (v1 - v0)
+
     if torch_mode:
         return torch.clamp((rr * f1 + (1 - rr) * f0)[0], min=0)
     else:
