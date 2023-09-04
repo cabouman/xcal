@@ -1280,13 +1280,19 @@ def project_onto_constraints(x, lower_bound, upper_bound):
     return torch.clamp(x, min=lower_bound, max=upper_bound)
 
 
-def interp_src_spectra(voltage_list, src_spec_list, interp_voltage):
-    index = torch.searchsorted(voltage_list, interp_voltage)
+def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
+    if torch_mode:
+        index = torch.searchsorted(voltage_list, interp_voltage)
+    else:
+        index = np.searchsorted(voltage_list, interp_voltage)
     v0 = voltage_list[index - 1]
     v1 = voltage_list[index]
     f0 = src_spec_list[index - 1]
     f1 = src_spec_list[index]
 
+    if not torch_mode:
+        f0 = f0[np.newaxis,:]
+        f1 = f1[np.newaxis, :]
     for v in range(v0, v1):
         if v == v1:
             f0[:, v] = 0
@@ -1294,7 +1300,10 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage):
             r = (v - v0) / (v1 - v0)
             f0[:, v] = -r / (1 - r) * f1[:, v]
     rr = (interp_voltage - v0) / (v1 - v0)
-    return torch.clamp((rr * f1 + (1 - rr) * f0)[0], min=0)
+    if torch_mode:
+        return torch.clamp((rr * f1 + (1 - rr) * f0)[0], min=0)
+    else:
+        return np.clip((rr * f1 + (1 - rr) * f0)[0], 0, None)
 
 def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_list=None, fltr_mat=None, scint_mat=None,
                    init_src_vol=50.0, init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
