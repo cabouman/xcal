@@ -1281,6 +1281,31 @@ def project_onto_constraints(x, lower_bound, upper_bound):
 
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
+    """
+    Interpolate the source spectral response based on a given source voltage.
+
+    Parameters
+    ----------
+    voltage_list : list
+        List of source voltages representing the maximum X-ray energy for each source spectrum.
+
+    src_spec_list : list
+        List of corresponding source spectral responses for each voltage in `voltage_list`.
+
+    interp_voltage : float or int
+        The source voltage at which the interpolation is desired.
+
+    torch_mode : bool, optional
+        Determines the computation method. If set to True, PyTorch is used for optimization.
+        If set to False, the function calculates the cost function without optimization.
+        Default is True.
+
+    Returns
+    -------
+    numpy.ndarray or torch.Tensor
+        Interpolated source spectral response at the specified `interp_voltage`.
+    """
+
     if torch_mode:
         index = torch.searchsorted(voltage_list, interp_voltage)
     else:
