@@ -1437,11 +1437,11 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
         return [sv.item() for sv in src_voltage], fltr_th.item(), scint_th.item(), cost.item()
 
 
-def parallel_anal_sep_model(num_processes, src_response_list_combs,
+def parallel_anal_sep_model(num_processes,
                             fltr_mat_list, scint_mat_list,
                             init_fltr_th_values, init_scint_th_values, *args, **kwargs):
     # Create parameter combinations
-    params_combinations = product(src_response_list_combs, fltr_mat_list, scint_mat_list, init_fltr_th_values,
+    params_combinations = product(fltr_mat_list, scint_mat_list, init_fltr_th_values,
                                   init_scint_th_values)
 
     with Pool(processes=num_processes) as pool:
@@ -1451,18 +1451,17 @@ def parallel_anal_sep_model(num_processes, src_response_list_combs,
                 args=args,
                 kwds={
                     **kwargs,
-                    "src_response_list": src_response_list,
                     "fltr_mat": fltr_mat,
                     "scint_mat": scint_mat,
                     "init_fltr_th": fltr_th,
                     "init_scint_th": scint_th
                 }
             )
-            for src_response_list, fltr_mat, scint_mat, fltr_th, scint_th in params_combinations
+            for fltr_mat, scint_mat, fltr_th, scint_th in params_combinations
         ]
 
         # Gather results
         print('result_objects',result_objects)
         results = [r.get() for r in result_objects]
 
-    return results, params_combinations
+    return results
