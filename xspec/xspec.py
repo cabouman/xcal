@@ -1247,7 +1247,8 @@ def anal_cost(energies, y, F, src_response, fltr_mat, scint_mat, th_fl, th_sc, s
     signal_weight = np.concatenate([sig.reshape((-1, 1)) for sig in signal_weight])
 
     if torch_mode:
-        src_response = torch.tensor(src_response)
+        if not isinstance(src_response, torch.Tensor):
+            src_response = torch.tensor(src_response)
         signal = torch.tensor(signal)
         forward_mat = torch.tensor(forward_mat)
         signal_weight = torch.tensor(signal_weight)
@@ -1312,65 +1313,83 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     else:
         index = np.searchsorted(voltage_list, interp_voltage)
     v0 = voltage_list[index - 1]
-    v1 = voltage_list[index]
     f0 = src_spec_list[index - 1]
-    f1 = src_spec_list[index]
+    if index>=len(voltage_list):
+        if torch_mode:
+            return torch.clamp(f0, min=0)
+        else:
+            return np.clip(f0, 0, None)
 
-    if not torch_mode:
-        f0 = f0[np.newaxis,:]
-        f1 = f1[np.newaxis, :]
+    v1 = voltage_list[index]
+    f1 = src_spec_list[index]
 
     # Extend 𝑓0 (v) to be negative for v>v0.
     for v in range(v0, v1):
         if v == v1:
-            f0[:, v] = 0
+            f0[v] = 0
         else:
             r = (v - v0) / (v1 - v0)
-            f0[:, v] = -r / (1 - r) * f1[:, v]
+            f0[v] = -r / (1 - r) * f1[v]
 
     # Interpolation
     rr = (interp_voltage - v0) / (v1 - v0)
 
     if torch_mode:
-        return torch.clamp((rr * f1 + (1 - rr) * f0)[0], min=0)
+        return torch.clamp((rr * f1 + (1 - rr) * f0), min=0)
     else:
-        return np.clip((rr * f1 + (1 - rr) * f0)[0], 0, None)
+        return np.clip((rr * f1 + (1 - rr) * f0), 0, None)
 
-def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_list=None, fltr_mat=None, scint_mat=None,
+def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_dict=None, fltr_mat=None, scint_mat=None,
                    init_src_vol=50.0, init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
-                   learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
+                   learning_rate_sv=1, learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
     if return_history:
+        src_voltage_list =[]
         fltr_th_list = []
         scint_th_list = []
         cost_list = []
 
+
+    src_voltage = torch.tensor(init_src_vol, requires_grad=True)
     fltr_th = torch.tensor(init_fltr_th, requires_grad=True)
     scint_th = torch.tensor(init_scint_th, requires_grad=True)
+
+
+    src_spec_list = [ssl['spectrum'] for ssl in src_response_dict]
+    src_kV_list = [ssl['source_voltage'] for ssl in src_response_dict]
+
+    # Sorted list of values
+    src_spec_list = torch.tensor(src_spec_list, dtype=torch.float32)
+    src_kV_list = torch.tensor(src_kV_list, dtype=torch.int32)
+
     if 'thickness_bound' in fltr_mat:
         if fltr_mat['thickness_bound'] is not None:
             fltr_th_bound = fltr_mat['thickness_bound']
     if 'thickness_bound' in scint_mat:
         if scint_mat['thickness_bound'] is not None:
             scint_th_bound = scint_mat['thickness_bound']
-    optimizer = optim.Adam([fltr_th, scint_th], lr=learning_rate)
+
+    optimizer = optim.Adam([{'params':src_voltage, 'lr':learning_rate_sv},
+                            {'params':fltr_th}, {'params':scint_th}], lr=learning_rate)
+
     prev_cost = None
     for i in range(1, iterations+1):
         cost = 0
-        for signal_train, src_response, spec_F_train in zip(signal_train_list, src_response_list, spec_F_train_list):
+        src_response = interp_src_spectra(src_kV_list, src_spec_list, src_voltage)
+
+        for signal_train, src_response, spec_F_train in zip(signal_train_list, [src_response], spec_F_train_list):
             cost += anal_cost(energies, signal_train, spec_F_train, src_response,
                               fltr_mat,
                               scint_mat,
                               fltr_th,
                               scint_th, signal_weight=[1.0 / sig for sig in signal_train])
 
-        sv_list = [np.sum(src_response[0]!=0) for src_response in src_response_list]
         if i == 1:
             print('Initial cost: %e'%(cost.item()))
         if i % 50 == 0:
             print(
                 'Iteration:{0}: before update cost: {1:e}, source voltage: {2} filter {3} thickness: {4:e}, scintillator {5} thickness: {6:e}'
-                .format(i, cost.item(), sv_list, fltr_mat['formula'], fltr_th.item(), scint_mat['formula'],
+                .format(i, cost.item(), src_voltage.item(), fltr_mat['formula'], fltr_th.item(), scint_mat['formula'],
                         scint_th.item()))
 
         with (torch.no_grad()):
@@ -1384,29 +1403,33 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and \
-               torch.abs(cost - prev_cost) / prev_cost < tolerance and \
-               torch.abs(fltr_th - prev_fltr_th) < tolerance and \
-               torch.abs(scint_th - prev_scint_th) < tolerance:
+                torch.abs(cost - prev_cost) / prev_cost < tolerance and \
+                torch.abs(src_voltage - prev_src_voltage) / prev_src_voltage < tolerance and \
+                torch.abs(fltr_th - prev_fltr_th)/ prev_fltr_th < tolerance and \
+                torch.abs(scint_th - prev_scint_th)/ prev_scint_th < tolerance:
                 print(f"Stopping after {i} iterations")
                 break
 
             prev_cost = cost.item()
+            prev_src_voltage = src_voltage.item()
             prev_fltr_th = fltr_th.item()
             prev_scint_th = scint_th.item()
 
             # Clear gradients and update previous values for the next iteration
             if return_history:
                 cost_list.append(cost.item())
+                src_voltage_list.append(src_voltage.item())
                 fltr_th_list.append(fltr_th.item())
                 scint_th_list.append(scint_th.item())
 
 
-    print(f"The minimum cost value: {cost.item()}, occurs at filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
+    print(f"The minimum cost value: {cost.item()}, occurs at source voltage = {src_voltage.item()} kV, "
+          f"filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
 
     if return_history:
-        return cost_list, fltr_th_list, scint_th_list
+        return cost_list, src_voltage_list, fltr_th_list, scint_th_list
     else:
-        return fltr_th.item(), scint_th.item(), cost.item()
+        return src_voltage.item(), fltr_th.item(), scint_th.item(), cost.item()
 
 
 def parallel_anal_sep_model(num_processes, src_response_list_combs,
