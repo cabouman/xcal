@@ -1309,7 +1309,8 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
     # Find corresponding voltage bin.
     if torch_mode:
-        index = torch.searchsorted(voltage_list, interp_voltage)
+        #index = torch.searchsorted(voltage_list, interp_voltage)
+        index = np.searchsorted(voltage_list.detach().clone().numpy(), interp_voltage.detach().clone().numpy())
     else:
         index = np.searchsorted(voltage_list, interp_voltage)
     v0 = voltage_list[index - 1]
@@ -1404,13 +1405,13 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
             # Project the updated x back onto the feasible set
             fltr_th.data = project_onto_constraints(fltr_th.data, fltr_th_bound[0], fltr_th_bound[1])
             scint_th.data = project_onto_constraints(scint_th.data, scint_th_bound[0], scint_th_bound[1])
-            src_voltage.data = project_onto_constraints(src_voltage.data, 30.0, 160.0)
+            src_voltage.data = project_onto_constraints(src_voltage.data, src_kV_list[0], src_kV_list[-1])
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and \
                 torch.abs(cost - prev_cost) / prev_cost < tolerance and \
                 torch.mean(torch.abs(src_voltage - prev_src_voltage) / prev_src_voltage) < tolerance and \
-                torch.abs(fltr_th - prev_fltr_th)/ prev_fltr_th < tolerance and \
+                torch.abs(fltr_th - prev_fltr_th) < tolerance and \
                 torch.abs(scint_th - prev_scint_th)/ prev_scint_th < tolerance:
                 print(f"Stopping after {i} iterations")
                 break
