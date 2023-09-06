@@ -1330,11 +1330,12 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
         if v == v1:
             f0_modified[v] = 0
         else:
-            r = (v - v0) / (v1 - v0)
+            r = (v - float(v0)) / (v1 - float(v0))
             f0_modified[v] = -r / (1 - r) * f1[v]
 
     # Interpolation
-    rr = (interp_voltage - v0) / (v1 - v0)
+    rr = (interp_voltage - float(v0)) / (v1 - float(v0))
+    print(rr)
     interpolated_values = rr * f1 + (1 - rr) * f0_modified
 
     if torch_mode:
