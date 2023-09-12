@@ -17,7 +17,7 @@ from psutil import cpu_count
 from itertools import product
 
 import numpy as np
-from xspec._utils import huber_func
+from xspec._utils import huber_func, is_sorted
 from xspec.dict import *
 
 
@@ -1278,8 +1278,8 @@ def anal_cost(energies, y, F, src_response, fltr_mat, scint_mat, th_fl, th_sc, s
     return cal_cost(e, signal_weight, torch_mode)
 
 def project_onto_constraints(x, lower_bound, upper_bound):
-    return torch.clamp(x, min=lower_bound, max=upper_bound)
-
+    #return torch.clamp(x, min=lower_bound, max=upper_bound)
+    return torch.clamp(x, min=torch.tensor(lower_bound), max=torch.tensor(upper_bound))
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
     """
@@ -1344,7 +1344,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
         return np.clip(interpolated_values, 0, None)
 
 def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_dict=None, fltr_mat=None, scint_mat=None,
-                   init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
+                   init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1,src_vol_bound=None, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
                    learning_rate_sv=1, learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
     if return_history:
@@ -1363,6 +1363,9 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
     src_spec_list = [ssl['spectrum'] for ssl in src_response_dict]
     src_kV_list = [ssl['source_voltage'] for ssl in src_response_dict]
 
+    if not is_sorted(src_kV_list):
+        raise ValueError("Warning: source voltage in src_response_dict are not sorted!")
+
     # Sorted list of values
     src_spec_list = torch.tensor(src_spec_list, dtype=torch.float32)
     src_kV_list = torch.tensor(src_kV_list, dtype=torch.int32)
@@ -1373,6 +1376,11 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
     if 'thickness_bound' in scint_mat:
         if scint_mat['thickness_bound'] is not None:
             scint_th_bound = scint_mat['thickness_bound']
+    if src_vol_bound is None:
+        src_vol_bound = [(src_kV_list[0],src_kV_list[-1]) for sv in init_src_vol]
+    src_vol_lower_bound_list = [lb for lb, _ in src_vol_bound]
+    src_vol_upper_bound_list = [ub for _, ub in src_vol_bound]
+
 
     optimizer = optim.Adam([{'params':src_voltage, 'lr':learning_rate_sv},
                             {'params':fltr_th}, {'params':scint_th}], lr=learning_rate)
@@ -1406,7 +1414,7 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
             # Project the updated x back onto the feasible set
             fltr_th.data = project_onto_constraints(fltr_th.data, fltr_th_bound[0], fltr_th_bound[1])
             scint_th.data = project_onto_constraints(scint_th.data, scint_th_bound[0], scint_th_bound[1])
-            src_voltage.data = project_onto_constraints(src_voltage.data, src_kV_list[0], src_kV_list[-1])
+            src_voltage.data = project_onto_constraints(src_voltage.data, src_vol_lower_bound_list, src_vol_upper_bound_list)
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and \
