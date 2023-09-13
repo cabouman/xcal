@@ -1,5 +1,6 @@
 import numpy as np
 from numpy.core.numeric import asanyarray
+import torch
 from scipy.signal import butter,filtfilt,find_peaks
 import matplotlib.pyplot as plt
 
@@ -8,6 +9,40 @@ light_speed = 299792458.0 # Speed of light
 Planck_constant = 6.62607015E-34 # Planck's constant
 Joule_per_eV = 1.602176565E-19 # Joules per electron-volts
 
+
+def to_tensor(data):
+    if isinstance(data, torch.Tensor):
+        return data
+    return torch.tensor(data)
+
+
+def min_max_normalize_scalar(value, data_min, data_max):
+    value = to_tensor(value)
+    data_min = to_tensor(data_min)
+    data_max = to_tensor(data_max)
+
+    normalized_value = (value - data_min) / (data_max - data_min)
+
+    # If the original input was a standard Python scalar, return a scalar
+    if isinstance(value, (float, int)):
+        return normalized_value.item()
+    return normalized_value
+
+
+def min_max_denormalize_scalar(normalized_value, data_min, data_max):
+    normalized_value = to_tensor(normalized_value)
+    data_min = to_tensor(data_min)
+    data_max = to_tensor(data_max)
+
+    value = normalized_value * (data_max - data_min) + data_min
+
+    # If the original input was a standard Python scalar, return a scalar
+    if isinstance(normalized_value, (float, int)):
+        return value.item()
+    return value
+
+def is_sorted(lst):
+    return all(lst[i] <= lst[i+1] for i in range(len(lst)-1))
 
 def get_wavelength(energy):
     # How is energy related to the wavelength of radiation?

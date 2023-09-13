@@ -17,7 +17,7 @@ from psutil import cpu_count
 from itertools import product
 
 import numpy as np
-from xspec._utils import huber_func, is_sorted
+from xspec._utils import huber_func, is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, to_tensor
 from xspec.dict import *
 
 
@@ -1335,7 +1335,6 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
     # Interpolation
     rr = (interp_voltage - float(v0)) / (v1 - float(v0))
-    print(rr)
     interpolated_values = rr * f1 + (1 - rr) * f0_modified
 
     if torch_mode:
@@ -1344,8 +1343,8 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
         return np.clip(interpolated_values, 0, None)
 
 def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_dict=None, fltr_mat=None, scint_mat=None,
-                   init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1,src_vol_bound=None, fltr_th_bound=(0,10), scint_th_bound=(0.01,1),
-                   learning_rate_sv=1, learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
+                   init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1, src_vol_bound=None, fltr_th_bound=(0, 10), scint_th_bound=(0.01, 1),
+                   learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
 
     if return_history:
         src_voltage_list =[]
@@ -1354,11 +1353,6 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
         cost_list = []
 
     torch.autograd.set_detect_anomaly(True)
-
-    src_voltage = torch.tensor(init_src_vol, requires_grad=True)
-    fltr_th = torch.tensor(init_fltr_th, requires_grad=True)
-    scint_th = torch.tensor(init_scint_th, requires_grad=True)
-
 
     src_spec_list = [ssl['spectrum'] for ssl in src_response_dict]
     src_kV_list = [ssl['source_voltage'] for ssl in src_response_dict]
@@ -1376,19 +1370,55 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
     if 'thickness_bound' in scint_mat:
         if scint_mat['thickness_bound'] is not None:
             scint_th_bound = scint_mat['thickness_bound']
+
+    src_vol_range = [(src_kV_list[0], src_kV_list[-1]) for sv in init_src_vol]
+    src_vol_lower_range_list = [lb for lb, _ in src_vol_range]
+    src_vol_upper_range_list = [ub for _, ub in src_vol_range]
+
     if src_vol_bound is None:
-        src_vol_bound = [(src_kV_list[0],src_kV_list[-1]) for sv in init_src_vol]
-    src_vol_lower_bound_list = [lb for lb, _ in src_vol_bound]
-    src_vol_upper_bound_list = [ub for _, ub in src_vol_bound]
+        src_vol_bound = src_vol_range
+    src_vol_lower_bound_list = min_max_normalize_scalar([lb for lb, _ in src_vol_bound],
+                                                        src_vol_lower_range_list,
+                                                        src_vol_upper_range_list)
+    src_vol_upper_bound_list = min_max_normalize_scalar([ub for _,ub in src_vol_bound],
+                                                        src_vol_lower_range_list,
+                                                        src_vol_upper_range_list)
 
+    norm_src_voltage = torch.tensor(min_max_normalize_scalar(init_src_vol,
+                                                        src_vol_lower_range_list,
+                                                        src_vol_upper_range_list), requires_grad=True)
+    norm_fltr_th = torch.tensor(min_max_normalize_scalar(init_fltr_th,
+                                                    fltr_th_bound[0],
+                                                    fltr_th_bound[1]), requires_grad=True)
+    norm_scint_th = torch.tensor(min_max_normalize_scalar(init_scint_th,
+                                                     scint_th_bound[0],
+                                                     scint_th_bound[1]), requires_grad=True)
 
-    optimizer = optim.Adam([{'params':src_voltage, 'lr':learning_rate_sv},
-                            {'params':fltr_th}, {'params':scint_th}], lr=learning_rate)
+    src_voltage = min_max_denormalize_scalar(norm_src_voltage,
+                                             src_vol_lower_range_list,
+                                             src_vol_upper_range_list)
+    fltr_th = min_max_denormalize_scalar(norm_fltr_th,
+                                         fltr_th_bound[0],
+                                         fltr_th_bound[1])
+    scint_th = min_max_denormalize_scalar(norm_scint_th,
+                                          scint_th_bound[0],
+                                          scint_th_bound[1])
+
+    optimizer = optim.Adam([{'params':norm_src_voltage}, {'params':norm_fltr_th}, {'params':norm_scint_th}],
+                           lr=learning_rate)
 
     prev_cost = None
     for i in range(1, iterations+1):
         cost = 0
-
+        src_voltage = min_max_denormalize_scalar(norm_src_voltage,
+                                                 src_vol_lower_range_list,
+                                                 src_vol_upper_range_list)
+        fltr_th = min_max_denormalize_scalar(norm_fltr_th,
+                                             fltr_th_bound[0],
+                                             fltr_th_bound[1])
+        scint_th = min_max_denormalize_scalar(norm_scint_th,
+                                              scint_th_bound[0],
+                                              scint_th_bound[1])
         for signal_train, sv, spec_F_train in zip(signal_train_list, src_voltage, spec_F_train_list):
             src_response = interp_src_spectra(src_kV_list, src_spec_list, sv)
 
@@ -1412,9 +1442,23 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
             optimizer.step()
 
             # Project the updated x back onto the feasible set
-            fltr_th.data = project_onto_constraints(fltr_th.data, fltr_th_bound[0], fltr_th_bound[1])
-            scint_th.data = project_onto_constraints(scint_th.data, scint_th_bound[0], scint_th_bound[1])
-            src_voltage.data = project_onto_constraints(src_voltage.data, src_vol_lower_bound_list, src_vol_upper_bound_list)
+
+
+            norm_src_voltage.data = project_onto_constraints(norm_src_voltage.data, src_vol_lower_bound_list,
+                                                        src_vol_upper_bound_list)
+            norm_fltr_th.data = project_onto_constraints(norm_fltr_th.data, 0, 1)
+            norm_scint_th.data = project_onto_constraints(norm_scint_th.data, 0, 1)
+
+            src_voltage = min_max_denormalize_scalar(norm_src_voltage,
+                                                                  src_vol_lower_range_list,
+                                                                  src_vol_upper_range_list)
+            fltr_th = min_max_denormalize_scalar(norm_fltr_th,
+                                                              fltr_th_bound[0],
+                                                              fltr_th_bound[1])
+            scint_th = min_max_denormalize_scalar(norm_scint_th,
+                                                               scint_th_bound[0],
+                                                               scint_th_bound[1])
+
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and \
