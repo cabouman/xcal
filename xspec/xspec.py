@@ -17,7 +17,7 @@ from psutil import cpu_count
 from itertools import product
 
 import numpy as np
-from xspec._utils import huber_func, is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, to_tensor
+from xspec._utils import huber_func, is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, concatenate_items, split_list
 from xspec.dict import *
 
 
@@ -1384,32 +1384,28 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
                                                         src_vol_lower_range_list,
                                                         src_vol_upper_range_list)
 
-    norm_src_voltage = torch.tensor(min_max_normalize_scalar(init_src_vol,
-                                                        src_vol_lower_range_list,
-                                                        src_vol_upper_range_list), requires_grad=True)
-    norm_fltr_th = torch.tensor(min_max_normalize_scalar(init_fltr_th,
-                                                    fltr_th_bound[0],
-                                                    fltr_th_bound[1]), requires_grad=True)
-    norm_scint_th = torch.tensor(min_max_normalize_scalar(init_scint_th,
-                                                     scint_th_bound[0],
-                                                     scint_th_bound[1]), requires_grad=True)
+    init_params, length = concatenate_items(init_src_vol, init_fltr_th, init_scint_th)
+    init_lower_ranges, _ = concatenate_items(src_vol_lower_range_list, fltr_th_bound[0], scint_th_bound[0])
+    init_upper_ranges, _ = concatenate_items(src_vol_upper_range_list, fltr_th_bound[1], scint_th_bound[1])
+    init_lower_bounds, _ = concatenate_items(src_vol_lower_bound_list, 0, 0)
+    init_upper_bounds, _ = concatenate_items(src_vol_upper_bound_list, 1, 1)
+    norm_params = torch.tensor(min_max_normalize_scalar(init_params,
+                                                        init_lower_ranges,
+                                                        init_upper_ranges), requires_grad=True)
+    # norm_fltr_th = torch.tensor(min_max_normalize_scalar(init_fltr_th,
+    #                                                 fltr_th_bound[0],
+    #                                                 fltr_th_bound[1]), requires_grad=True)
+    # norm_scint_th = torch.tensor(min_max_normalize_scalar(init_scint_th,
+    #                                                  scint_th_bound[0],
+    #                                                  scint_th_bound[1]), requires_grad=True)
 
-    src_voltage = min_max_denormalize_scalar(norm_src_voltage,
-                                             src_vol_lower_range_list,
-                                             src_vol_upper_range_list)
-    fltr_th = min_max_denormalize_scalar(norm_fltr_th,
-                                         fltr_th_bound[0],
-                                         fltr_th_bound[1])
-    scint_th = min_max_denormalize_scalar(norm_scint_th,
-                                          scint_th_bound[0],
-                                          scint_th_bound[1])
 
-    optimizer = optim.Adam([{'params':norm_src_voltage}, {'params':norm_fltr_th}, {'params':norm_scint_th}],
-                           lr=learning_rate)
+    optimizer = optim.Adam([norm_params], lr=learning_rate)
 
     prev_cost = None
     for i in range(1, iterations+1):
         cost = 0
+        norm_src_voltage, norm_fltr_th, norm_scint_th = split_list(norm_params, length)
         src_voltage = min_max_denormalize_scalar(norm_src_voltage,
                                                  src_vol_lower_range_list,
                                                  src_vol_upper_range_list)
@@ -1444,10 +1440,11 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
             # Project the updated x back onto the feasible set
 
 
-            norm_src_voltage.data = project_onto_constraints(norm_src_voltage.data, src_vol_lower_bound_list,
-                                                        src_vol_upper_bound_list)
-            norm_fltr_th.data = project_onto_constraints(norm_fltr_th.data, 0, 1)
-            norm_scint_th.data = project_onto_constraints(norm_scint_th.data, 0, 1)
+            norm_params.data = project_onto_constraints(norm_params.data,
+                                                        init_lower_bounds,
+                                                        init_upper_bounds)
+
+            norm_src_voltage, norm_fltr_th, norm_scint_th = split_list(norm_params, length)
 
             src_voltage = min_max_denormalize_scalar(norm_src_voltage,
                                                                   src_vol_lower_range_list,
@@ -1458,7 +1455,6 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
             scint_th = min_max_denormalize_scalar(norm_scint_th,
                                                                scint_th_bound[0],
                                                                scint_th_bound[1])
-
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and \

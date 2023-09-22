@@ -218,3 +218,30 @@ def binwised_spec_cali_cost(y,x,h,F,W,B,beta,c,energies):
         rho_cost+=beta*(energies[i+1]-energies[i])*huber_func((x[i+1]-x[i])/(energies[i+1]-energies[i]),c)
         
     return cost,rho_cost
+
+
+def concatenate_items(*items):
+    concatenated = []
+    lengths_info = {}
+
+    for index, item in enumerate(items):
+        if isinstance(item, (list, tuple)):
+            concatenated.extend(item)
+            lengths_info[index] = {'length': len(item), 'is_list': True}
+        else:
+            concatenated.append(item)
+            lengths_info[index] = {'length': 1, 'is_list': False}
+
+    return concatenated, lengths_info
+
+def split_list(input_list, lengths_info):
+    output = []
+    start = 0
+    for index, info in lengths_info.items():
+        end = start + info['length']
+        if info['is_list']:
+            output.append(input_list[start:end])
+        else:
+            output.append(input_list[start])
+        start = end
+    return output
