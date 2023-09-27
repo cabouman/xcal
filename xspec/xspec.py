@@ -6,6 +6,8 @@ Description:
 
 Date: Dec 1st, 2022.
 """
+import sys
+import warnings
 
 import itertools
 import torch
@@ -19,7 +21,7 @@ from itertools import product
 import numpy as np
 from xspec._utils import huber_func, is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, concatenate_items, split_list
 from xspec.dict import *
-
+from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 
 class Huber:
     """Solve nonlinear model Huber prior using ICD update.
@@ -720,7 +722,7 @@ def _compute_criteria_and_beta(yhat_F, spec_dict, energies, y_yhat, FDsq, y_F_Dk
 
 # Orthogonal match pursuit with different optimization models.
 def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, scints_info_dict,
-           sparsity, optimizor, num_candidate=1, max_num_supports=None,
+           sparsity, optimizer, num_candidate=1, max_num_supports=None,
            signal_weight=None, tol=1e-6,
            return_component=False, auto_stop=True, apply_phys_constraint=True, apc_method='traverse',
            verbose=0):
@@ -742,8 +744,8 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
         The number of rows M, should be same as the length of energies, should be normalized to integrate to 1.
     sparsity : int
         The max number of nonzero coefficients.
-    optimizor : Python object
-        Should be one of the optimizors defined above. [RidgeReg(), LassoReg(), ElasticNetReg(), QGGMRF()]
+    optimizer : Python object
+        Should be one of the optimizers defined above. [RidgeReg(), LassoReg(), ElasticNetReg(), QGGMRF()]
     signal_weight: numpy.ndarray
         Weight for transmission Data, representing uncertainty, has same size as signal.
     nnc : bool
@@ -803,7 +805,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
     #                                                  beta_projs=beta_projs[:,:,:,63:64,:],
     #                                                  spec_dict=np.array([np.roll(sp_als,i) for i in range(500)]).T,
     #                                                  sparsity=10,
-    #                                                  optimizor=LassoReg(l1=0.001),
+    #                                                  optimizer=LassoReg(l1=0.001),
     #                                                  tol=1e-06,
     #                                                  return_component=True)
     #         plt.plot( energies,sp_als)
@@ -957,7 +959,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
                 Omega_init = new_omega[new_S, 0]
                 e = signal - FDS @ new_omega[new_S]
 
-                new_omega[new_S, 0] = optimizor.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init,
+                new_omega[new_S, 0] = optimizer.solve(FDS, signal, weight=signal_weight, Omega_init=Omega_init,
                                                       e_init=e,
                                                       spec_dict=spec_dict[:, new_S])
                 e = signal - FDS @ new_omega[new_S]
@@ -971,7 +973,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
                     new_S_list.append(new_S)
                     new_omega_list.append(new_omega)
                     new_FDS_list.append(FDS)
-                    cost = optimizor.cost()
+                    cost = optimizer.cost()
                     new_cost_list.append(cost)
                     print('cost:', cost)
 
@@ -1076,7 +1078,7 @@ def uncertainty_analysis(signal, back_ground_area, energies, forward_mat, spec_d
         Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
         estimated_spec, omega, S, cost_list = dictSE(signal, energies, forward_mat,
                                                      spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity,
-                                                     optimizor=Snapprior, nnc='on-coef',
+                                                     optimizer=Snapprior, nnc='on-coef',
                                                      signal_weight=[1.0 / sig for sig in signal], auto_stop=True,
                                                      return_component=True,
                                                      verbose=0)
@@ -1097,7 +1099,7 @@ def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_c
                     sig, npt in zip(signal, npt_set)]
     Snapprior = Snap(l_star=0, max_iter=500, threshold=1e-5, nnc='on-coef')
     return dictSE(signal_train, energies, spec_F_train,
-                  spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizor=Snapprior,
+                  spec_dict.reshape(-1, spec_dict.shape[-1]), sparsity, optimizer=Snapprior,
                   num_candidate=num_candidate,
                   nnc='on-coef', signal_weight=[1.0 / sig for sig in signal], auto_stop=True, return_component=True,
                   verbose=0)
@@ -1105,7 +1107,7 @@ def dictse_wrapper(ii, signal, npt_set, energies, spec_F_train, spec_dict, num_c
 
 # Orthogonal match pursuit with different optimization models.
 def dictSE_sep_model(signal, energies, forward_mat,
-                     src_dict, fltr_dict, scint_dict, optimizor,
+                     src_dict, fltr_dict, scint_dict, optimizer,
                      signal_weight=None, return_component=False, verbose=0):
     signal = np.concatenate([sig.reshape((-1, 1)) for sig in signal])
     forward_mat = np.concatenate([fwm.reshape((-1, fwm.shape[-1])) for fwm in forward_mat])
@@ -1187,10 +1189,10 @@ def dictSE_sep_model(signal, energies, forward_mat,
 
                 e = (yZ[:,SS] - FDS) @ omega[SS]
                 print('Cost before ICD:', cal_cost(e/(Z[:,SS]@ omega[SS]), signal_weight))
-                omega_src[S_src], omega_fltr[S_fltr], omega_scint[S_scint] = optimizor.solve(FDS, signal, Z[:, SS],
-                    Omega_init=[omega_src[S_src], omega_fltr[S_fltr], omega_scint[S_scint]],
-                    weight=signal_weight,
-                    e_init=e)
+                omega_src[S_src], omega_fltr[S_fltr], omega_scint[S_scint] = optimizer.solve(FDS, signal, Z[:, SS],
+                                                                                             Omega_init=[omega_src[S_src], omega_fltr[S_fltr], omega_scint[S_scint]],
+                                                                                             weight=signal_weight,
+                                                                                             e_init=e)
                 omega_sfs = [omega_src, omega_fltr, omega_scint]
                 omega_sfs_list.append(omega_sfs)
 
@@ -1201,7 +1203,7 @@ def dictSE_sep_model(signal, energies, forward_mat,
                 updated_cost = cal_cost(e / (Z[:, SS] @ new_omega[SS]), signal_weight)
                 print('Cost after ICD:', updated_cost)
                 cost_list.append(updated_cost)
-                #cost_list.append(optimizor.cost_list)
+                #cost_list.append(optimizer.cost_list)
 
 
     best_cdi = np.argmin(cost_list)
@@ -1344,7 +1346,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
 def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_dict=None, fltr_mat=None, scint_mat=None,
                    init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1, src_vol_bound=None, fltr_th_bound=(0, 10), scint_th_bound=(0.01, 1),
-                   learning_rate=0.1, iterations=5000, tolerance=1e-6, return_history=False):
+                   learning_rate=0.1, iterations=5000, tolerance=1e-6, optimizer_type='Adam', return_history=False):
 
     if return_history:
         src_voltage_list =[]
@@ -1379,10 +1381,10 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
         src_vol_bound = src_vol_range
     src_vol_lower_bound_list = min_max_normalize_scalar([lb for lb, _ in src_vol_bound],
                                                         src_vol_lower_range_list,
-                                                        src_vol_upper_range_list)
+                                                        src_vol_upper_range_list).tolist()
     src_vol_upper_bound_list = min_max_normalize_scalar([ub for _,ub in src_vol_bound],
                                                         src_vol_lower_range_list,
-                                                        src_vol_upper_range_list)
+                                                        src_vol_upper_range_list).tolist()
 
     init_params, length = concatenate_items(init_src_vol, init_fltr_th, init_scint_th)
     init_lower_ranges, _ = concatenate_items(src_vol_lower_range_list, fltr_th_bound[0], scint_th_bound[0])
@@ -1400,42 +1402,71 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
     #                                                  scint_th_bound[1]), requires_grad=True)
 
 
-    optimizer = optim.Adam([norm_params], lr=learning_rate)
+    if optimizer_type == 'Adam':
+        optimizer = optim.Adam([norm_params], lr=learning_rate)
+    elif optimizer_type == 'LBFGS':
+        optimizer = optim.LBFGS([norm_params], lr=learning_rate, max_iter=100, tolerance_grad=1e-8, tolerance_change=1e-11)
+    elif optimizer_type == 'NNAT_LBFGS':
+        optimizer = NNAT_LBFGS([norm_params], lr=learning_rate, device='cpu')
+    else:
+        warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
+        sys.exit("Exiting the script due to unsupported optimizer type.")
 
     prev_cost = None
     for i in range(1, iterations+1):
-        cost = 0
-        norm_src_voltage, norm_fltr_th, norm_scint_th = split_list(norm_params, length)
-        src_voltage = min_max_denormalize_scalar(norm_src_voltage,
-                                                 src_vol_lower_range_list,
-                                                 src_vol_upper_range_list)
-        fltr_th = min_max_denormalize_scalar(norm_fltr_th,
-                                             fltr_th_bound[0],
-                                             fltr_th_bound[1])
-        scint_th = min_max_denormalize_scalar(norm_scint_th,
-                                              scint_th_bound[0],
-                                              scint_th_bound[1])
-        for signal_train, sv, spec_F_train in zip(signal_train_list, src_voltage, spec_F_train_list):
-            src_response = interp_src_spectra(src_kV_list, src_spec_list, sv)
+        def closure():
+            if torch.is_grad_enabled():
+                optimizer.zero_grad()
+            cost  = 0
+            norm_src_voltage, norm_fltr_th, norm_scint_th = split_list(norm_params, length)
+            src_voltage = min_max_denormalize_scalar(norm_src_voltage,
+                                                     src_vol_lower_range_list,
+                                                     src_vol_upper_range_list)
+            fltr_th = min_max_denormalize_scalar(norm_fltr_th,
+                                                 fltr_th_bound[0],
+                                                 fltr_th_bound[1])
+            scint_th = min_max_denormalize_scalar(norm_scint_th,
+                                                  scint_th_bound[0],
+                                                  scint_th_bound[1])
+            for signal_train, sv, spec_F_train in zip(signal_train_list, src_voltage, spec_F_train_list):
+                src_response = interp_src_spectra(src_kV_list, src_spec_list, sv)
 
-            cost += anal_cost(energies, signal_train, spec_F_train, src_response,
-                              fltr_mat,
-                              scint_mat,
-                              fltr_th,
-                              scint_th, signal_weight=[1.0 / sig for sig in signal_train])
+                cost += anal_cost(energies, signal_train, spec_F_train, src_response,
+                                  fltr_mat,
+                                  scint_mat,
+                                  fltr_th,
+                                  scint_th, signal_weight=[1.0 / sig for sig in signal_train])
+            if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
+                cost.backward()
+            return cost
 
-        if i == 1:
-            print('Initial cost: %e'%(cost.item()))
-        if i % 50 == 0:
-            print(
-                'Iteration:{0}: before update cost: {1:e}, source voltage: {2} filter {3} thickness: {4:e}, scintillator {5} thickness: {6:e}'
-                .format(i, cost.item(), [sv.item() for sv in src_voltage], fltr_mat['formula'], fltr_th.item(), scint_mat['formula'],
-                        scint_th.item()))
+        cost = closure()
+        if optimizer_type == 'NNAT_LBFGS':
+            cost.backward()
 
         with (torch.no_grad()):
-            optimizer.zero_grad()
-            cost.backward()
+            if i == 1:
+                    print('Initial cost: %e' % (closure().item()))
+
+        if optimizer_type == 'Adam':
+            # cost = closure()
             optimizer.step()
+        elif optimizer_type == 'LBFGS':
+            optimizer.step(closure)
+        elif optimizer_type == 'NNAT_LBFGS':
+            options = {'closure': closure, 'current_loss': cost,
+                       'max_ls': 100, 'damping': True}
+            cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
+                options=options)
+
+        with (torch.no_grad()):
+            if i % 2 == 0:
+                print(
+                    'Iteration:{0}: before update cost: {1:e}, source voltage: {2} filter {3} thickness: {4:e}, scintillator {5} thickness: {6:e}'
+                    .format(i, closure().item(), [sv.item() for sv in src_voltage], fltr_mat['formula'], fltr_th.item(),
+                            scint_mat['formula'],
+                            scint_th.item()))
+
 
             # Project the updated x back onto the feasible set
 
@@ -1458,33 +1489,33 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
 
             # Check the stopping criterion based on changes in x and y
             if prev_cost is not None and \
-                torch.abs(cost - prev_cost) / prev_cost < tolerance and \
+                torch.abs(closure() - prev_cost) / prev_cost < tolerance and \
                 torch.mean(torch.abs(src_voltage - prev_src_voltage) / prev_src_voltage) < tolerance and \
                 torch.abs(fltr_th - prev_fltr_th) < tolerance and \
                 torch.abs(scint_th - prev_scint_th)/ prev_scint_th < tolerance:
                 print(f"Stopping after {i} iterations")
                 break
 
-            prev_cost = cost.item()
+            prev_cost = closure().item()
             prev_src_voltage = torch.tensor([sv.item() for sv in src_voltage])
             prev_fltr_th = fltr_th.item()
             prev_scint_th = scint_th.item()
 
             # Clear gradients and update previous values for the next iteration
             if return_history:
-                cost_list.append(cost.item())
+                cost_list.append(closure().item())
                 src_voltage_list.append([sv.item() for sv in src_voltage])
                 fltr_th_list.append(fltr_th.item())
                 scint_th_list.append(scint_th.item())
 
 
-    print(f"The minimum cost value: {cost.item()}, occurs at source voltage = {[sv.item() for sv in src_voltage]} kV, "
+    print(f"The minimum cost value: {closure().item()}, occurs at source voltage = {[sv.item() for sv in src_voltage]} kV, "
           f"filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
 
     if return_history:
         return cost_list, src_voltage_list, fltr_th_list, scint_th_list
     else:
-        return [sv.item() for sv in src_voltage], fltr_th.item(), scint_th.item(), cost.item()
+        return [sv.item() for sv in src_voltage], fltr_th.item(), scint_th.item(), closure().item()
 
 
 def parallel_anal_sep_model(num_processes,
