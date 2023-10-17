@@ -1347,6 +1347,32 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_dict=None, fltr_mat=None, scint_mat=None,
                    init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1, src_vol_bound=None, fltr_th_bound=(0, 10), scint_th_bound=(0.01, 1),
                    learning_rate=0.1, iterations=5000, tolerance=1e-6, optimizer_type='Adam', return_history=False):
+    """
+
+    Parameters
+    ----------
+    energies
+    signal_train_list
+    spec_F_train_list
+    src_response_dict
+    fltr_mat
+    scint_mat
+    init_src_vol
+    init_fltr_th
+    init_scint_th
+    src_vol_bound
+    fltr_th_bound
+    scint_th_bound
+    learning_rate
+    iterations
+    tolerance
+    optimizer_type
+    return_history
+
+    Returns
+    -------
+
+    """
 
     if return_history:
         src_voltage_list =[]
@@ -1394,12 +1420,6 @@ def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_
     norm_params = torch.tensor(min_max_normalize_scalar(init_params,
                                                         init_lower_ranges,
                                                         init_upper_ranges), requires_grad=True)
-    # norm_fltr_th = torch.tensor(min_max_normalize_scalar(init_fltr_th,
-    #                                                 fltr_th_bound[0],
-    #                                                 fltr_th_bound[1]), requires_grad=True)
-    # norm_scint_th = torch.tensor(min_max_normalize_scalar(init_scint_th,
-    #                                                  scint_th_bound[0],
-    #                                                  scint_th_bound[1]), requires_grad=True)
 
 
     if optimizer_type == 'Adam':
