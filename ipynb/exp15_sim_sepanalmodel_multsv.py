@@ -10,7 +10,7 @@ import spekpy as sp # Import SpekPy
 import xspec
 from xspec.chem_consts import get_lin_att_c_vs_E
 from xspec.chem_consts._periodictabledata import density
-from xspec.dict import gen_filts_specD, gen_scints_specD
+from xspec.dict_gen import gen_filts_specD, gen_scints_specD
 
 
 
