@@ -2,14 +2,23 @@ import numpy as np
 from xspec._utils import is_sorted
 
 class Bound:
-    def __init__(self, lower, upper):
+    def __init__(self, lower:float, upper:float):
+        """
+
+        Parameters
+        ----------
+        lower: float
+            Lower bound
+        upper: float
+            Uppder bound
+        """
         # Validate bounds before assignment
-        self.validate_bounds(lower, upper)
+        self._validate_bounds(lower, upper)
 
         self.lower = lower
         self.upper = upper
 
-    def validate_bounds(self, lower, upper):
+    def _validate_bounds(self, lower, upper):
         """
         Validates the bounds to ensure lower is less than upper and both are positive.
         Throws ValueError if conditions are not met.
@@ -24,11 +33,15 @@ class Bound:
         """
         Check if the provided value is within the bounds.
 
-        Args:
-        value (float/int): The value to check.
+        Parameters
+        ----------
+        value : float or int
+            The value to check.
 
-        Returns:
-        bool: True if within bounds, False otherwise.
+        Returns
+        -------
+        is_bounded: bool
+            True if within bounds, False otherwise.
         """
         # Assuming the value is a float or an integer, you might want to add checks for the type of value.
         return self.lower <= value <= self.upper
@@ -37,12 +50,21 @@ class Bound:
         """
         Update the values of the bounds.
         Validates new values and changes only if they are valid.
+
+        Parameters
+        ----------
+        lower: float
+        upper: float
+
+        Returns
+        -------
+
         """
         new_lower = lower if lower is not None else self.lower
         new_upper = upper if upper is not None else self.upper
 
         # Validate before making any changes
-        self.validate_bounds(new_lower, new_upper)
+        self._validate_bounds(new_lower, new_upper)
 
         # Set the new values after validation
         self.lower = new_lower
@@ -56,6 +78,15 @@ class Bound:
 
 class Material:
     def __init__(self, formula, density):
+        """
+
+        Parameters
+        ----------
+        formula: str
+            Chemical formula
+        density: float
+            Material density g/cm³
+        """
         # Validate the inputs
         if not isinstance(formula, str):
             raise ValueError("Formula must be a string representing the chemical composition.")
@@ -84,7 +115,7 @@ class src_spec_params:
             A list of source voltage corresponding to src_spect_list.
         src_spec_list: list
             A list of source spectrum corresponding to src_vol_list.
-        src_vol_bound: class Bound
+        src_vol_bound: Bound
             Source voltage lower and uppder bound.
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
@@ -136,11 +167,11 @@ class fltr_resp_params:
         ----------
         num_fltr: int
             Number of filters.
-        fltr_mat: class Material or list
+        fltr_mat: Material or list
             If num_fltr is 1, fltr_mat is an instance of class Material, containing chemical formula and density.
             Otherwise, it whould be a list of instances of class Material.
             Length should be equal to num_fltr.
-        fltr_th_bound: class Bound or list
+        fltr_th_bound: Bound or list
             If num_fltr is 1, fltr_th_bound is an instance of class Bound, containing lower bound and uppder bound.
             Otherwise, it whould be a list of instances of class Bound for filter thickness.
             Length should be equal to num_fltr.
@@ -210,9 +241,12 @@ class scint_cvt_func_params:
 
         Parameters
         ----------
-        scint_mat
-        scint_th_bound
-        scint_th
+        scint_mat: Material
+            Scintillator material
+        scint_th_bound: Bound
+            Scintillator thickness bound
+        scint_th: float
+            Scintillator thickness. Default is None. Can be set for initial value.
 
         Returns
         -------
@@ -256,9 +290,12 @@ class Model_combination:
 
         Parameters
         ----------
-        src_ind
-        fltr_ind
-        scint_ind
+        src_ind: int
+            Index of source model
+        fltr_ind: int
+            Index of filter model
+        scint_ind: int
+            Index of scintillator model
 
         Returns
         -------

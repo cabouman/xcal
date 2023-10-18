@@ -160,8 +160,8 @@ class L1:
 
         Returns
         -------
-            cost : float
-                Return current value of MAP cost function.
+        cost : float
+            Return current value of MAP cost function.
         """
         l1_list = [np.abs(omega) for omega in self.Omega]
         cost = 0.5 * np.mean(self.e ** 2 * self.weight) + self.l_star * (np.sum(l1_list) - 1)
@@ -172,8 +172,8 @@ class L1:
 
         Returns
         -------
-            cost : float
-                Return current value of MAP cost function.
+        cost : float
+            Return current value of MAP cost function.
         """
         return 0.5 * np.mean(self.e ** 2 * self.weight)
 
@@ -667,24 +667,24 @@ class LS_sep_model:
 
 def _compute_criteria_and_beta(yhat_F, spec_dict, energies, y_yhat, FDsq, y_F_Dk, yhat_sq, S, auto_stop, ysq, signal):
     """
-    Compute criteria and beta
 
-    Parameters:
-    - yhat_F: ndarray
-    - spec_dict: ndarray
-    - energies: ndarray
-    - y_yhat: float
-    - FDsq: float
-    - y_F_Dk: float
-    - yhat_sq: float
-    - S: ndarray
-    - auto_stop: boolean
-    - ysq: float
-    - signal: ndarray
+    Parameters
+    ----------
+    yhat_F
+    spec_dict
+    energies
+    y_yhat
+    FDsq
+    y_F_Dk
+    yhat_sq
+    S
+    auto_stop
+    ysq
+    signal
 
-    Returns:
-    - criteria: ndarray
-    - beta: ndarray
+    Returns
+    -------
+
     """
 
     # Compute yhat_F_Dk

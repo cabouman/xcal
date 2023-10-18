@@ -1,6 +1,6 @@
-xspec
------
-.. automodule:: xspec
+xspec.dictSE
+------------
+.. automodule:: xspec.dictSE
    :members:
    :undoc-members:
    :show-inheritance:

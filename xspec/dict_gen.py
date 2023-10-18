@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from xspec.chem_consts._consts_from_table import get_lin_att_c_vs_E, get_lin_absp_c_vs_E
 
-from xspec._defs import *
+from xspec.defs import *
 
 def _obtain_attenuation(energies, formula, density, thickness, torch_mode=False):
     # thickness is mm

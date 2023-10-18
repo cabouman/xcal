@@ -9,7 +9,7 @@ from torch.nn.parameter import Parameter
 from multiprocessing import Pool
 
 from xspec._utils import is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, concatenate_items, split_list
-from xspec._defs import *
+from xspec.defs import *
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
@@ -350,6 +350,15 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
 class src_spec_model(torch.nn.Module):
     def __init__(self, src_config: src_spec_params, device=None, dtype=None)-> None:
+        """
+
+        Parameters
+        ----------
+        src_config: src_spec_params
+            Source model configuration.
+        device
+        dtype
+        """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.src_config = src_config
@@ -362,14 +371,40 @@ class src_spec_model(torch.nn.Module):
         self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
 
     def get_voltage(self):
+        """Read voltage.
+
+        Returns
+        -------
+        voltage: float
+            Read voltage.
+        """
+
         return self.normalized_voltage*self.scale+self.lower
 
     def forward(self):
+        """Calculate source spectrum.
+
+        Returns
+        -------
+        src_spec: torch.Tensor
+            Source spectrum.
+
+        """
+
         return interp_src_spectra(self.src_config.src_vol_list, self.src_config.src_spec_list, self.get_voltage())
 
 
 class fltr_resp_model(torch.nn.Module):
     def __init__(self, fltr_config: fltr_resp_params, device=None, dtype=None)-> None:
+        """Filter module
+
+        Parameters
+        ----------
+        fltr_config: fltr_resp_params
+            Filter model configuration.
+        device
+        dtype
+        """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.fltr_config = fltr_config
@@ -382,14 +417,45 @@ class fltr_resp_model(torch.nn.Module):
         self.normalized_fltr_th = torch.nn.ParameterList([Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)])
 
     def get_fltr_th(self):
+        """Get filter thickness.
+
+        Returns
+        -------
+        fltr_th_list: list
+            List of filter thickness. Length is equal to num_fltr.
+
+        """
         return [self.normalized_fltr_th[i]*self.scale[i]+self.lower[i]
                              for i in range(self.fltr_config.num_fltr)]
 
     def forward(self, energies):
+        """Calculate filter response.
+
+        Parameters
+        ----------
+        energies : numpy.ndarray
+            List of X-ray energies of a poly-energetic source in units of keV.
+
+        Returns
+        -------
+        fltr_resp: torch.Tensor
+            Filter response.
+
+        """
+
         return gen_fltr_res(energies, self.fltr_config.fltr_mat, self.get_fltr_th())
 
 class scint_cvt_model(torch.nn.Module):
     def __init__(self, scint_config: scint_cvt_func_params, device=None, dtype=None)-> None:
+        """Scintillator convertion model
+
+        Parameters
+        ----------
+        scint_config: scint_cvt_func_params
+            Sinctillator model configuration.
+        device
+        dtype
+        """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.scint_config = scint_config
@@ -402,9 +468,31 @@ class scint_cvt_model(torch.nn.Module):
         self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
 
     def get_scint_th(self):
+        """
+
+        Returns
+        -------
+        scint_th: float
+            Sintillator thickness.
+
+        """
         return self.normalized_scint_th*self.scale+self.lower
 
     def forward(self, energies):
+        """Calculate scintillator convertion function.
+
+        Parameters
+        ----------
+        energies: numpy.ndarray
+            List of X-ray energies of a poly-energetic source in units of keV.
+
+        Returns
+        -------
+        scint_cvt_func: torch.Tensor
+            Scintillator convertion function.
+
+        """
+
         return gen_scint_cvt_func(energies, self.scint_config.scint_mat, self.get_scint_th())
 
 class spec_distrb_energy_resp(torch.nn.Module):
@@ -413,6 +501,21 @@ class spec_distrb_energy_resp(torch.nn.Module):
                  src_config_list: [src_spec_params],
                  fltr_config_list: [fltr_resp_params],
                  scint_config_list: [scint_cvt_func_params], device=None, dtype=None):
+        """Total spectrally distributed energy response model.
+
+        Parameters
+        ----------
+        energies: numpy.ndarray
+            List of X-ray energies of a poly-energetic source in units of keV.
+        src_config_list: list of src_spec_params
+            List of source model configurations.
+        fltr_config_list: list of fltr_resp_params
+            List of filter model configurations.
+        scint_config_list: list of scint_cvt_func_params
+            List of scintillator model configurations.
+        device
+        dtype
+        """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
@@ -421,6 +524,21 @@ class spec_distrb_energy_resp(torch.nn.Module):
         self.scint_cvt_list = torch.nn.ModuleList([scint_cvt_model(scint_config, **factory_kwargs) for scint_config in scint_config_list])
 
     def forward(self, F:torch.Tensor, mc: Model_combination):
+        """
+
+        Parameters
+        ----------
+        F:torch.Tensor
+            Forward matrix. Row is number of measurements. Column is number of energy bins.
+        mc: Model_combination
+            Guide which source, filter and scintillator models are used.
+
+        Returns
+        -------
+        trans_value: torch.Tensor
+            Transmission value calculated by total spectrally distributed energy response model.
+
+        """
         src_func = self.src_spec_list[mc.src_ind]()
         fltr_func = self.fltr_resp_list[mc.fltr_ind](self.energies)
         scint_func = self.scint_cvt_list[mc.scint_ind](self.energies)
@@ -439,6 +557,9 @@ class spec_distrb_energy_resp(torch.nn.Module):
             print(f"Name: {name} | Size: {param.size()} | Values : {param.data} | Requires Grad: {param.requires_grad}")
 
     def print_ori_parameters(self):
+        """
+        Print all scaled-back parameters of the model.
+        """
         for src_i, src_spec in enumerate(self.src_spec_list):
             print('Voltage %d:'%(src_i), src_spec.get_voltage())
 
@@ -455,13 +576,42 @@ def param_based_spec_estimate(energies,
                               F,
                               src_config:[src_spec_params],
                               fltr_config:[fltr_resp_params],
-                              scint_config:[src_spec_params],
+                              scint_config:[scint_cvt_func_params],
                               model_combination:[Model_combination],
                               learning_rate=0.1,
                               iterations=5000,
                               tolerance=1e-6,
                               optimizer_type='Adam',
                               return_history=False):
+    """
+
+    Parameters
+    ----------
+    energies : numpy.ndarray
+        List of X-ray energies of a poly-energetic source in units of keV.
+    y : list
+        Transmission Data :math:`y`.  (#datasets, #samples, #views, #rows, #columns).
+        Should be the exponential term instead of the projection after taking negative log.
+    F : list
+        Forward matrix. (#datasets, #samples, #views, #rows, #columns, #energy_bins)
+    src_config : list of src_spec_params
+    fltr_config : list of fltr_resp_params
+    scint_config : list of src_spec_params
+    model_combination : list of Model_combination
+    learning_rate : int
+    iterations : int
+    tolerance : float
+        Stop when all parameters update is less than tolerance.
+    optimizer_type : str
+        'Adam' or 'NNAT_LBFGS'
+    return_history : bool
+        Save history of parameters.
+
+    Returns
+    -------
+
+    """
+
     # Check Variables
     if return_history:
         src_voltage_list = []
