@@ -50,7 +50,7 @@ def _obtain_absorption(energies, formula, density, thickness, torch_mode=False):
     mu_en = get_lin_absp_c_vs_E(density, formula, energies)
     mu = get_lin_att_c_vs_E(density, formula, energies)
     if torch_mode:
-        energies = torch.tensor(energies)
+        energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         mu = torch.tensor(mu)
         mu_en =torch.tensor(mu_en)
         absr = energies*mu_en/mu*(1-torch.exp(-mu*thickness))

@@ -88,6 +88,8 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     # Find corresponding voltage bin.
     if torch_mode:
         # index = torch.searchsorted(voltage_list, interp_voltage)
+        voltage_list = torch.tensor(voltage_list, dtype=torch.int32)
+        src_spec_list = torch.tensor(src_spec_list, dtype=torch.float32)
         index = np.searchsorted(voltage_list.detach().clone().numpy(), interp_voltage.detach().clone().numpy())
     else:
         index = np.searchsorted(voltage_list, interp_voltage)
@@ -357,7 +359,7 @@ class src_spec_model(torch.nn.Module):
         self.scale = src_config.src_vol_bound.upper-src_config.src_vol_bound.lower
         normalized_voltage = (src_config.voltage-self.lower)/self.scale
         # Instantiate parameters
-        self.normalized_voltage = torch.nn.Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
+        self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
 
     def get_voltage(self):
         return self.normalized_voltage*self.scale+self.lower
@@ -377,7 +379,7 @@ class fltr_resp_model(torch.nn.Module):
         self.scale = [fltr_config.fltr_th_bound[i].upper-fltr_config.fltr_th_bound[i].lower for i in range(fltr_config.num_fltr)]
         normalized_fltr_th = [(fltr_config.fltr_th[i] - self.lower[i]) / self.scale[i] for i in range(fltr_config.num_fltr)]
         # Instantiate parameters
-        self.normalized_fltr_th = [torch.nn.Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)]
+        self.normalized_fltr_th = torch.nn.ParameterList([Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)])
 
     def get_fltr_th(self):
         return [self.normalized_fltr_th[i]*self.scale[i]+self.lower[i]
@@ -397,7 +399,7 @@ class scint_cvt_model(torch.nn.Module):
         self.scale = scint_config.scint_th_bound.upper-scint_config.scint_th_bound.lower
         normalized_scint_th = (scint_config.scint_th-self.lower)/self.scale
         # Instantiate parameter
-        self.normalized_scint_th = torch.nn.Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
+        self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
 
     def get_scint_th(self):
         return self.normalized_scint_th*self.scale+self.lower
@@ -413,19 +415,20 @@ class spec_distrb_energy_resp(torch.nn.Module):
                  scint_config_list: [scint_cvt_func_params], device=None, dtype=None):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
-        self.energies = torch.Tensor(energies)
-        self.src_spec_list = [src_spec_model(src_config, **factory_kwargs) for src_config in src_config_list]
-        self.fltr_resp_list = [fltr_resp_model(fltr_config,**factory_kwargs) for fltr_config in fltr_config_list]
-        self.scint_cvt_list = [scint_cvt_model(scint_config,**factory_kwargs) for scint_config in scint_config_list]
+        self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
+        self.src_spec_list = torch.nn.ModuleList([src_spec_model(src_config, **factory_kwargs) for src_config in src_config_list])
+        self.fltr_resp_list = torch.nn.ModuleList([fltr_resp_model(fltr_config, **factory_kwargs) for fltr_config in fltr_config_list])
+        self.scint_cvt_list = torch.nn.ModuleList([scint_cvt_model(scint_config, **factory_kwargs) for scint_config in scint_config_list])
 
-    def forward(self, F, mc: Model_combination):
+    def forward(self, F:torch.Tensor, mc: Model_combination):
         src_func = self.src_spec_list[mc.src_ind]()
         fltr_func = self.fltr_resp_list[mc.fltr_ind](self.energies)
         scint_func = self.scint_cvt_list[mc.scint_ind](self.energies)
 
         # Calculate total system response as a product of source, filter, and scintillator responses.
-        total_sder = (src_func * fltr_func * scint_func).T
-        trans_value = torch.trapz(F * total_sder.T, self.energies, axis=1).reshape((-1, 1))
+        total_sder = src_func * fltr_func * scint_func
+        total_sder /= torch.trapz(total_sder, self.energies)
+        trans_value = torch.trapz(F * total_sder, self.energies, axis=-1).reshape((-1, 1))
         return trans_value
 
     def print_parameters(self):
@@ -435,8 +438,17 @@ class spec_distrb_energy_resp(torch.nn.Module):
         for name, param in self.named_parameters():
             print(f"Name: {name} | Size: {param.size()} | Values : {param.data} | Requires Grad: {param.requires_grad}")
 
+    def print_ori_parameters(self):
+        for src_i, src_spec in enumerate(self.src_spec_list):
+            print('Voltage %d:'%(src_i), src_spec.get_voltage())
+
+        for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
+            print('Filter Thickness %d:'%(fltr_i), fltr_resp.get_fltr_th())
+
+        for scint_i, scint_cvt in enumerate(self.scint_cvt_list):
+            print('Scintillator Thickness %d:'%(scint_i), scint_cvt.get_scint_th())
 def weighted_mse_loss(input, target, weight):
-    return torch.sum(weight * (input - target) ** 2)
+    return 0.5*torch.mean(weight * (input - target) ** 2)
 
 def param_based_spec_estimate(energies,
                               y,
@@ -458,23 +470,38 @@ def param_based_spec_estimate(energies,
         cost_list = []
 
     # Construct our model by instantiating the class defined above
-    model = spec_distrb_energy_resp(energies, src_config, fltr_config, scint_config)
+    model = spec_distrb_energy_resp(energies, src_config, fltr_config, scint_config, device='cpu', dtype=torch.float32)
+    model.print_parameters()
 
+    loss = torch.nn.MSELoss()
     if optimizer_type == 'Adam':
-        optimizer = optim.Adam([model.parameters()], lr=learning_rate)
+        iter_prt = 50
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_type == 'NNAT_LBFGS':
-        optimizer = NNAT_LBFGS([model.parameters()], lr=learning_rate, device='cpu')
+        iter_prt = 10
+        optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate, device='cpu')
     else:
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
         sys.exit("Exiting the script due to unsupported optimizer type.")
-
-    for i in range(1, iterations + 1):
+    y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
+    weights = [1.0/yy for yy in y]
+    F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
+    for iter in range(1, iterations + 1):
+        if iter % iter_prt == 0:
+            print('Iteration:', iter)
         def closure():
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
             cost = 0
-            for yy, FF, mc in zip(y, F, model_combination):
-                cost+=weighted_mse_loss(yy, model(FF, mc))
+            for yy, FF, ww, mc in zip(y, F, weights, model_combination):
+                trans_val = model(FF, mc)
+                # print(trans_val.shape)
+                # print(yy.shape)
+                # print(ww.shape)
+                # sub_cost = loss(trans_val, yy)
+                #sub_cost = weighted_mse_loss(trans_val, yy, ww)
+                sub_cost = loss(-torch.log(trans_val), -torch.log(yy))
+                cost += sub_cost
             if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
                 cost.backward()
             return cost
@@ -484,19 +511,40 @@ def param_based_spec_estimate(energies,
             cost.backward()
 
         with (torch.no_grad()):
-            if i == 1:
+            if iter == 1:
                 print('Initial cost: %e' % (closure().item()))
+
+        # Before the update, clone the current parameters
+        old_params = {k: v.clone() for k, v in model.state_dict().items()}
+
         if optimizer_type == 'Adam':
-            # cost = closure()
             optimizer.step()
         elif optimizer_type == 'NNAT_LBFGS':
             options = {'closure': closure, 'current_loss': cost,
-                       'max_ls': 100, 'damping': True}
+                       'max_ls': 10, 'damping': True}
             cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
                 options=options)
 
         with (torch.no_grad()):
-            if i % 2:
-                model.print_parameters()
+            # Clamp all parameters to be between 0 and 1
+            for param in model.parameters():
+                param.data.clamp_(0, 1)
 
+            if iter % iter_prt == 0:
+                # model.print_parameters()
+                print('Cost:', cost.item())
+                model.print_ori_parameters()
+
+            # After the update, check if the update is too small
+            small_update = True
+            for k, v in model.state_dict().items():
+                if torch.norm(v - old_params[k]) > tolerance:
+                    small_update = False
+                    break
+
+            if small_update:
+                print(f"Stopping at epoch {iter} because updates are too small.")
+                print('Cost:', cost.item())
+                model.print_ori_parameters()
+                break
     return 0

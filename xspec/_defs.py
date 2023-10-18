@@ -14,8 +14,8 @@ class Bound:
         Validates the bounds to ensure lower is less than upper and both are positive.
         Throws ValueError if conditions are not met.
         """
-        if lower <= 0 or upper <= 0:
-            raise ValueError("Both lower and upper bounds must be positive.")
+        if lower < 0 or upper < 0:
+            raise ValueError("Both lower and upper bounds must be non-negative.")
 
         if lower >= upper:
             raise ValueError("Lower bound must be less than upper bound.")
@@ -73,7 +73,7 @@ class Material:
 
 
 class src_spec_params:
-    def __int__(self, energies, src_vol_list, src_spec_list, src_vol_bound, voltage=None):
+    def __init__(self, energies, src_vol_list, src_spec_list, src_vol_bound, voltage=None):
         """A data structure to store and check source spectrum parameters.
 
         Parameters
@@ -99,12 +99,6 @@ class src_spec_params:
         else:
             self.src_vol_list = src_vol_list
 
-        # Check if the integral of each spectrum is close to 1
-        # (considering a very small tolerance for floating-point errors)
-        for vol, spectrum in zip(src_vol_list, src_spec_list):
-            spectrum_intg = np.trapz(spectrum, energies)
-            if not abs(spectrum_intg - 1.0) < 1e-10:  # The tolerance can be adjusted
-                raise ValueError(f"Spectrum at voltage {vol} does not sum to 1. It sums to {spectrum_intg}")
         self.src_spec_list = src_spec_list
 
         # Check if src_vol_bound is an instance of Bound
@@ -116,7 +110,7 @@ class src_spec_params:
 
         # Check voltage
         if voltage is None:
-            self.voltage = 0.5 * (src_vol_bound.lower + src_vol_bound.upper)
+            voltage = 0.5 * (src_vol_bound.lower + src_vol_bound.upper)
         elif isinstance(voltage, float):
             # It's already a float, no action needed
             voltage = voltage
@@ -135,7 +129,7 @@ class src_spec_params:
         self.voltage = voltage
 
 class fltr_resp_params:
-    def __int__(self, num_fltr, fltr_mat, fltr_th_bound, fltr_th=None):
+    def __init__(self, num_fltr, fltr_mat, fltr_th_bound, fltr_th=None):
         """A data structure to store and check filter response parameters.
 
         Parameters
@@ -211,7 +205,7 @@ class fltr_resp_params:
         self.fltr_th = fltr_th
 
 class scint_cvt_func_params:
-    def __int__(self, scint_mat, scint_th_bound, scint_th=None):
+    def __init__(self, scint_mat, scint_th_bound, scint_th=None):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
@@ -241,7 +235,7 @@ class scint_cvt_func_params:
         self.scint_th_bound = scint_th_bound
 
         if scint_th is None:
-            self.scint_th = 0.5 * (scint_th_bound.lower + scint_th_bound.upper)
+            scint_th = 0.5 * (scint_th_bound.lower + scint_th_bound.upper)
         elif isinstance(scint_th, float):
             # It's already a float, no action needed
             scint_th = scint_th
@@ -257,7 +251,7 @@ class scint_cvt_func_params:
         self.scint_th = scint_th
 
 class Model_combination:
-    def __int__(self, src_ind=1, fltr_ind=1, scint_ind=1):
+    def __init__(self, src_ind=0, fltr_ind=0, scint_ind=0):
         """
 
         Parameters
