@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from xspec.chem_consts._consts_from_table import get_lin_att_c_vs_E, get_lin_absp_c_vs_E
 
+from xspec._defs import *
 
 def _obtain_attenuation(energies, formula, density, thickness, torch_mode=False):
     # thickness is mm
@@ -16,6 +17,15 @@ def _obtain_attenuation(energies, formula, density, thickness, torch_mode=False)
             att = np.exp(-mu * thickness)
     return att
 
+def gen_fltr_res(energies, fltr_mat:Material, fltr_th, torch_mode=True):
+    if torch_mode:
+        fltr_res = torch.ones(energies.shape)
+    else:
+        fltr_res = np.ones(energies.shape)
+
+    for fm, fth in zip(fltr_mat,fltr_th):
+        fltr_res *= _obtain_attenuation(energies, fm.formula, fm.density, fth, torch_mode)
+    return fltr_res
 
 def gen_filts_specD(energies, composition=[], torch_mode=False):
     src_fltr_dict = []
@@ -48,6 +58,8 @@ def _obtain_absorption(energies, formula, density, thickness, torch_mode=False):
         absr = energies*mu_en/mu*(1-np.exp(-mu*thickness))
     return absr
 
+def gen_scint_cvt_func(energies, scint_mat:Material, scint_th, torch_mode=True):
+    return _obtain_absorption(energies, scint_mat.formula, scint_mat.density, scint_th, torch_mode)
 
 def gen_scints_specD(energies, composition=[], torch_mode=False):
     src_scint_dict = []

@@ -9,7 +9,8 @@ from torch.nn.parameter import Parameter
 from multiprocessing import Pool
 
 from xspec._utils import is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, concatenate_items, split_list
-from xspec._utils import Bound, Material
+from xspec._defs import *
+from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
 
@@ -343,192 +344,69 @@ def parallel_anal_sep_model(num_processes,
 
     return results
 
-    class src_spec_params(self):
-        def __int__(self, energies, src_vol_list, src_spec_list, src_vol_bound, voltage=None):
-            """A data structure to store and check source spectrum parameters.
 
-            Parameters
-            ----------
-            energies : numpy.ndarray
-                1D numpy array of X-ray energies of a poly-energetic source in units of keV.
-            src_vol_list : list
-                A list of source voltage corresponding to src_spect_list.
-            src_spec_list: list
-                A list of source spectrum corresponding to src_vol_list.
-            src_vol_bound: class Bound
-                Source voltage lower and uppder bound.
-            voltage: float or int
-                Source voltage. Default is None. Can be set for initial value.
 
-            Returns
-            -------
+class src_spec_model(torch.nn.Module):
+    def __init__(self, src_config: src_spec_params, device=None, dtype=None)-> None:
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        super().__init__()
+        self.src_config = src_config
 
-            """
-            # Check if voltages in src_vol_list is sorted from small to large
-            if not is_sorted(src_vol_list):
-                raise ValueError("Warning: source voltage in src_response_dict are not sorted!")
-            else:
-                self.src_vol_list = src_vol_list
+        # Min-Max Normalization
+        self.lower = src_config.src_vol_bound.lower
+        self.scale = src_config.src_vol_bound.upper-src_config.src_vol_bound.lower
+        normalized_voltage = (src_config.voltage-self.lower)/self.scale
+        # Instantiate parameters
+        self.normalized_voltage = torch.nn.Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
 
-            # Check if the integral of each spectrum is close to 1
-            # (considering a very small tolerance for floating-point errors)
-            for vol, spectrum in zip(src_vol_list, src_spec_list):
-                spectrum_intg = np.trapz(spectrum, energies)
-                if not abs(spectrum_intg - 1.0) < 1e-10:  # The tolerance can be adjusted
-                    raise ValueError(f"Spectrum at voltage {vol} does not sum to 1. It sums to {spectrum_intg}")
-            self.src_spec_list = src_spec_list
+    def get_voltage(self):
+        return self.normalized_voltage*self.scale+self.lower
 
-            # Check if src_vol_bound is an instance of Bound
-            if not isinstance(src_vol_bound, Bound):
-                raise ValueError(
-                    "Expected an instance of Bound for src_vol_bound, but got {}.".format(type(src_vol_bound).__name__))
-            else:
-                self.src_vol_bound = src_vol_bound
+    def forward(self):
+        return interp_src_spectra(self.src_config.src_vol_list, self.src_config.src_spec_list, self.get_voltage())
 
-            # Check voltage
-            if voltage is None:
-                self.voltage = 0.5 * (src_vol_bound.lower + src_vol_bound.upper)
-            elif isinstance(voltage, float):
-                # It's already a float, no action needed
-                voltage = voltage
-            elif isinstance(voltage, int):
-                # It's an integer, convert to float
-                voltage = float(voltage)
-            else:
-                # It's not a float or int, so raise an error
-                raise ValueError(f"Expected 'voltage' to be a float or an integer, but got {type(voltage).__name__}.")
 
-            if voltage <= 0:
-                raise ValueError(f"Expected 'voltage' to be positive, but got {voltage}.")
+class fltr_resp_model(torch.nn.Module):
+    def __init__(self, fltr_config: fltr_resp_params, device=None, dtype=None)-> None:
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        super().__init__()
+        self.fltr_config = fltr_config
 
-            if not self.src_vol_bound.is_within_bound(voltage):
-                raise ValueError(f"Expected 'voltage' to be inside src_vol_bound, but got {voltage}.")
-            self.voltage = voltage
+        # Min-Max Normalization
+        self.lower = [fltr_config.fltr_th_bound[i].lower for i in range(fltr_config.num_fltr)]
+        self.scale = [fltr_config.fltr_th_bound[i].upper-fltr_config.fltr_th_bound[i].lower for i in range(fltr_config.num_fltr)]
+        normalized_fltr_th = [(fltr_config.fltr_th[i] - self.lower[i]) / self.scale[i] for i in range(fltr_config.num_fltr)]
+        # Instantiate parameters
+        self.normalized_fltr_th = [torch.nn.Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)]
 
-    class fltr_resp_params(self):
-        def __int__(self, num_fltr, fltr_mat, fltr_th_bound, fltr_th=None):
-            """A data structure to store and check filter response parameters.
+    def get_fltr_th(self):
+        return [self.normalized_fltr_th[i]*self.scale[i]+self.lower[i]
+                             for i in range(self.fltr_config.num_fltr)]
 
-            Parameters
-            ----------
-            num_fltr: int
-                Number of filters.
-            fltr_mat: class Material or list
-                If num_fltr is 1, fltr_mat is an instance of class Material, containing chemical formula and density.
-                Otherwise, it whould be a list of instances of class Material.
-                Length should be equal to num_fltr.
-            fltr_th_bound: class Bound or list
-                If num_fltr is 1, fltr_th_bound is an instance of class Bound, containing lower bound and uppder bound.
-                Otherwise, it whould be a list of instances of class Bound for filter thickness.
-                Length should be equal to num_fltr.
-            fltr_th: float or list
-                If num_fltr is 1, fltr_th is a non-negative float for filter thickness.
-                Otherwise, it whould be a list of filter thickness, which length should be equal to num_fltr.
-                Default is None.
+    def forward(self, energies):
+        return gen_fltr_res(energies, self.fltr_config.fltr_mat, self.get_fltr_th())
 
-            Returns
-            -------
+class scint_cvt_model(torch.nn.Module):
+    def __init__(self, scint_config: scint_cvt_func_params, device=None, dtype=None)-> None:
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        super().__init__()
+        self.scint_config = scint_config
 
-            """
-            # Check if num_fltr is a positive integer
-            if isinstance(num_fltr, int):
-                if num_fltr > 0:
-                    self.num_fltr = num_fltr
-                else:
-                    raise ValueError("num_fltr must be positive integer, got: {}".format(num_fltr))
-            else:
-                raise ValueError("num_fltr must be an integer, got: {}".format(type(num_fltr).__name__))
+        # Min-Max Normalization
+        self.lower = scint_config.scint_th_bound.lower
+        self.scale = scint_config.scint_th_bound.upper-scint_config.scint_th_bound.lower
+        normalized_scint_th = (scint_config.scint_th-self.lower)/self.scale
+        # Instantiate parameter
+        self.normalized_scint_th = torch.nn.Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
 
-            if num_fltr == 1:
-                fltr_mat = fltr_mat if isinstance(fltr_mat, list) else [fltr_mat]
-                fltr_th_bound = fltr_th_bound if isinstance(fltr_th_bound, list) else [fltr_th_bound]
+    def get_scint_th(self):
+        return self.normalized_scint_th*self.scale+self.lower
 
-            # Check fltr_mat is an instance of Material
-            for fm in fltr_mat:
-                if not isinstance(fm, Material):  # The tolerance can be adjusted
-                    raise ValueError(
-                        "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
-            self.fltr_mat = fltr_mat
+    def forward(self, energies):
+        return gen_scint_cvt_func(energies, self.scint_config.scint_mat, self.get_scint_th())
 
-            # Check if fltr_th_bound is an instance of Bound
-            for ftb in fltr_th_bound:
-                if not isinstance(ftb, Bound):
-                    raise ValueError(
-                        "Expected an instance of Bound for ftb, but got {}.".format(type(ftb).__name__))
-            self.fltr_th_bound = fltr_th_bound
+def param_based_spec_estimate(energies, y, F, src_config, fltr_config, scint_config, optim_config):
+    # Check Variables
 
-            # Check fltr_th
-            if fltr_th is None:
-                fltr_th = [0.5 * (ftb.lower + ftb.upper) for ftb in fltr_th_bound]
-            else:
-                if isinstance(fltr_th, list):  # if 'fltr_th' is already a list
-                    # Convert all elements to float and raise ValueError if any conversion fails
-                    try:
-                        fltr_th = [float(ft) for ft in fltr_th]
-                    except ValueError:
-                        raise ValueError("All elements in 'fltr_th' must be convertible to float")
-                elif self.num_fltr == 1:  # if there's only one filter, 'fltr_th' can be a single value
-                    try:
-                        fltr_th = [float(fltr_th)]  # convert single value to float and wrap it in a list
-                    except ValueError:
-                        raise ValueError("'fltr_th' must be convertible to float")
-                else:
-                    raise ValueError("'fltr_th' must be a list for multiple filter thickness")
-
-            # Check if fltr_th within fltr_th_bound
-            for ft, ftb in zip(fltr_th, fltr_th_bound):
-                if not ftb.is_within_bound(ft):
-                    raise ValueError(f"Expected 'ft' to be inside ftb, but got {ft}.")
-            self.fltr_th = fltr_th
-
-    class scint_cvt_func_params(self):
-        def __int__(self, scint_mat, scint_th_bound, scint_th=None):
-            """A data structure to store and check scintillator response parameters.
-
-            Parameters
-            ----------
-            scint_mat
-            scint_th_bound
-            scint_th
-
-            Returns
-            -------
-
-            """
-            # Check scint_mat is an instance of Material
-            if not isinstance(scint_mat, Material):  # The tolerance can be adjusted
-                raise ValueError(
-                    "Expected an instance of class Material for scint_mat, but got {}.".format(
-                        type(scint_mat).__name__))
-            self.scint_mat = scint_mat
-
-            if not isinstance(scint_th_bound, Bound):
-                raise ValueError(
-                    "Expected an instance of Bound for scint_th_bound, but got {}.".format(
-                        type(scint_th_bound).__name__))
-            if scint_th_bound.lower <= 0.001:
-                raise ValueError(
-                    f"Expected lower bound of scint_th is greater than 0.001, but got {scint_th_bound.lower}.")
-            self.scint_th_bound = scint_th_bound
-
-            if scint_th is None:
-                self.scint_th = 0.5 * (scint_th_bound.lower + scint_th_bound.upper)
-            elif isinstance(scint_th, float):
-                # It's already a float, no action needed
-                scint_th = scint_th
-            elif isinstance(scint_th, int):
-                # It's an integer, convert to float
-                scint_th = float(scint_th)
-            else:
-                # It's not a float or int, so raise an error
-                raise ValueError(f"Expected 'voltage' to be a float or an integer, but got {type(scint_th).__name__}.")
-
-            if not self.scint_th_bound.is_within_bound(scint_th):
-                raise ValueError(f"Expected 'voltage' to be inside scint_th_bound, but got {scint_th}.")
-            self.scint_th = scint_th
-
-    def param_based_spec_estimate(energies, y, F, src_config, fltr_config, scint_config, optim_config):
-        # Check Variables
-
-        #
-        return 0
+    #
+    return 0
