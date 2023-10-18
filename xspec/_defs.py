@@ -1,3 +1,6 @@
+import numpy as np
+from xspec._utils import is_sorted
+
 class Bound:
     def __init__(self, lower, upper):
         # Validate bounds before assignment
@@ -252,3 +255,21 @@ class scint_cvt_func_params:
         if not self.scint_th_bound.is_within_bound(scint_th):
             raise ValueError(f"Expected 'voltage' to be inside scint_th_bound, but got {scint_th}.")
         self.scint_th = scint_th
+
+class Model_combination:
+    def __int__(self, src_ind=1, fltr_ind=1, scint_ind=1):
+        """
+
+        Parameters
+        ----------
+        src_ind
+        fltr_ind
+        scint_ind
+
+        Returns
+        -------
+
+        """
+        self.src_ind=src_ind
+        self.fltr_ind=fltr_ind
+        self.scint_ind=scint_ind
