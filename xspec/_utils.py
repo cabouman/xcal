@@ -246,4 +246,10 @@ def split_list(input_list, lengths_info):
         start = end
     return output
 
-
+def nested_list(tup, indices):
+    result = []
+    start = 0
+    for index in indices:
+        result.append(list(tup[start:start+index]))
+        start += index
+    return result

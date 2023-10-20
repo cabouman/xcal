@@ -1,5 +1,6 @@
 import numpy as np
 from xspec._utils import is_sorted
+from copy import deepcopy
 
 class Bound:
     def __init__(self, lower:float, upper:float):
@@ -160,16 +161,17 @@ class src_spec_params:
         self.voltage = voltage
 
 class fltr_resp_params:
-    def __init__(self, num_fltr, fltr_mat, fltr_th_bound, fltr_th=None):
+    def __init__(self, num_fltr, psb_fltr_mat_comb, fltr_th_bound, fltr_th=None):
         """A data structure to store and check filter response parameters.
 
         Parameters
         ----------
         num_fltr: int
             Number of filters.
-        fltr_mat: Material or list
-            If num_fltr is 1, fltr_mat is an instance of class Material, containing chemical formula and density.
-            Otherwise, it whould be a list of instances of class Material.
+        psb_fltr_mat_comb: list
+            List of possible filter material combinations.
+            For each filter material combination, if num_fltr is 1, fltr_mat is an instance of class Material,
+            containing chemical formula and density. Otherwise, it whould be a list of instances of class Material.
             Length should be equal to num_fltr.
         fltr_th_bound: Bound or list
             If num_fltr is 1, fltr_th_bound is an instance of class Bound, containing lower bound and uppder bound.
@@ -184,6 +186,8 @@ class fltr_resp_params:
         -------
 
         """
+        self.psb_fltr_mat_comb = psb_fltr_mat_comb
+        self.fltr_mat = None
         # Check if num_fltr is a positive integer
         if isinstance(num_fltr, int):
             if num_fltr > 0:
@@ -193,16 +197,8 @@ class fltr_resp_params:
         else:
             raise ValueError("num_fltr must be an integer, got: {}".format(type(num_fltr).__name__))
 
-        if num_fltr == 1:
-            fltr_mat = fltr_mat if isinstance(fltr_mat, list) else [fltr_mat]
+        if self.num_fltr == 1:
             fltr_th_bound = fltr_th_bound if isinstance(fltr_th_bound, list) else [fltr_th_bound]
-
-        # Check fltr_mat is an instance of Material
-        for fm in fltr_mat:
-            if not isinstance(fm, Material):  # The tolerance can be adjusted
-                raise ValueError(
-                    "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
-        self.fltr_mat = fltr_mat
 
         # Check if fltr_th_bound is an instance of Bound
         for ftb in fltr_th_bound:
@@ -235,13 +231,29 @@ class fltr_resp_params:
                 raise ValueError(f"Expected 'ft' to be inside ftb, but got {ft}.")
         self.fltr_th = fltr_th
 
+
+    def next_psb_fltr_mat_comb(self):
+        for mat in self.psb_fltr_mat_comb:
+            self.fltr_mat = mat
+            yield deepcopy(self)
+    def set_mat(self, mat: Material):
+        if self.num_fltr == 1:
+            mat = mat if isinstance(mat, list) else [mat]
+
+        # Check fltr_mat is an instance of Material
+        for fm in mat:
+            if not isinstance(fm, Material):  # The tolerance can be adjusted
+                raise ValueError(
+                    "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
+        self.fltr_mat = mat
+
 class scint_cvt_func_params:
-    def __init__(self, scint_mat, scint_th_bound, scint_th=None):
+    def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_th=None):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
         ----------
-        scint_mat: Material
+        psb_scint_mat: Material
             Scintillator material
         scint_th_bound: Bound
             Scintillator thickness bound
@@ -252,12 +264,8 @@ class scint_cvt_func_params:
         -------
 
         """
-        # Check scint_mat is an instance of Material
-        if not isinstance(scint_mat, Material):  # The tolerance can be adjusted
-            raise ValueError(
-                "Expected an instance of class Material for scint_mat, but got {}.".format(
-                    type(scint_mat).__name__))
-        self.scint_mat = scint_mat
+        self.possible_scint_mat = psb_scint_mat
+        self.scint_mat = None
 
         if not isinstance(scint_th_bound, Bound):
             raise ValueError(
@@ -283,6 +291,19 @@ class scint_cvt_func_params:
         if not self.scint_th_bound.is_within_bound(scint_th):
             raise ValueError(f"Expected 'voltage' to be inside scint_th_bound, but got {scint_th}.")
         self.scint_th = scint_th
+
+    def next_psb_scint_mat(self):
+        for mat in self.possible_scint_mat:
+            self.scint_mat = mat
+            yield deepcopy(self)
+
+    def set_mat(self, mat:Material):
+        # Check scint_mat is an instance of Material
+        if not isinstance(mat, Material):  # The tolerance can be adjusted
+            raise ValueError(
+                "Expected an instance of class Material for mat, but got {}.".format(
+                    type(mat).__name__))
+        self.scint_mat = mat
 
 class Model_combination:
     def __init__(self, src_ind=0, fltr_ind=0, scint_ind=0):
