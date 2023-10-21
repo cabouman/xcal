@@ -8,6 +8,7 @@ Python code for X-ray spectral estimation.
 git clone --recursive https://github.com/cabouman/xspec.git
 cd xspec
 touch xspec/opt/_pytorch_lbfgs/__init__.py
+touch xspec/opt/_pytorch_lbfgs/functions/__init__.py
 ```
 
 ## Installing xspec
