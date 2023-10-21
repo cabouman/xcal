@@ -1,3 +1,4 @@
+import re
 import numpy as np
 from numpy.core.numeric import asanyarray
 import torch
@@ -265,3 +266,62 @@ def check_gradients_for_nan(model):
             has_nan = True
             return has_nan
     return has_nan
+
+
+
+def find_element_change_indexes(lst):
+    start_indexes = [0]
+    current_element = lst[0]
+
+    for i in range(1, len(lst)):
+        if lst[i] != current_element:
+            start_indexes.append(i)
+            current_element = lst[i]
+
+    return start_indexes
+
+
+def find_bin_index(number, sorted_list):
+    left, right = 0, len(sorted_list) - 1
+
+    while left <= right:
+        mid = (left + right) // 2
+        if sorted_list[mid] <= number:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return right
+
+
+def get_dict_info(dict_index, src_info, fltr_info_dict, scints_info_dict):
+    src_len = len(src_info)
+    fltr_len = len(fltr_info_dict)
+    scint_len = len(scints_info_dict)
+
+    print(src_info[dict_index // (fltr_len * scint_len)])
+    print(fltr_info_dict[dict_index // scint_len % fltr_len])
+    print(scints_info_dict[dict_index % scint_len])
+
+
+def extract_rsn_from_path(path):
+    match = re.search(r'_rsn_(\d+)', path)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def nrmse(y_true, y_pred):
+    mse = np.mean((y_true - y_pred) ** 2)
+    rmse = np.sqrt(mse)
+    y_range = np.sqrt(np.mean((y_true) ** 2))
+    return rmse / y_range
+
+
+def neg_log_space(vmin, vmax, num, scale=1):
+    """
+    vmin, vmax must be positive.
+    """
+    return np.abs(
+        -np.log(np.linspace(np.exp(-vmin / vmax / scale), np.exp(-vmax / vmax / scale), num=num))) * vmax * scale
+
