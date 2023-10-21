@@ -415,7 +415,7 @@ def param_based_spec_estimate_cell(energies,
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_type == 'NNAT_LBFGS':
         iter_prt = 10
-        optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate, device='cpu')
+        optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate)
     else:
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
         sys.exit("Exiting the script due to unsupported optimizer type.")
