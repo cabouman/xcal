@@ -387,8 +387,7 @@ if __name__ == '__main__':
             src_vol_bound = Bound(lower=np.min(simkV_list), upper=np.max(simkV_list))
             src_dict_h5 = {
                 'energies': energies,
-                'src_vol_list': simkV_list,
-                'src_spec_list': src_spec_list,
+                'src_spec': ref_spec_simkv_list[simkv_i],
                 'voltage' : float(simkV)
             }
 

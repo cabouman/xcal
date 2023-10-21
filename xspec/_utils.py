@@ -1,6 +1,7 @@
 import re
 import numpy as np
 from numpy.core.numeric import asanyarray
+import h5py
 import torch
 from scipy.signal import butter,filtfilt,find_peaks
 import matplotlib.pyplot as plt
@@ -325,3 +326,18 @@ def neg_log_space(vmin, vmax, num, scale=1):
     return np.abs(
         -np.log(np.linspace(np.exp(-vmin / vmax / scale), np.exp(-vmax / vmax / scale), num=num))) * vmax * scale
 
+
+
+def read_mv_hdf5(file_name):
+    data = []
+    with h5py.File(file_name, 'r') as f:
+        for key in f.keys():
+            grp_i = f[key]
+            dict_i = {}
+            for sub_key in grp_i.keys():
+                if isinstance(grp_i[sub_key], h5py.Group):
+                    dict_i[sub_key] = {k: v for k, v in grp_i[sub_key].attrs.items()}
+                else:
+                    dict_i[sub_key] = np.array(grp_i[sub_key])
+            data.append(dict_i)
+    return data

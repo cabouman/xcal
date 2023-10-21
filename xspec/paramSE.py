@@ -17,49 +17,6 @@ from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFG
 from itertools import product
 
 
-# def anal_cost(energies, y, F, src_response, fltr_mat, scint_mat, th_fl, th_sc, signal_weight=None, torch_mode=True):
-#     signal = np.concatenate([sig.reshape((-1, 1)) for sig in y])
-#     forward_mat = np.concatenate([fwm.reshape((-1, fwm.shape[-1])) for fwm in F])
-#     if signal_weight is None:
-#         signal_weight = np.ones(signal.shape)
-#     signal_weight = np.concatenate([sig.reshape((-1, 1)) for sig in signal_weight])
-#
-#     if torch_mode:
-#         if not isinstance(src_response, torch.Tensor):
-#             src_response = torch.tensor(src_response)
-#         signal = torch.tensor(signal)
-#         forward_mat = torch.tensor(forward_mat)
-#         signal_weight = torch.tensor(signal_weight)
-#
-#     # Calculate filter response
-#     fltr_params = [
-#         {'formula': fltr_mat['formula'], 'density': fltr_mat['density'], 'thickness_list': [th_fl]},
-#     ]
-#     fltr_response, fltr_info = gen_filts_specD(energies, composition=fltr_params, torch_mode=torch_mode)
-#
-#     # Calculate scintillator response
-#     scint_params = [
-#         {'formula': scint_mat['formula'], 'density': scint_mat['density'], 'thickness_list': [th_sc]},
-#     ]
-#     scint_response, scint_info = gen_scints_specD(energies, composition=scint_params, torch_mode=torch_mode)
-#
-#     # Calculate total system response as a product of source, filter, and scintillator responses.
-#     sys_response = (src_response * fltr_response * scint_response).T
-#
-#     if torch_mode:
-#         Fx = torch.trapz(forward_mat * sys_response.T, torch.tensor(energies), axis=1).reshape((-1, 1))
-#         e = signal - Fx / torch.trapz(sys_response, torch.tensor(energies), axis=0)
-#     else:
-#         Fx = np.trapz(forward_mat * sys_response.T, energies, axis=1).reshape((-1, 1))
-#         e = signal - Fx / np.trapz(sys_response, energies, axis=0)
-#
-#     return cal_cost(e, signal_weight, torch_mode)
-#
-#
-# def project_onto_constraints(x, lower_bound, upper_bound):
-#     # return torch.clamp(x, min=lower_bound, max=upper_bound)
-#     return torch.clamp(x, min=torch.tensor(lower_bound), max=torch.tensor(upper_bound))
-#
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
     """
@@ -124,230 +81,6 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     else:
         return np.clip(interpolated_values, 0, None)
 
-
-# def anal_sep_model(energies, signal_train_list, spec_F_train_list, src_response_dict=None, fltr_mat=None,
-#                    scint_mat=None,
-#                    init_src_vol=[50.0], init_fltr_th=1.0, init_scint_th=0.1, src_vol_bound=None, fltr_th_bound=(0, 10),
-#                    scint_th_bound=(0.01, 1),
-#                    learning_rate=0.1, iterations=5000, tolerance=1e-6, optimizer_type='Adam', return_history=False):
-#     """
-#
-#     Parameters
-#     ----------
-#     energies
-#     signal_train_list
-#     spec_F_train_list
-#     src_response_dict
-#     fltr_mat
-#     scint_mat
-#     init_src_vol
-#     init_fltr_th
-#     init_scint_th
-#     src_vol_bound
-#     fltr_th_bound
-#     scint_th_bound
-#     learning_rate
-#     iterations
-#     tolerance
-#     optimizer_type
-#     return_history
-#
-#     Returns
-#     -------
-#
-#     """
-#
-#     if return_history:
-#         src_voltage_list = []
-#         fltr_th_list = []
-#         scint_th_list = []
-#         cost_list = []
-#
-#     torch.autograd.set_detect_anomaly(True)
-#
-#     src_spec_list = [ssl['spectrum'] for ssl in src_response_dict]
-#     src_kV_list = [ssl['source_voltage'] for ssl in src_response_dict]
-#
-#     if not is_sorted(src_kV_list):
-#         raise ValueError("Warning: source voltage in src_response_dict are not sorted!")
-#
-#     # Sorted list of values
-#     src_spec_list = torch.tensor(src_spec_list, dtype=torch.float32)
-#     src_kV_list = torch.tensor(src_kV_list, dtype=torch.int32)
-#
-#     if 'thickness_bound' in fltr_mat:
-#         if fltr_mat['thickness_bound'] is not None:
-#             fltr_th_bound = fltr_mat['thickness_bound']
-#     if 'thickness_bound' in scint_mat:
-#         if scint_mat['thickness_bound'] is not None:
-#             scint_th_bound = scint_mat['thickness_bound']
-#
-#     src_vol_range = [(src_kV_list[0], src_kV_list[-1]) for sv in init_src_vol]
-#     src_vol_lower_range_list = [lb for lb, _ in src_vol_range]
-#     src_vol_upper_range_list = [ub for _, ub in src_vol_range]
-#
-#     if src_vol_bound is None:
-#         src_vol_bound = src_vol_range
-#     src_vol_lower_bound_list = min_max_normalize_scalar([lb for lb, _ in src_vol_bound],
-#                                                         src_vol_lower_range_list,
-#                                                         src_vol_upper_range_list).tolist()
-#     src_vol_upper_bound_list = min_max_normalize_scalar([ub for _, ub in src_vol_bound],
-#                                                         src_vol_lower_range_list,
-#                                                         src_vol_upper_range_list).tolist()
-#
-#     init_params, length = concatenate_items(init_src_vol, init_fltr_th, init_scint_th)
-#     init_lower_ranges, _ = concatenate_items(src_vol_lower_range_list, fltr_th_bound[0], scint_th_bound[0])
-#     init_upper_ranges, _ = concatenate_items(src_vol_upper_range_list, fltr_th_bound[1], scint_th_bound[1])
-#     init_lower_bounds, _ = concatenate_items(src_vol_lower_bound_list, 0, 0)
-#     init_upper_bounds, _ = concatenate_items(src_vol_upper_bound_list, 1, 1)
-#     norm_params = torch.tensor(min_max_normalize_scalar(init_params,
-#                                                         init_lower_ranges,
-#                                                         init_upper_ranges), requires_grad=True)
-#
-#     if optimizer_type == 'Adam':
-#         optimizer = optim.Adam([norm_params], lr=learning_rate)
-#     elif optimizer_type == 'LBFGS':
-#         optimizer = optim.LBFGS([norm_params], lr=learning_rate, max_iter=100, tolerance_grad=1e-8,
-#                                 tolerance_change=1e-11)
-#     elif optimizer_type == 'NNAT_LBFGS':
-#         optimizer = NNAT_LBFGS([norm_params], lr=learning_rate, device='cpu')
-#     else:
-#         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
-#         sys.exit("Exiting the script due to unsupported optimizer type.")
-#
-#     prev_cost = None
-#     for i in range(1, iterations + 1):
-#         def closure():
-#             if torch.is_grad_enabled():
-#                 optimizer.zero_grad()
-#             cost = 0
-#             norm_src_voltage, norm_fltr_th, norm_scint_th = split_list(norm_params, length)
-#             src_voltage = min_max_denormalize_scalar(norm_src_voltage,
-#                                                      src_vol_lower_range_list,
-#                                                      src_vol_upper_range_list)
-#             fltr_th = min_max_denormalize_scalar(norm_fltr_th,
-#                                                  fltr_th_bound[0],
-#                                                  fltr_th_bound[1])
-#             scint_th = min_max_denormalize_scalar(norm_scint_th,
-#                                                   scint_th_bound[0],
-#                                                   scint_th_bound[1])
-#             for signal_train, sv, spec_F_train in zip(signal_train_list, src_voltage, spec_F_train_list):
-#                 src_response = interp_src_spectra(src_kV_list, src_spec_list, sv)
-#
-#                 cost += anal_cost(energies, signal_train, spec_F_train, src_response,
-#                                   fltr_mat,
-#                                   scint_mat,
-#                                   fltr_th,
-#                                   scint_th, signal_weight=[1.0 / sig for sig in signal_train])
-#             if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
-#                 cost.backward()
-#             return cost
-#
-#         cost = closure()
-#         if optimizer_type == 'NNAT_LBFGS':
-#             cost.backward()
-#
-#         with (torch.no_grad()):
-#             if i == 1:
-#                 print('Initial cost: %e' % (closure().item()))
-#
-#         if optimizer_type == 'Adam':
-#             # cost = closure()
-#             optimizer.step()
-#         elif optimizer_type == 'LBFGS':
-#             optimizer.step(closure)
-#         elif optimizer_type == 'NNAT_LBFGS':
-#             options = {'closure': closure, 'current_loss': cost,
-#                        'max_ls': 100, 'damping': True}
-#             cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
-#                 options=options)
-#
-#         with (torch.no_grad()):
-#             if i % 2 == 0:
-#                 print(
-#                     'Iteration:{0}: before update cost: {1:e}, source voltage: {2} filter {3} thickness: {4:e}, scintillator {5} thickness: {6:e}'
-#                     .format(i, closure().item(), [sv.item() for sv in src_voltage], fltr_mat['formula'], fltr_th.item(),
-#                             scint_mat['formula'],
-#                             scint_th.item()))
-#
-#             # Project the updated x back onto the feasible set
-#
-#             norm_params.data = project_onto_constraints(norm_params.data,
-#                                                         init_lower_bounds,
-#                                                         init_upper_bounds)
-#
-#             norm_src_voltage, norm_fltr_th, norm_scint_th = split_list(norm_params, length)
-#
-#             src_voltage = min_max_denormalize_scalar(norm_src_voltage,
-#                                                      src_vol_lower_range_list,
-#                                                      src_vol_upper_range_list)
-#             fltr_th = min_max_denormalize_scalar(norm_fltr_th,
-#                                                  fltr_th_bound[0],
-#                                                  fltr_th_bound[1])
-#             scint_th = min_max_denormalize_scalar(norm_scint_th,
-#                                                   scint_th_bound[0],
-#                                                   scint_th_bound[1])
-#
-#             # Check the stopping criterion based on changes in x and y
-#             if prev_cost is not None and \
-#                     torch.abs(closure() - prev_cost) / prev_cost < tolerance and \
-#                     torch.mean(torch.abs(src_voltage - prev_src_voltage) / prev_src_voltage) < tolerance and \
-#                     torch.abs(fltr_th - prev_fltr_th) < tolerance and \
-#                     torch.abs(scint_th - prev_scint_th) / prev_scint_th < tolerance:
-#                 print(f"Stopping after {i} iterations")
-#                 break
-#
-#             prev_cost = closure().item()
-#             prev_src_voltage = torch.tensor([sv.item() for sv in src_voltage])
-#             prev_fltr_th = fltr_th.item()
-#             prev_scint_th = scint_th.item()
-#
-#             # Clear gradients and update previous values for the next iteration
-#             if return_history:
-#                 cost_list.append(closure().item())
-#                 src_voltage_list.append([sv.item() for sv in src_voltage])
-#                 fltr_th_list.append(fltr_th.item())
-#                 scint_th_list.append(scint_th.item())
-#
-#     print(
-#         f"The minimum cost value: {closure().item()}, occurs at source voltage = {[sv.item() for sv in src_voltage]} kV, "
-#         f"filter thickness = {fltr_th.item()} mm, scintillator thickness = {scint_th.item()} mm")
-#
-#     if return_history:
-#         return cost_list, src_voltage_list, fltr_th_list, scint_th_list
-#     else:
-#         return [sv.item() for sv in src_voltage], fltr_th.item(), scint_th.item(), closure().item()
-#
-#
-# def parallel_anal_sep_model(num_processes,
-#                             fltr_mat_list, scint_mat_list,
-#                             init_fltr_th_values, init_scint_th_values, *args, **kwargs):
-#     # Create parameter combinations
-#     params_combinations = product(fltr_mat_list, scint_mat_list, init_fltr_th_values,
-#                                   init_scint_th_values)
-#
-#     with Pool(processes=num_processes) as pool:
-#         result_objects = [
-#             pool.apply_async(
-#                 anal_sep_model,
-#                 args=args,
-#                 kwds={
-#                     **kwargs,
-#                     "fltr_mat": fltr_mat,
-#                     "scint_mat": scint_mat,
-#                     "init_fltr_th": fltr_th,
-#                     "init_scint_th": scint_th
-#                 }
-#             )
-#             for fltr_mat, scint_mat, fltr_th, scint_th in params_combinations
-#         ]
-#
-#         # Gather results
-#         print('result_objects', result_objects)
-#         results = [r.get() for r in result_objects]
-#
-#     return results
-#
 
 
 class src_spec_model(torch.nn.Module):
@@ -737,12 +470,7 @@ def param_based_spec_estimate_cell(energies,
                 options=options)
 
         with (torch.no_grad()):
-            # Clamp all parameters to be between 0 and 1
-            # for param in model.parameters():
-            #     param.data.clamp_(0, 1)
-
             if iter % iter_prt == 0:
-                # model.print_parameters()
                 print('Cost:', cost.item())
                 model.print_ori_parameters()
 
@@ -761,13 +489,13 @@ def param_based_spec_estimate_cell(energies,
     return iter, cost.item(), model
 
 
-def init_logging():
+def init_logging(filename):
     worker_id = mp.current_process().pid
     logger = logging.getLogger(str(worker_id))
     logger.setLevel(logging.INFO)
 
-    fh = logging.FileHandler(f"{worker_id}.log")
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh = logging.FileHandler(f"{filename}_{worker_id}.log")
+    formatter = logging.Formatter('%(asctime)s  - %(message)s')
     fh.setFormatter(formatter)
 
     logger.addHandler(fh)
@@ -784,9 +512,10 @@ def param_based_spec_estimate(energies,
                               tolerance=1e-6,
                               optimizer_type='Adam',
                               loss_type='wmse',
+                              logpath='./',
                               num_processes=1,
                               return_history=False):
-    args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes')
+    args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
 
     fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat_comb()] for fcm in Fltr_config]
     scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
@@ -794,7 +523,7 @@ def param_based_spec_estimate(energies,
     model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
                          model_params_list]
 
-    with Pool(processes=num_processes, initializer=init_logging) as pool:
+    with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath,)) as pool:
         result_objects = [
             pool.apply_async(
                 param_based_spec_estimate_cell,
