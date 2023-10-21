@@ -7,6 +7,8 @@ import torch.optim as optim
 from torch.nn.parameter import Parameter
 
 from torch.multiprocessing import Pool
+import torch.multiprocessing as mp
+import logging
 
 from xspec._utils import *
 from xspec.defs import *
@@ -428,8 +430,9 @@ class fltr_resp_model(torch.nn.Module):
             List of filter thickness. Length is equal to num_fltr.
 
         """
-        return [torch.clamp(self.normalized_fltr_th[i],0,1) * self.scale[i] + self.lower[i]
+        return [torch.clamp(self.normalized_fltr_th[i], 0, 1) * self.scale[i] + self.lower[i]
                 for i in range(self.fltr_config.num_fltr)]
+
     def get_fltr_mat_comb(self):
         """Get filter thickness.
 
@@ -440,6 +443,7 @@ class fltr_resp_model(torch.nn.Module):
 
         """
         return self.fltr_config.fltr_mat_comb
+
     def forward(self, energies):
         """Calculate filter response.
 
@@ -501,6 +505,7 @@ class scint_cvt_model(torch.nn.Module):
 
         """
         return self.scint_config.scint_mat
+
     def forward(self, energies):
         """Calculate scintillator convertion function.
 
@@ -549,6 +554,11 @@ class spec_distrb_energy_resp(torch.nn.Module):
             [fltr_resp_model(fltr_config, **factory_kwargs) for fltr_config in fltr_config_list])
         self.scint_cvt_list = torch.nn.ModuleList(
             [scint_cvt_model(scint_config, **factory_kwargs) for scint_config in scint_config_list])
+        self.logger = logging.getLogger(str(mp.current_process().pid))
+
+    def print_method(self,*args, **kwargs):
+        message = ' '.join(map(str, args))
+        self.logger.info(message)
 
     def forward(self, F: torch.Tensor, mc: Model_combination):
         """
@@ -580,6 +590,8 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         Print all parameters of the model.
         """
+        if self.print_method is not None:
+            print = self.print_method
         for name, param in self.named_parameters():
             print(f"Name: {name} | Size: {param.size()} | Values : {param.data} | Requires Grad: {param.requires_grad}")
 
@@ -587,11 +599,14 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         Print all scaled-back parameters of the model.
         """
+        if self.print_method is not None:
+            print = self.print_method
         for src_i, src_spec in enumerate(self.src_spec_list):
             print('Voltage %d:' % (src_i), src_spec.get_voltage())
 
         for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
-            print(f'Filter Combination {fltr_i}: (Material Combination: {fltr_resp.get_fltr_mat_comb()}, Thickness: {fltr_resp.get_fltr_th()})' )
+            print(
+                f'Filter Combination {fltr_i}: (Material Combination: {fltr_resp.get_fltr_mat_comb()}, Thickness: {fltr_resp.get_fltr_th()})')
 
         for scint_i, scint_cvt in enumerate(self.scint_cvt_list):
             print(f'Scintillator {scint_i} Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
@@ -599,7 +614,6 @@ class spec_distrb_energy_resp(torch.nn.Module):
 
 def weighted_mse_loss(input, target, weight):
     return 0.5 * torch.mean(weight * (input - target) ** 2)
-
 
 
 def param_based_spec_estimate_cell(energies,
@@ -613,6 +627,7 @@ def param_based_spec_estimate_cell(energies,
                                    iterations=5000,
                                    tolerance=1e-6,
                                    optimizer_type='Adam',
+                                   loss_type='wmse',
                                    return_history=False):
     """
 
@@ -635,6 +650,8 @@ def param_based_spec_estimate_cell(energies,
         Stop when all parameters update is less than tolerance.
     optimizer_type : str
         'Adam' or 'NNAT_LBFGS'
+    loss_type : str
+        'mse' or 'wmse' or 'attmse'
     return_history : bool
         Save history of parameters.
 
@@ -642,6 +659,11 @@ def param_based_spec_estimate_cell(energies,
     -------
 
     """
+    logger = logging.getLogger(str(mp.current_process().pid))
+
+    def print(*args, **kwargs):
+        message = ' '.join(map(str, args))
+        logger.info(message)
 
     # Check Variables
     if return_history:
@@ -677,12 +699,12 @@ def param_based_spec_estimate_cell(energies,
             cost = 0
             for yy, FF, ww, mc in zip(y, F, weights, model_combination):
                 trans_val = model(FF, mc)
-                # print(trans_val.shape)
-                # print(yy.shape)
-                # print(ww.shape)
-                # sub_cost = loss(trans_val, yy)
-                # sub_cost = weighted_mse_loss(trans_val, yy, ww)
-                sub_cost = loss(-torch.log(trans_val), -torch.log(yy))
+                if loss_type == 'mse':
+                    sub_cost = loss(trans_val, yy)
+                elif loss_type == 'wmse':
+                    sub_cost = weighted_mse_loss(trans_val, yy, ww)
+                else:
+                    sub_cost = loss(-torch.log(trans_val), -torch.log(yy))
                 cost += sub_cost
             if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
                 cost.backward()
@@ -694,7 +716,6 @@ def param_based_spec_estimate_cell(energies,
             return iter, closure().item(), model
         if optimizer_type == 'NNAT_LBFGS':
             cost.backward()
-
 
         has_nan = check_gradients_for_nan(model)
         if has_nan:
@@ -740,6 +761,17 @@ def param_based_spec_estimate_cell(energies,
     return iter, cost.item(), model
 
 
+def init_logging():
+    worker_id = mp.current_process().pid
+    logger = logging.getLogger(str(worker_id))
+    logger.setLevel(logging.INFO)
+
+    fh = logging.FileHandler(f"{worker_id}.log")
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+
+    logger.addHandler(fh)
+
 def param_based_spec_estimate(energies,
                               y,
                               F,
@@ -751,10 +783,10 @@ def param_based_spec_estimate(energies,
                               iterations=5000,
                               tolerance=1e-6,
                               optimizer_type='Adam',
+                              loss_type='wmse',
                               num_processes=1,
                               return_history=False):
     args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes')
-    print(args[6:])
 
     fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat_comb()] for fcm in Fltr_config]
     scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
@@ -762,7 +794,7 @@ def param_based_spec_estimate(energies,
     model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
                          model_params_list]
 
-    with Pool(processes=num_processes) as pool:
+    with Pool(processes=num_processes, initializer=init_logging) as pool:
         result_objects = [
             pool.apply_async(
                 param_based_spec_estimate_cell,

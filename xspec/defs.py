@@ -125,6 +125,12 @@ class src_spec_params:
         -------
 
         """
+        # Check if energy in energies is sorted from small to large
+        if not is_sorted(energies):
+            raise ValueError("Warning: energy bin in energies are not sorted!")
+        else:
+            self.energies = energies
+
         # Check if voltages in src_vol_list is sorted from small to large
         if not is_sorted(src_vol_list):
             raise ValueError("Warning: source voltage in src_response_dict are not sorted!")
@@ -244,7 +250,7 @@ class fltr_resp_params:
             self.fltr_mat_comb = mat_comb
             yield deepcopy(self)
 
-    def set_mat(self, mat_comb: Material):
+    def set_mat(self, mat_comb: [Material]):
         if self.num_fltr == 1:
             mat_comb = mat_comb if isinstance(mat_comb, list) else [mat_comb]
 
