@@ -82,11 +82,9 @@ if __name__ == '__main__':
          'thickness_bound': (0.02, 0.5)}
     ]
 
-
+    data = read_mv_hdf5('../sim_data/sim_mv_dataset_rsn_%d.hdf5'%rand_seed_num)
     signal_train_list = [d['measurement'] for d in data][dataset_ind+num_src_v]
     spec_F_train_list = [d['forward_mat'] for d in data][dataset_ind+num_src_v]
-    for d in data:
-        print(d['src_config'])
 
 
     src_vol_bound = Bound(lower=30.0, upper=160.0)
