@@ -6,9 +6,9 @@ import torch
 import torch.optim as optim
 from torch.nn.parameter import Parameter
 
-from multiprocessing import Pool
+from torch.multiprocessing import Pool
 
-from xspec._utils import is_sorted, min_max_normalize_scalar, min_max_denormalize_scalar, concatenate_items, split_list
+from xspec._utils import *
 from xspec.defs import *
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
@@ -349,7 +349,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
 
 class src_spec_model(torch.nn.Module):
-    def __init__(self, src_config: src_spec_params, device=None, dtype=None)-> None:
+    def __init__(self, src_config: src_spec_params, device=None, dtype=None) -> None:
         """
 
         Parameters
@@ -365,8 +365,8 @@ class src_spec_model(torch.nn.Module):
 
         # Min-Max Normalization
         self.lower = src_config.src_vol_bound.lower
-        self.scale = src_config.src_vol_bound.upper-src_config.src_vol_bound.lower
-        normalized_voltage = (src_config.voltage-self.lower)/self.scale
+        self.scale = src_config.src_vol_bound.upper - src_config.src_vol_bound.lower
+        normalized_voltage = (src_config.voltage - self.lower) / self.scale
         # Instantiate parameters
         self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
 
@@ -379,7 +379,7 @@ class src_spec_model(torch.nn.Module):
             Read voltage.
         """
 
-        return self.normalized_voltage*self.scale+self.lower
+        return torch.clamp(self.normalized_voltage, 0, 1) * self.scale + self.lower
 
     def forward(self):
         """Calculate source spectrum.
@@ -395,7 +395,7 @@ class src_spec_model(torch.nn.Module):
 
 
 class fltr_resp_model(torch.nn.Module):
-    def __init__(self, fltr_config: fltr_resp_params, device=None, dtype=None)-> None:
+    def __init__(self, fltr_config: fltr_resp_params, device=None, dtype=None) -> None:
         """Filter module
 
         Parameters
@@ -411,10 +411,13 @@ class fltr_resp_model(torch.nn.Module):
 
         # Min-Max Normalization
         self.lower = [fltr_config.fltr_th_bound[i].lower for i in range(fltr_config.num_fltr)]
-        self.scale = [fltr_config.fltr_th_bound[i].upper-fltr_config.fltr_th_bound[i].lower for i in range(fltr_config.num_fltr)]
-        normalized_fltr_th = [(fltr_config.fltr_th[i] - self.lower[i]) / self.scale[i] for i in range(fltr_config.num_fltr)]
+        self.scale = [fltr_config.fltr_th_bound[i].upper - fltr_config.fltr_th_bound[i].lower for i in
+                      range(fltr_config.num_fltr)]
+        normalized_fltr_th = [(fltr_config.fltr_th[i] - self.lower[i]) / self.scale[i] for i in
+                              range(fltr_config.num_fltr)]
         # Instantiate parameters
-        self.normalized_fltr_th = torch.nn.ParameterList([Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)])
+        self.normalized_fltr_th = torch.nn.ParameterList(
+            [Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)])
 
     def get_fltr_th(self):
         """Get filter thickness.
@@ -425,9 +428,18 @@ class fltr_resp_model(torch.nn.Module):
             List of filter thickness. Length is equal to num_fltr.
 
         """
-        return [self.normalized_fltr_th[i]*self.scale[i]+self.lower[i]
-                             for i in range(self.fltr_config.num_fltr)]
+        return [torch.clamp(self.normalized_fltr_th[i],0,1) * self.scale[i] + self.lower[i]
+                for i in range(self.fltr_config.num_fltr)]
+    def get_fltr_mat_comb(self):
+        """Get filter thickness.
 
+        Returns
+        -------
+        fltr_th_list: list
+            List of filter thickness. Length is equal to num_fltr.
+
+        """
+        return self.fltr_config.fltr_mat_comb
     def forward(self, energies):
         """Calculate filter response.
 
@@ -443,10 +455,11 @@ class fltr_resp_model(torch.nn.Module):
 
         """
 
-        return gen_fltr_res(energies, self.fltr_config.fltr_mat, self.get_fltr_th())
+        return gen_fltr_res(energies, self.fltr_config.fltr_mat_comb, self.get_fltr_th())
+
 
 class scint_cvt_model(torch.nn.Module):
-    def __init__(self, scint_config: scint_cvt_func_params, device=None, dtype=None)-> None:
+    def __init__(self, scint_config: scint_cvt_func_params, device=None, dtype=None) -> None:
         """Scintillator convertion model
 
         Parameters
@@ -462,8 +475,8 @@ class scint_cvt_model(torch.nn.Module):
 
         # Min-Max Normalization
         self.lower = scint_config.scint_th_bound.lower
-        self.scale = scint_config.scint_th_bound.upper-scint_config.scint_th_bound.lower
-        normalized_scint_th = (scint_config.scint_th-self.lower)/self.scale
+        self.scale = scint_config.scint_th_bound.upper - scint_config.scint_th_bound.lower
+        normalized_scint_th = (scint_config.scint_th - self.lower) / self.scale
         # Instantiate parameter
         self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
 
@@ -476,8 +489,18 @@ class scint_cvt_model(torch.nn.Module):
             Sintillator thickness.
 
         """
-        return self.normalized_scint_th*self.scale+self.lower
+        return torch.clamp(self.normalized_scint_th, 0, 1) * self.scale + self.lower
 
+    def get_scint_mat(self):
+        """
+
+        Returns
+        -------
+        scint_th: float
+            Sintillator thickness.
+
+        """
+        return self.scint_config.scint_mat
     def forward(self, energies):
         """Calculate scintillator convertion function.
 
@@ -494,6 +517,7 @@ class scint_cvt_model(torch.nn.Module):
         """
 
         return gen_scint_cvt_func(energies, self.scint_config.scint_mat, self.get_scint_th())
+
 
 class spec_distrb_energy_resp(torch.nn.Module):
     def __init__(self,
@@ -519,11 +543,14 @@ class spec_distrb_energy_resp(torch.nn.Module):
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
-        self.src_spec_list = torch.nn.ModuleList([src_spec_model(src_config, **factory_kwargs) for src_config in src_config_list])
-        self.fltr_resp_list = torch.nn.ModuleList([fltr_resp_model(fltr_config, **factory_kwargs) for fltr_config in fltr_config_list])
-        self.scint_cvt_list = torch.nn.ModuleList([scint_cvt_model(scint_config, **factory_kwargs) for scint_config in scint_config_list])
+        self.src_spec_list = torch.nn.ModuleList(
+            [src_spec_model(src_config, **factory_kwargs) for src_config in src_config_list])
+        self.fltr_resp_list = torch.nn.ModuleList(
+            [fltr_resp_model(fltr_config, **factory_kwargs) for fltr_config in fltr_config_list])
+        self.scint_cvt_list = torch.nn.ModuleList(
+            [scint_cvt_model(scint_config, **factory_kwargs) for scint_config in scint_config_list])
 
-    def forward(self, F:torch.Tensor, mc: Model_combination):
+    def forward(self, F: torch.Tensor, mc: Model_combination):
         """
 
         Parameters
@@ -561,28 +588,32 @@ class spec_distrb_energy_resp(torch.nn.Module):
         Print all scaled-back parameters of the model.
         """
         for src_i, src_spec in enumerate(self.src_spec_list):
-            print('Voltage %d:'%(src_i), src_spec.get_voltage())
+            print('Voltage %d:' % (src_i), src_spec.get_voltage())
 
         for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
-            print('Filter Thickness %d:'%(fltr_i), fltr_resp.get_fltr_th())
+            print(f'Filter Combination {fltr_i}: (Material Combination: {fltr_resp.get_fltr_mat_comb()}, Thickness: {fltr_resp.get_fltr_th()})' )
 
         for scint_i, scint_cvt in enumerate(self.scint_cvt_list):
-            print('Scintillator Thickness %d:'%(scint_i), scint_cvt.get_scint_th())
-def weighted_mse_loss(input, target, weight):
-    return 0.5*torch.mean(weight * (input - target) ** 2)
+            print(f'Scintillator {scint_i} Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
 
-def param_based_spec_estimate(energies,
-                              y,
-                              F,
-                              src_config:[src_spec_params],
-                              fltr_config:[fltr_resp_params],
-                              scint_config:[scint_cvt_func_params],
-                              model_combination:[Model_combination],
-                              learning_rate=0.1,
-                              iterations=5000,
-                              tolerance=1e-6,
-                              optimizer_type='Adam',
-                              return_history=False):
+
+def weighted_mse_loss(input, target, weight):
+    return 0.5 * torch.mean(weight * (input - target) ** 2)
+
+
+
+def param_based_spec_estimate_cell(energies,
+                                   y,
+                                   F,
+                                   src_config: [src_spec_params],
+                                   fltr_config: [fltr_resp_params],
+                                   scint_config: [scint_cvt_func_params],
+                                   model_combination: [Model_combination],
+                                   learning_rate=0.1,
+                                   iterations=5000,
+                                   tolerance=1e-6,
+                                   optimizer_type='Adam',
+                                   return_history=False):
     """
 
     Parameters
@@ -634,11 +665,12 @@ def param_based_spec_estimate(energies,
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
         sys.exit("Exiting the script due to unsupported optimizer type.")
     y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
-    weights = [1.0/yy for yy in y]
+    weights = [1.0 / yy for yy in y]
     F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
     for iter in range(1, iterations + 1):
         if iter % iter_prt == 0:
             print('Iteration:', iter)
+
         def closure():
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
@@ -649,7 +681,7 @@ def param_based_spec_estimate(energies,
                 # print(yy.shape)
                 # print(ww.shape)
                 # sub_cost = loss(trans_val, yy)
-                #sub_cost = weighted_mse_loss(trans_val, yy, ww)
+                # sub_cost = weighted_mse_loss(trans_val, yy, ww)
                 sub_cost = loss(-torch.log(trans_val), -torch.log(yy))
                 cost += sub_cost
             if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
@@ -657,8 +689,16 @@ def param_based_spec_estimate(energies,
             return cost
 
         cost = closure()
+        if torch.isnan(cost):
+            model.print_parameters()
+            return iter, closure().item(), model
         if optimizer_type == 'NNAT_LBFGS':
             cost.backward()
+
+
+        has_nan = check_gradients_for_nan(model)
+        if has_nan:
+            return iter, closure().item(), model
 
         with (torch.no_grad()):
             if iter == 1:
@@ -671,14 +711,14 @@ def param_based_spec_estimate(energies,
             optimizer.step()
         elif optimizer_type == 'NNAT_LBFGS':
             options = {'closure': closure, 'current_loss': cost,
-                       'max_ls': 10, 'damping': True}
+                       'max_ls': 200, 'damping': False}
             cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
                 options=options)
 
         with (torch.no_grad()):
             # Clamp all parameters to be between 0 and 1
-            for param in model.parameters():
-                param.data.clamp_(0, 1)
+            # for param in model.parameters():
+            #     param.data.clamp_(0, 1)
 
             if iter % iter_prt == 0:
                 # model.print_parameters()
@@ -697,4 +737,42 @@ def param_based_spec_estimate(energies,
                 print('Cost:', cost.item())
                 model.print_ori_parameters()
                 break
-    return 0
+    return iter, cost.item(), model
+
+
+def param_based_spec_estimate(energies,
+                              y,
+                              F,
+                              src_config: [src_spec_params],
+                              Fltr_config: [fltr_resp_params],
+                              Scint_config: [scint_cvt_func_params],
+                              model_combination: [Model_combination],
+                              learning_rate=0.1,
+                              iterations=5000,
+                              tolerance=1e-6,
+                              optimizer_type='Adam',
+                              num_processes=1,
+                              return_history=False):
+    args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes')
+    print(args[6:])
+
+    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat_comb()] for fcm in Fltr_config]
+    scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
+    model_params_list = list(product(*fltr_config_list, *scint_config_lsit))
+    model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
+                         model_params_list]
+
+    with Pool(processes=num_processes) as pool:
+        result_objects = [
+            pool.apply_async(
+                param_based_spec_estimate_cell,
+                args=args[:4] + (fltr_config, scint_config,) + args[6:]
+            )
+            for fltr_config, scint_config in model_params_list
+        ]
+
+        # Gather results
+        print('result_objects', result_objects)
+        results = [r.get() for r in result_objects]
+
+    return results

@@ -253,3 +253,15 @@ def nested_list(tup, indices):
         result.append(list(tup[start:start+index]))
         start += index
     return result
+
+def contains_nan(tensor):
+    return torch.isnan(tensor).any()
+
+def check_gradients_for_nan(model):
+    has_nan = False
+    for name, param in model.named_parameters():
+        if param.grad is not None and contains_nan(param.grad):
+            print(f"NaN value found in gradients of: {name}")
+            has_nan = True
+            return has_nan
+    return has_nan

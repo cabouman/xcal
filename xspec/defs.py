@@ -187,7 +187,7 @@ class fltr_resp_params:
 
         """
         self.psb_fltr_mat_comb = psb_fltr_mat_comb
-        self.fltr_mat = None
+        self.fltr_mat_comb = None
         # Check if num_fltr is a positive integer
         if isinstance(num_fltr, int):
             if num_fltr > 0:
@@ -233,19 +233,27 @@ class fltr_resp_params:
 
 
     def next_psb_fltr_mat_comb(self):
-        for mat in self.psb_fltr_mat_comb:
-            self.fltr_mat = mat
+        for mat_comb in self.psb_fltr_mat_comb:
+            if self.num_fltr == 1:
+                mat_comb = mat_comb if isinstance(mat_comb, list) else [mat_comb]
+            # Check fltr_mat is an instance of Material
+            for fm in mat_comb:
+                if not isinstance(fm, Material):  # The tolerance can be adjusted
+                    raise ValueError(
+                        "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
+            self.fltr_mat_comb = mat_comb
             yield deepcopy(self)
-    def set_mat(self, mat: Material):
+
+    def set_mat(self, mat_comb: Material):
         if self.num_fltr == 1:
-            mat = mat if isinstance(mat, list) else [mat]
+            mat_comb = mat_comb if isinstance(mat_comb, list) else [mat_comb]
 
         # Check fltr_mat is an instance of Material
-        for fm in mat:
+        for fm in mat_comb:
             if not isinstance(fm, Material):  # The tolerance can be adjusted
                 raise ValueError(
                     "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
-        self.fltr_mat = mat
+        self.fltr_mat_comb = mat_comb
 
 class scint_cvt_func_params:
     def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_th=None):
