@@ -436,8 +436,10 @@ def param_based_spec_estimate_cell(energies,
                     sub_cost = loss(trans_val, yy)
                 elif loss_type == 'wmse':
                     sub_cost = weighted_mse_loss(trans_val, yy, ww)
-                else:
+                elif loss_type == 'attmse':
                     sub_cost = loss(-torch.log(trans_val), -torch.log(yy))
+                else:
+                    raise ValueError('loss_type should be \'mse\' or \'wmse\' or \'attmse\'. ','Given', loss_type)
                 cost += sub_cost
             if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
                 cost.backward()
