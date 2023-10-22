@@ -433,11 +433,11 @@ def param_based_spec_estimate_cell(energies,
             for yy, FF, ww, mc in zip(y, F, weights, model_combination):
                 trans_val = model(FF, mc)
                 if loss_type == 'mse':
-                    sub_cost = loss(trans_val, yy)
+                    sub_cost = 0.5*loss(trans_val, yy)
                 elif loss_type == 'wmse':
                     sub_cost = weighted_mse_loss(trans_val, yy, ww)
                 elif loss_type == 'attmse':
-                    sub_cost = loss(-torch.log(trans_val), -torch.log(yy))
+                    sub_cost = 0.5*loss(-torch.log(trans_val), -torch.log(yy))
                 else:
                     raise ValueError('loss_type should be \'mse\' or \'wmse\' or \'attmse\'. ','Given', loss_type)
                 cost += sub_cost
@@ -496,11 +496,14 @@ def init_logging(filename):
     logger = logging.getLogger(str(worker_id))
     logger.setLevel(logging.INFO)
 
-    fh = logging.FileHandler(f"{filename}_{worker_id}.log")
-    formatter = logging.Formatter('%(asctime)s  - %(message)s')
-    fh.setFormatter(formatter)
+    if filename is None:
+        handler = logging.StreamHandler()
+    else:
+        handler = logging.FileHandler(f"{filename}_{worker_id}.log")
 
-    logger.addHandler(fh)
+    formatter = logging.Formatter('%(asctime)s  - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 def param_based_spec_estimate(energies,
                               y,
