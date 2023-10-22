@@ -108,24 +108,6 @@ class pt_fw_projector:
 if __name__ == '__main__':
     filename = __file__.split('.')[0]
 
-    src_spec_list = []
-    src_info = []
-    simkV_list = np.linspace(30, 160, 14, endpoint=True).astype('int')
-    max_simkV = max(simkV_list)
-    energies = np.linspace(1, max_simkV, max_simkV)
-    print('\nRunning demo script (1 mAs, 100 cm)\n')
-    for simkV in simkV_list:
-        for th in [12]:
-            s = sp.Spek(kvp=simkV + 1, th=th, dk=1, char=True)  # Create the spectrum model
-            k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
-            src_info.append((simkV,))
-            src_spec = np.zeros((max_simkV))
-            src_spec[:simkV] = phi_k[::2]
-            src_spec_list.append(src_spec)
-
-    print('\nFinished!\n')
-
-
     ## A. Generate simulated cylinder
     # rsize = [0.03125 / 6, 0.03125 / 24.0]  # mm
     rsize = [0.03125 / 12.0, 0.03125 / 12.0, 0.03125 / 12.00]  # mm
