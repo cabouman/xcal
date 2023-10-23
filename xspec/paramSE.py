@@ -531,12 +531,12 @@ def param_based_spec_estimate(energies,
     F : list
         Forward matrix. (#datasets, #samples, #views, #rows, #columns, #energy_bins)
     src_config : list of src_spec_params
-        Specify all sources used across experiments.
+        Specify all sources used across datasets.
     Fltr_config : list of fltr_resp_params
-        Specify all filters used across experiments. For each filter, Fltr_config provides possible material list instead of specific material.
+        Specify all filters used across datasets. For each filter, Fltr_config provides possible material list instead of specific material.
         The function will find out the best filter material among fltr_resp_params.psb_fltr_mat.
     Scint_config : list of src_spec_params
-        Specify all scintillators used across experiments. For each scintillator, Scint_config provides possible material list instead of specific material.
+        Specify all scintillators used across datasets. For each scintillator, Scint_config provides possible material list instead of specific material.
         The function will find out the best scintillator material among scint_cvt_func_params.psb_scint_mat.
     model_combination : list of Model_combination
         Each instance of Model_combination specify one experimental scenario. Length is equal to #datasets of y.
