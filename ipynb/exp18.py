@@ -32,11 +32,6 @@ if __name__ == '__main__':
     num_src_v = args.num_src_v
     dataset_ind = args.dataset_ind
 
-
-    simkV_list = np.linspace(30, 160, 14, endpoint=True).astype('int')
-    max_simkV = max(simkV_list)
-    energies = np.linspace(1, max_simkV, max_simkV)
-
     src_spec_list = []
     src_info = []
     simkV_list = np.linspace(30, 160, 14, endpoint=True).astype('int')
@@ -90,17 +85,17 @@ if __name__ == '__main__':
     src_vol_bound = Bound(lower=30.0, upper=160.0)
     Src_config = [src_spec_params(energies, simkV_list, src_spec_list, src_vol_bound) for _ in range(num_src_v)]
 
-    psb_fltr_mat_comb = [[Material(formula='Al', density=2.702)], [Material(formula='Cu', density=8.92)]]
+    psb_fltr_mat_comb =[Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
     fltr_th_bound = Bound(lower=0.0, upper=10.0)
-    Fltr_config = [fltr_resp_params(1, psb_fltr_mat_comb, fltr_th_bound)]
+    Fltr_config = [fltr_resp_params(psb_fltr_mat_comb, fltr_th_bound)]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
     scint_th_bound = Bound(lower=0.01, upper=0.5)
     Scint_config = [scint_cvt_func_params(psb_scint_mat, scint_th_bound)]
 
-    model_combination = [Model_combination(src_ind=i, fltr_ind=0, scint_ind=0) for i in range(num_src_v)]
+    model_combination = [Model_combination(src_ind=i, fltr_ind_list=[0], scint_ind=0) for i in range(num_src_v)]
 
-    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat_comb()] for fcm in Fltr_config]
+    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in Fltr_config]
     scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
     model_params_list = list(itertools.product(*fltr_config_list, *scint_config_lsit))
     model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
@@ -125,8 +120,8 @@ if __name__ == '__main__':
                                     tolerance=1e-8,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
-                                    logpath='./output_exp18/log/%s'%savefile_name,
-                                    num_processes=7,
+                                    logpath=None,#'./output_exp18/log/%s'%savefile_name,
+                                    num_processes=1,
                                     return_history=False)
 
     np.save('./output_exp18/res/%s.npy'%savefile_name, res, allow_pickle=True)
