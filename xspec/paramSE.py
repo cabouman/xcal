@@ -583,4 +583,8 @@ def param_based_spec_estimate(energies,
         print('result_objects', result_objects)
         results = [r.get() for r in result_objects]
 
+    cost_list = [res[1] for res in results]
+    optimal_cost_ind = np.argmin(cost_list)
+    results[optimal_cost_ind][2].print_ori_parameters()
+
     return results

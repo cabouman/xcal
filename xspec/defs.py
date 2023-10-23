@@ -301,14 +301,14 @@ class scint_cvt_func_params:
 
 class Model_combination:
     def __init__(self, src_ind=0, fltr_ind_list=0, scint_ind=0):
-        """
+        """Specify combination of source, filter, and scintillator models with indexes.
 
         Parameters
         ----------
         src_ind: int
             Index of source model
         fltr_ind_list: int
-            Index of filter model
+            List of indexes of filter models, specifing the combination of filters in one dataset.
         scint_ind: int
             Index of scintillator model
 
