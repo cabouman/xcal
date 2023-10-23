@@ -272,7 +272,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
                  src_config_list: [src_spec_params],
                  fltr_config_list: [fltr_resp_params],
                  scint_config_list: [scint_cvt_func_params], device=None, dtype=None):
-        """Total spectrally distributed energy response model.
+        """Total spectrally distributed energy response model based on torch.nn.Module.
 
         Parameters
         ----------
@@ -367,41 +367,29 @@ def param_based_spec_estimate_cell(energies,
                                    fltr_config: [fltr_resp_params],
                                    scint_config: [scint_cvt_func_params],
                                    model_combination: [Model_combination],
-                                   learning_rate=0.1,
-                                   iterations=5000,
-                                   tolerance=1e-6,
-                                   optimizer_type='Adam',
+                                   learning_rate=0.02,
+                                   max_iterations=5000,
+                                   stop_threshold=1e-3,
+                                   optimizer_type='NNAT_LBFGS',
                                    loss_type='wmse',
                                    return_history=False):
-    """
+    """Other arguments are same as param_based_spec_estimate.
 
     Parameters
     ----------
-    energies : numpy.ndarray
-        List of X-ray energies of a poly-energetic source in units of keV.
-    y : list
-        Transmission Data :math:`y`.  (#datasets, #samples, #views, #rows, #columns).
-        Should be the exponential term instead of the projection after taking negative log.
-    F : list
-        Forward matrix. (#datasets, #samples, #views, #rows, #columns, #energy_bins)
-    src_config : list of src_spec_params
     fltr_config : list of fltr_resp_params
-    scint_config : list of src_spec_params
-    model_combination : list of Model_combination
-    learning_rate : int
-    iterations : int
-    tolerance : float
-        Stop when all parameters update is less than tolerance.
-    optimizer_type : str
-        'Adam' or 'NNAT_LBFGS'
-    loss_type : str
-        'mse' or 'wmse' or 'attmse'
-    return_history : bool
-        Save history of parameters.
+        Each fltr_resp_params.fltr_mat should be specified to a Material instead of None.
+    scint_config
+        Each scint_cvt_func_params.scint_mat should be specified to a Material instead of None.
 
     Returns
     -------
-
+    stop_iter : int
+        Stop iteration.
+    final_cost_value : float
+        Final cost value
+    final_model : spec_distrb_energy_resp
+        An instance of spec_distrb_energy_resp after optimization, containing
     """
     logger = logging.getLogger(str(mp.current_process().pid))
 
@@ -433,7 +421,7 @@ def param_based_spec_estimate_cell(energies,
     y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
     weights = [1.0 / yy for yy in y]
     F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
-    for iter in range(1, iterations + 1):
+    for iter in range(1, max_iterations + 1):
         if iter % iter_prt == 0:
             print('Iteration:', iter)
 
@@ -490,7 +478,7 @@ def param_based_spec_estimate_cell(energies,
             # After the update, check if the update is too small
             small_update = True
             for k, v in model.state_dict().items():
-                if torch.norm(v - old_params[k]) > tolerance:
+                if torch.norm(v - old_params[k]) > stop_threshold:
                     small_update = False
                     break
 
@@ -523,14 +511,57 @@ def param_based_spec_estimate(energies,
                               Fltr_config: [fltr_resp_params],
                               Scint_config: [scint_cvt_func_params],
                               model_combination: [Model_combination],
-                              learning_rate=0.1,
-                              iterations=5000,
-                              tolerance=1e-6,
-                              optimizer_type='Adam',
+                              learning_rate=0.02,
+                              max_iterations=5000,
+                              stop_threshold=1e-3,
+                              optimizer_type='NNAT_LBFGS',
                               loss_type='wmse',
-                              logpath='./',
+                              logpath=None,
                               num_processes=1,
                               return_history=False):
+    """
+
+    Parameters
+    ----------
+    energies : numpy.ndarray
+        List of X-ray energies of a poly-energetic source in units of keV.
+    y : list
+        Transmission Data :math:`y`.  (#datasets, #samples, #views, #rows, #columns).
+        Normalized transmission data, background should be close to 1.
+    F : list
+        Forward matrix. (#datasets, #samples, #views, #rows, #columns, #energy_bins)
+    src_config : list of src_spec_params
+        Specify all sources used across experiments.
+    Fltr_config : list of fltr_resp_params
+        Specify all filters used across experiments. For each filter, Fltr_config provides possible material list instead of specific material.
+        The function will find out the best filter material among fltr_resp_params.psb_fltr_mat.
+    Scint_config : list of src_spec_params
+        Specify all scintillators used across experiments. For each scintillator, Scint_config provides possible material list instead of specific material.
+        The function will find out the best scintillator material among scint_cvt_func_params.psb_scint_mat.
+    model_combination : list of Model_combination
+        Each instance of Model_combination specify one experimental scenario. Length is equal to #datasets of y.
+    learning_rate : int
+        Learning rate for optimization.
+    max_iterations : int
+        Integer valued specifying the maximum number of iterations.
+    stop_threshold : float
+        Stop when all parameters update is less than tolerance.
+    optimizer_type : str
+        'Adam' or 'NNAT_LBFGS'
+    loss_type : str
+        'mse' or 'wmse'
+    num_processes : int
+        Number of parallel processes to run over possible filters and scintillators.
+    logpath : str or None
+        If None, print in terminal.
+        If str, print to logpath and for each processor, print to a specific logfile with name logpath+'_'+pid.
+    return_history : bool
+        Save history of parameters.
+
+    Returns
+    -------
+
+    """
     args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
 
     fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in Fltr_config]

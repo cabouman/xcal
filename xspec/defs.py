@@ -121,6 +121,8 @@ class src_spec_params:
             Source voltage lower and uppder bound.
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
+        require_gradient : bool
+            Specify if requiring gradient for scintillator thickness.
 
         Returns
         -------
@@ -169,18 +171,21 @@ class src_spec_params:
         self.require_gradient= require_gradient
 
 class fltr_resp_params:
-    def __init__(self, psb_fltr_mat, fltr_th_bound, fltr_th=None, require_gradient=True):
+    def __init__(self, psb_fltr_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, require_gradient=True):
         """A data structure to store and check filter response parameters.
 
         Parameters
         ----------
         psb_fltr_mat: list
             List of possible filter material.
-            fltr_mat is an instances of class Material, containing chemical formula and density.
         fltr_th_bound: Bound
             fltr_th_bound is an instance of class Bound.
+        fltr_mat : Material
+            fltr_mat is an instances of class Material, containing chemical formula and density.
         fltr_th: float
             filter thickness.
+        require_gradient : bool
+            Specify if requiring gradient for scintillator thickness.
 
         Returns
         -------
@@ -196,7 +201,7 @@ class fltr_resp_params:
 
             self.psb_fltr_mat = psb_fltr_mat
 
-        self.fltr_mat = None
+        self.fltr_mat = fltr_mat
 
         # Check if fltr_th_bound is an instance of Bound
         if not isinstance(fltr_th_bound, Bound):
@@ -232,24 +237,28 @@ class fltr_resp_params:
         self.fltr_mat = fltr_mat
 
 class scint_cvt_func_params:
-    def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_th=None, require_gradient=True):
+    def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_mat=None, scint_th=None, require_gradient=True):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
         ----------
-        psb_scint_mat: Material
-            Scintillator material
+        psb_scint_mat: list of Material
+            Possible list of scintillator materials
         scint_th_bound: Bound
             Scintillator thickness bound
+        scint_mat : Material
+            Scintillator Material, an instance of class Material. Default None.
         scint_th: float
-            Scintillator thickness. Default is None. Can be set for initial value.
+            Scintillator thickness. Default is None. Can be set for initial value. Default None.
+        require_gradient : bool
+            Specify if requiring gradient for scintillator thickness.
 
         Returns
         -------
 
         """
         self.possible_scint_mat = psb_scint_mat
-        self.scint_mat = None
+        self.scint_mat = scint_mat
 
         if not isinstance(scint_th_bound, Bound):
             raise ValueError(

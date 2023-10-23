@@ -80,7 +80,7 @@ if __name__ == '__main__':
     psb_fltr_mat_list = [[Material(formula='Al', density=2.702)], [Material(formula='Cu', density=8.92)]]
     fltr_th_bound = [Bound(lower=0.0, upper=3.0), Bound(lower=0.0, upper=3.0)]
 
-    Fltr_config = [fltr_resp_params(psb_fltr_mat_list[i], fltr_th_bound[i], 2.0, require_gradient=False) for i in range(num_fltr)]
+    Fltr_config = [fltr_resp_params(psb_fltr_mat_list[i], fltr_th_bound[i], fltr_th=2.0, require_gradient=False) for i in range(num_fltr)]
     # Fltr_config = [fltr_resp_params(psb_fltr_mat_list[i], fltr_th_bound[i]) for i in range(num_fltr)]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
@@ -112,11 +112,11 @@ if __name__ == '__main__':
                                     Scint_config,
                                     model_combination,
                                     learning_rate=learning_rate,
-                                    iterations=200,
-                                    tolerance=1e-8,
+                                    max_iterations=200,
+                                    stop_threshold=1e-8,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
-                                    logpath=None,#'./output_exp19/log/%s'%savefile_name,
+                                    logpath=None,  #'./output_exp19/log/%s'%savefile_name,
                                     num_processes=1,
                                     return_history=False)
 

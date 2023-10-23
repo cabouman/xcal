@@ -116,11 +116,11 @@ if __name__ == '__main__':
                                     Scint_config,
                                     model_combination,
                                     learning_rate=learning_rate,
-                                    iterations=200,
-                                    tolerance=1e-8,
+                                    max_iterations=200,
+                                    stop_threshold=1e-8,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
-                                    logpath=None,#'./output_exp18/log/%s'%savefile_name,
+                                    logpath=None,  #'./output_exp18/log/%s'%savefile_name,
                                     num_processes=1,
                                     return_history=False)
 
