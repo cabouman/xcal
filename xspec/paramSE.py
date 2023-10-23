@@ -585,6 +585,16 @@ def param_based_spec_estimate(energies,
 
     cost_list = [res[1] for res in results]
     optimal_cost_ind = np.argmin(cost_list)
-    results[optimal_cost_ind][2].print_ori_parameters()
+    best_res = results[optimal_cost_ind][2]
+    print('Optimal Result:')
+    print('Cost:', cost_list[optimal_cost_ind])
+    for src_i, src_spec in enumerate(best_res.src_spec_list):
+        print('Voltage %d:' % (src_i), src_spec.get_voltage().item())
 
+    for fltr_i, fltr_resp in enumerate(best_res.fltr_resp_list):
+        print(
+            f'Filter {fltr_i}: Material: {fltr_resp.get_fltr_mat()}, Thickness: {fltr_resp.get_fltr_th()}')
+
+    for scint_i, scint_cvt in enumerate(best_res.scint_cvt_list):
+        print(f'Scintillator {scint_i}: Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
     return results
