@@ -103,7 +103,10 @@ class src_spec_model(torch.nn.Module):
         self.scale = src_config.src_vol_bound.upper - src_config.src_vol_bound.lower
         normalized_voltage = (src_config.voltage - self.lower) / self.scale
         # Instantiate parameters
-        self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
+        if src_config.require_gradient:
+            self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
+        else:
+            self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
 
     def get_voltage(self):
         """Read voltage.
@@ -145,14 +148,14 @@ class fltr_resp_model(torch.nn.Module):
         self.fltr_config = fltr_config
 
         # Min-Max Normalization
-        self.lower = [fltr_config.fltr_th_bound[i].lower for i in range(fltr_config.num_fltr)]
-        self.scale = [fltr_config.fltr_th_bound[i].upper - fltr_config.fltr_th_bound[i].lower for i in
-                      range(fltr_config.num_fltr)]
-        normalized_fltr_th = [(fltr_config.fltr_th[i] - self.lower[i]) / self.scale[i] for i in
-                              range(fltr_config.num_fltr)]
+        self.lower = fltr_config.fltr_th_bound.lower
+        self.scale = fltr_config.fltr_th_bound.upper - fltr_config.fltr_th_bound.lower
+        normalized_fltr_th = (fltr_config.fltr_th - self.lower) / self.scale
         # Instantiate parameters
-        self.normalized_fltr_th = torch.nn.ParameterList(
-            [Parameter(torch.tensor(normalized_fltr_th[i], **factory_kwargs)) for i in range(fltr_config.num_fltr)])
+        if fltr_config.require_gradient:
+            self.normalized_fltr_th = Parameter(torch.tensor(normalized_fltr_th, **factory_kwargs))
+        else:
+            self.normalized_fltr_th = torch.tensor(normalized_fltr_th, **factory_kwargs)
 
     def get_fltr_th(self):
         """Get filter thickness.
@@ -163,19 +166,19 @@ class fltr_resp_model(torch.nn.Module):
             List of filter thickness. Length is equal to num_fltr.
 
         """
-        return [torch.clamp(self.normalized_fltr_th[i], 0, 1) * self.scale[i] + self.lower[i]
-                for i in range(self.fltr_config.num_fltr)]
+        return torch.clamp(self.normalized_fltr_th, 0, 1) * self.scale + self.lower
 
-    def get_fltr_mat_comb(self):
+
+    def get_fltr_mat(self):
         """Get filter thickness.
 
         Returns
         -------
-        fltr_th_list: list
-            List of filter thickness. Length is equal to num_fltr.
+        fltr_mat: Material
+            Filter material.
 
         """
-        return self.fltr_config.fltr_mat_comb
+        return self.fltr_config.fltr_mat
 
     def forward(self, energies):
         """Calculate filter response.
@@ -185,6 +188,8 @@ class fltr_resp_model(torch.nn.Module):
         energies : numpy.ndarray
             List of X-ray energies of a poly-energetic source in units of keV.
 
+        fltr_ind_list: list of int
+
         Returns
         -------
         fltr_resp: torch.Tensor
@@ -192,7 +197,7 @@ class fltr_resp_model(torch.nn.Module):
 
         """
 
-        return gen_fltr_res(energies, self.fltr_config.fltr_mat_comb, self.get_fltr_th())
+        return gen_fltr_res(energies, self.fltr_config.fltr_mat, self.get_fltr_th())
 
 
 class scint_cvt_model(torch.nn.Module):
@@ -215,7 +220,11 @@ class scint_cvt_model(torch.nn.Module):
         self.scale = scint_config.scint_th_bound.upper - scint_config.scint_th_bound.lower
         normalized_scint_th = (scint_config.scint_th - self.lower) / self.scale
         # Instantiate parameter
-        self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
+        if scint_config.require_gradient:
+            self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
+        else:
+            self.normalized_scint_th = torch.tensor(normalized_scint_th, **factory_kwargs)
+
 
     def get_scint_th(self):
         """
@@ -310,7 +319,9 @@ class spec_distrb_energy_resp(torch.nn.Module):
 
         """
         src_func = self.src_spec_list[mc.src_ind]()
-        fltr_func = self.fltr_resp_list[mc.fltr_ind](self.energies)
+        fltr_func = self.fltr_resp_list[mc.fltr_ind_list[0]](self.energies)
+        for fii in mc.fltr_ind_list[1:]:
+            fltr_func = fltr_func * self.fltr_resp_list[fii](self.energies)
         scint_func = self.scint_cvt_list[mc.scint_ind](self.energies)
 
         # Calculate total system response as a product of source, filter, and scintillator responses.
@@ -335,14 +346,14 @@ class spec_distrb_energy_resp(torch.nn.Module):
         if self.print_method is not None:
             print = self.print_method
         for src_i, src_spec in enumerate(self.src_spec_list):
-            print('Voltage %d:' % (src_i), src_spec.get_voltage())
+            print('Voltage %d:' % (src_i), src_spec.get_voltage().item())
 
         for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
             print(
-                f'Filter Combination {fltr_i}: (Material Combination: {fltr_resp.get_fltr_mat_comb()}, Thickness: {fltr_resp.get_fltr_th()})')
+                f'Filter {fltr_i}: Material: {fltr_resp.get_fltr_mat()}, Thickness: {fltr_resp.get_fltr_th()}')
 
         for scint_i, scint_cvt in enumerate(self.scint_cvt_list):
-            print(f'Scintillator {scint_i} Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
+            print(f'Scintillator {scint_i}: Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
 
 
 def weighted_mse_loss(input, target, weight):
@@ -522,7 +533,7 @@ def param_based_spec_estimate(energies,
                               return_history=False):
     args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
 
-    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat_comb()] for fcm in Fltr_config]
+    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in Fltr_config]
     scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
     model_params_list = list(product(*fltr_config_list, *scint_config_lsit))
     model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in

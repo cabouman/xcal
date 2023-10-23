@@ -375,19 +375,18 @@ if __name__ == '__main__':
                     'voltage' : float(simkV)
                 }
 
-                psb_fltr_mat_comb = [[Material(formula='Al', density=2.73)], [Material(formula='Cu', density=8.92)]]
+                psb_fltr_mat_comb = [Material(formula='Al', density=2.73),Material(formula='Cu', density=8.92)]
                 fltr_th_bound = Bound(lower=0.0, upper=10.0)
-                fltr_config = fltr_resp_params(1, psb_fltr_mat_comb, fltr_th_bound, fltr_th=[ref_fltr_thickness])
-                fltr_config.set_mat([Material(formula=ref_fltr_formula, density=ref_fltr_formula_density)])
+                fltr_config = fltr_resp_params(psb_fltr_mat_comb, fltr_th_bound, fltr_th=ref_fltr_thickness)
+                fltr_config.set_mat(Material(formula=ref_fltr_formula, density=ref_fltr_formula_density))
 
                 fltr_dict_h5 = {
-                    'num_fltr':fltr_config.num_fltr,
                     'fltr_th':fltr_config.fltr_th
                 }
 
-                for i in range(fltr_config.num_fltr):
-                    fltr_dict_h5['fltr_mat_%d_formula' % i] = fltr_config.fltr_mat_comb[i].formula
-                    fltr_dict_h5['fltr_mat_%d_density' % i] = fltr_config.fltr_mat_comb[i].density
+                i = 0
+                fltr_dict_h5['fltr_mat_%d_formula' % i] = fltr_config.fltr_mat.formula
+                fltr_dict_h5['fltr_mat_%d_density' % i] = fltr_config.fltr_mat.density
 
                 psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in
                                  scint_params]

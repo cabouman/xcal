@@ -1,6 +1,7 @@
 import numpy as np
 from xspec._utils import is_sorted
 from copy import deepcopy
+from itertools import product
 
 class Bound:
     def __init__(self, lower:float, upper:float):
@@ -105,7 +106,7 @@ class Material:
 
 
 class src_spec_params:
-    def __init__(self, energies, src_vol_list, src_spec_list, src_vol_bound, voltage=None):
+    def __init__(self, energies, src_vol_list, src_spec_list, src_vol_bound, voltage=None, require_gradient=True):
         """A data structure to store and check source spectrum parameters.
 
         Parameters
@@ -165,104 +166,73 @@ class src_spec_params:
         if not self.src_vol_bound.is_within_bound(voltage):
             raise ValueError(f"Expected 'voltage' to be inside src_vol_bound, but got {voltage}.")
         self.voltage = voltage
+        self.require_gradient= require_gradient
 
 class fltr_resp_params:
-    def __init__(self, num_fltr, psb_fltr_mat_comb, fltr_th_bound, fltr_th=None):
+    def __init__(self, psb_fltr_mat, fltr_th_bound, fltr_th=None, require_gradient=True):
         """A data structure to store and check filter response parameters.
 
         Parameters
         ----------
-        num_fltr: int
-            Number of filters.
-        psb_fltr_mat_comb: list
-            List of possible filter material combinations.
-            For each filter material combination, if num_fltr is 1, fltr_mat is an instance of class Material,
-            containing chemical formula and density. Otherwise, it whould be a list of instances of class Material.
-            Length should be equal to num_fltr.
-        fltr_th_bound: Bound or list
-            If num_fltr is 1, fltr_th_bound is an instance of class Bound, containing lower bound and uppder bound.
-            Otherwise, it whould be a list of instances of class Bound for filter thickness.
-            Length should be equal to num_fltr.
-        fltr_th: float or list
-            If num_fltr is 1, fltr_th is a non-negative float for filter thickness.
-            Otherwise, it whould be a list of filter thickness, which length should be equal to num_fltr.
-            Default is None.
+        psb_fltr_mat: list
+            List of possible filter material.
+            fltr_mat is an instances of class Material, containing chemical formula and density.
+        fltr_th_bound: Bound
+            fltr_th_bound is an instance of class Bound.
+        fltr_th: float
+            filter thickness.
 
         Returns
         -------
 
         """
-        self.psb_fltr_mat_comb = psb_fltr_mat_comb
-        self.fltr_mat_comb = None
-        # Check if num_fltr is a positive integer
-        if isinstance(num_fltr, int):
-            if num_fltr > 0:
-                self.num_fltr = num_fltr
-            else:
-                raise ValueError("num_fltr must be positive integer, got: {}".format(num_fltr))
-        else:
-            raise ValueError("num_fltr must be an integer, got: {}".format(type(num_fltr).__name__))
 
-        if self.num_fltr == 1:
-            fltr_th_bound = fltr_th_bound if isinstance(fltr_th_bound, list) else [fltr_th_bound]
+        # Check if psb_fltr_mat's elements are all instance of class Material.
+        for mat in psb_fltr_mat:
+            # Check mat is an instance of Material
+            if not isinstance(mat, Material):  # The tolerance can be adjusted
+                raise ValueError(
+                    "Expected an instance of class Material for mat, but got {}.".format(type(mat).__name__))
+
+            self.psb_fltr_mat = psb_fltr_mat
+
+        self.fltr_mat = None
 
         # Check if fltr_th_bound is an instance of Bound
-        for ftb in fltr_th_bound:
-            if not isinstance(ftb, Bound):
-                raise ValueError(
-                    "Expected an instance of Bound for ftb, but got {}.".format(type(ftb).__name__))
+        if not isinstance(fltr_th_bound, Bound):
+            raise ValueError(
+                "Expected an instance of Bound for ftb, but got {}.".format(type(fltr_th_bound).__name__))
         self.fltr_th_bound = fltr_th_bound
 
         # Check fltr_th
         if fltr_th is None:
-            fltr_th = [0.5 * (ftb.lower + ftb.upper) for ftb in fltr_th_bound]
+            fltr_th = 0.5 * (fltr_th_bound.lower + fltr_th_bound.upper)
         else:
-            if isinstance(fltr_th, list):  # if 'fltr_th' is already a list
-                # Convert all elements to float and raise ValueError if any conversion fails
-                try:
-                    fltr_th = [float(ft) for ft in fltr_th]
-                except ValueError:
-                    raise ValueError("All elements in 'fltr_th' must be convertible to float")
-            elif self.num_fltr == 1:  # if there's only one filter, 'fltr_th' can be a single value
-                try:
-                    fltr_th = [float(fltr_th)]  # convert single value to float and wrap it in a list
-                except ValueError:
-                    raise ValueError("'fltr_th' must be convertible to float")
-            else:
-                raise ValueError("'fltr_th' must be a list for multiple filter thickness")
+            try:
+                fltr_th = float(fltr_th)
+            except ValueError:
+                raise ValueError("All elements in 'fltr_th' must be convertible to float")
 
         # Check if fltr_th within fltr_th_bound
-        for ft, ftb in zip(fltr_th, fltr_th_bound):
-            if not ftb.is_within_bound(ft):
-                raise ValueError(f"Expected 'ft' to be inside ftb, but got {ft}.")
+        if not fltr_th_bound.is_within_bound(fltr_th):
+            raise ValueError(f"Expected 'ft' to be inside ftb, but got {fltr_th}.")
         self.fltr_th = fltr_th
+        self.require_gradient = require_gradient
 
-
-    def next_psb_fltr_mat_comb(self):
-        for mat_comb in self.psb_fltr_mat_comb:
-            if self.num_fltr == 1:
-                mat_comb = mat_comb if isinstance(mat_comb, list) else [mat_comb]
-            # Check fltr_mat is an instance of Material
-            for fm in mat_comb:
-                if not isinstance(fm, Material):  # The tolerance can be adjusted
-                    raise ValueError(
-                        "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
-            self.fltr_mat_comb = mat_comb
+    def next_psb_fltr_mat(self):
+        for fltr_mat in self.psb_fltr_mat:
+            self.fltr_mat = fltr_mat
             yield deepcopy(self)
 
-    def set_mat(self, mat_comb: [Material]):
-        if self.num_fltr == 1:
-            mat_comb = mat_comb if isinstance(mat_comb, list) else [mat_comb]
-
+    def set_mat(self, fltr_mat: Material):
         # Check fltr_mat is an instance of Material
-        for fm in mat_comb:
-            if not isinstance(fm, Material):  # The tolerance can be adjusted
-                raise ValueError(
-                    "Expected an instance of class Material for fm, but got {}.".format(type(fm).__name__))
-        self.fltr_mat_comb = mat_comb
+        if not isinstance(fltr_mat, Material):
+            raise ValueError(
+                "Expected an instance of class Material for fm, but got {}.".format(type(fltr_mat).__name__))
+        self.fltr_mat = fltr_mat
 
 class scint_cvt_func_params:
-    def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_th=None):
+    def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_th=None, require_gradient=True):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
@@ -305,6 +275,7 @@ class scint_cvt_func_params:
         if not self.scint_th_bound.is_within_bound(scint_th):
             raise ValueError(f"Expected 'voltage' to be inside scint_th_bound, but got {scint_th}.")
         self.scint_th = scint_th
+        self.require_gradient = require_gradient
 
     def next_psb_scint_mat(self):
         for mat in self.possible_scint_mat:
@@ -320,14 +291,14 @@ class scint_cvt_func_params:
         self.scint_mat = mat
 
 class Model_combination:
-    def __init__(self, src_ind=0, fltr_ind=0, scint_ind=0):
+    def __init__(self, src_ind=0, fltr_ind_list=0, scint_ind=0):
         """
 
         Parameters
         ----------
         src_ind: int
             Index of source model
-        fltr_ind: int
+        fltr_ind_list: int
             Index of filter model
         scint_ind: int
             Index of scintillator model
@@ -337,5 +308,5 @@ class Model_combination:
 
         """
         self.src_ind=src_ind
-        self.fltr_ind=fltr_ind
+        self.fltr_ind_list=fltr_ind_list
         self.scint_ind=scint_ind

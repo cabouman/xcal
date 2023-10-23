@@ -17,15 +17,9 @@ def _obtain_attenuation(energies, formula, density, thickness, torch_mode=False)
             att = np.exp(-mu * thickness)
     return att
 
-def gen_fltr_res(energies, fltr_mat:Material, fltr_th, torch_mode=True):
-    if torch_mode:
-        fltr_res = torch.ones(energies.shape)
-    else:
-        fltr_res = np.ones(energies.shape)
+def gen_fltr_res(energies, fltr_mat:Material, fltr_th:float, torch_mode=True):
 
-    for fm, fth in zip(fltr_mat,fltr_th):
-        fltr_res *= _obtain_attenuation(energies, fm.formula, fm.density, fth, torch_mode)
-    return fltr_res
+    return _obtain_attenuation(energies, fltr_mat.formula, fltr_mat.density, fltr_th, torch_mode)
 
 def gen_filts_specD(energies, composition=[], torch_mode=False):
     src_fltr_dict = []
