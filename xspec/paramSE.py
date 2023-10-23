@@ -535,7 +535,7 @@ def param_based_spec_estimate(energies,
     Fltr_config : list of fltr_resp_params
         Specify all filters used across datasets. For each filter, Fltr_config provides possible material list instead of specific material.
         The function will find out the best filter material among fltr_resp_params.psb_fltr_mat.
-    Scint_config : list of src_spec_params
+    Scint_config : list of scint_cvt_func_params
         Specify all scintillators used across datasets. For each scintillator, Scint_config provides possible material list instead of specific material.
         The function will find out the best scintillator material among scint_cvt_func_params.psb_scint_mat.
     model_combination : list of Model_combination
