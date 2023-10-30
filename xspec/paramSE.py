@@ -83,27 +83,27 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
 
 
-class src_spec_model(torch.nn.Module):
-    def __init__(self, src_config: src_spec_params, device=None, dtype=None) -> None:
+class Source_Model(torch.nn.Module):
+    def __init__(self, source: Source, device=None, dtype=None) -> None:
         """
 
         Parameters
         ----------
-        src_config: src_spec_params
+        source: Source
             Source model configuration.
         device
         dtype
         """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
-        self.src_config = src_config
+        self.source = source
 
         # Min-Max Normalization
-        self.lower = src_config.src_vol_bound.lower
-        self.scale = src_config.src_vol_bound.upper - src_config.src_vol_bound.lower
-        normalized_voltage = (src_config.voltage - self.lower) / self.scale
+        self.lower = source.src_voltage_bound.lower
+        self.scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
+        normalized_voltage = (source.voltage - self.lower) / self.scale
         # Instantiate parameters
-        if src_config.require_gradient:
+        if source.require_gradient:
             self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
@@ -129,30 +129,30 @@ class src_spec_model(torch.nn.Module):
 
         """
 
-        return interp_src_spectra(self.src_config.src_vol_list, self.src_config.src_spec_list, self.get_voltage())
+        return interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
 
 
-class fltr_resp_model(torch.nn.Module):
-    def __init__(self, fltr_config: fltr_resp_params, device=None, dtype=None) -> None:
+class Filter_Model(torch.nn.Module):
+    def __init__(self, filter: Filter, device=None, dtype=None) -> None:
         """Filter module
 
         Parameters
         ----------
-        fltr_config: fltr_resp_params
+        filter: Filter
             Filter model configuration.
         device
         dtype
         """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
-        self.fltr_config = fltr_config
+        self.filter = filter
 
         # Min-Max Normalization
-        self.lower = fltr_config.fltr_th_bound.lower
-        self.scale = fltr_config.fltr_th_bound.upper - fltr_config.fltr_th_bound.lower
-        normalized_fltr_th = (fltr_config.fltr_th - self.lower) / self.scale
+        self.lower = filter.fltr_th_bound.lower
+        self.scale = filter.fltr_th_bound.upper - filter.fltr_th_bound.lower
+        normalized_fltr_th = (filter.fltr_th - self.lower) / self.scale
         # Instantiate parameters
-        if fltr_config.require_gradient:
+        if filter.require_gradient:
             self.normalized_fltr_th = Parameter(torch.tensor(normalized_fltr_th, **factory_kwargs))
         else:
             self.normalized_fltr_th = torch.tensor(normalized_fltr_th, **factory_kwargs)
@@ -178,7 +178,7 @@ class fltr_resp_model(torch.nn.Module):
             Filter material.
 
         """
-        return self.fltr_config.fltr_mat
+        return self.filter.fltr_mat
 
     def forward(self, energies):
         """Calculate filter response.
@@ -197,30 +197,30 @@ class fltr_resp_model(torch.nn.Module):
 
         """
 
-        return gen_fltr_res(energies, self.fltr_config.fltr_mat, self.get_fltr_th())
+        return gen_fltr_res(energies, self.filter.fltr_mat, self.get_fltr_th())
 
 
-class scint_cvt_model(torch.nn.Module):
-    def __init__(self, scint_config: scint_cvt_func_params, device=None, dtype=None) -> None:
+class Scintillator_Model(torch.nn.Module):
+    def __init__(self, scintillator: Scintillator, device=None, dtype=None) -> None:
         """Scintillator convertion model
 
         Parameters
         ----------
-        scint_config: scint_cvt_func_params
+        scintillator: Scintillator
             Sinctillator model configuration.
         device
         dtype
         """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
-        self.scint_config = scint_config
+        self.scintillator = scintillator
 
         # Min-Max Normalization
-        self.lower = scint_config.scint_th_bound.lower
-        self.scale = scint_config.scint_th_bound.upper - scint_config.scint_th_bound.lower
-        normalized_scint_th = (scint_config.scint_th - self.lower) / self.scale
+        self.lower = scintillator.scint_th_bound.lower
+        self.scale = scintillator.scint_th_bound.upper - scintillator.scint_th_bound.lower
+        normalized_scint_th = (scintillator.scint_th - self.lower) / self.scale
         # Instantiate parameter
-        if scint_config.require_gradient:
+        if scintillator.require_gradient:
             self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
         else:
             self.normalized_scint_th = torch.tensor(normalized_scint_th, **factory_kwargs)
@@ -246,7 +246,7 @@ class scint_cvt_model(torch.nn.Module):
             Sintillator thickness.
 
         """
-        return self.scint_config.scint_mat
+        return self.scintillator.scint_mat
 
     def forward(self, energies):
         """Calculate scintillator convertion function.
@@ -263,26 +263,26 @@ class scint_cvt_model(torch.nn.Module):
 
         """
 
-        return gen_scint_cvt_func(energies, self.scint_config.scint_mat, self.get_scint_th())
+        return gen_scint_cvt_func(energies, self.scintillator.scint_mat, self.get_scint_th())
 
 
 class spec_distrb_energy_resp(torch.nn.Module):
     def __init__(self,
                  energies,
-                 src_config_list: [src_spec_params],
-                 fltr_config_list: [fltr_resp_params],
-                 scint_config_list: [scint_cvt_func_params], device=None, dtype=None):
+                 sources: [Source],
+                 filters: [Filter],
+                 scintillators: [Scintillator], device=None, dtype=None):
         """Total spectrally distributed energy response model based on torch.nn.Module.
 
         Parameters
         ----------
         energies: numpy.ndarray
             List of X-ray energies of a poly-energetic source in units of keV.
-        src_config_list: list of src_spec_params
+        sources: list of Source
             List of source model configurations.
-        fltr_config_list: list of fltr_resp_params
+        filters: list of Filter
             List of filter model configurations.
-        scint_config_list: list of scint_cvt_func_params
+        scintillators: list of Scintillator
             List of scintillator model configurations.
         device
         dtype
@@ -291,11 +291,11 @@ class spec_distrb_energy_resp(torch.nn.Module):
         super().__init__()
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         self.src_spec_list = torch.nn.ModuleList(
-            [src_spec_model(src_config, **factory_kwargs) for src_config in src_config_list])
+            [Source_Model(source, **factory_kwargs) for source in sources])
         self.fltr_resp_list = torch.nn.ModuleList(
-            [fltr_resp_model(fltr_config, **factory_kwargs) for fltr_config in fltr_config_list])
+            [Filter_Model(filter, **factory_kwargs) for filter in filters])
         self.scint_cvt_list = torch.nn.ModuleList(
-            [scint_cvt_model(scint_config, **factory_kwargs) for scint_config in scint_config_list])
+            [Scintillator_Model(scintillator, **factory_kwargs) for scintillator in scintillators])
         self.logger = logging.getLogger(str(mp.current_process().pid))
 
     def print_method(self,*args, **kwargs):
@@ -363,9 +363,9 @@ def weighted_mse_loss(input, target, weight):
 def param_based_spec_estimate_cell(energies,
                                    y,
                                    F,
-                                   src_config: [src_spec_params],
-                                   fltr_config: [fltr_resp_params],
-                                   scint_config: [scint_cvt_func_params],
+                                   sources: [Source],
+                                   filters: [Filter],
+                                   scintillators: [Scintillator],
                                    model_combination: [Model_combination],
                                    learning_rate=0.02,
                                    max_iterations=5000,
@@ -377,9 +377,9 @@ def param_based_spec_estimate_cell(energies,
 
     Parameters
     ----------
-    fltr_config : list of fltr_resp_params
+    filters : list of Filter
         Each fltr_resp_params.fltr_mat should be specified to a Material instead of None.
-    scint_config
+    scintillators
         Each scint_cvt_func_params.scint_mat should be specified to a Material instead of None.
 
     Returns
@@ -405,7 +405,7 @@ def param_based_spec_estimate_cell(energies,
         cost_list = []
 
     # Construct our model by instantiating the class defined above
-    model = spec_distrb_energy_resp(energies, src_config, fltr_config, scint_config, device='cpu', dtype=torch.float32)
+    model = spec_distrb_energy_resp(energies, sources, filters, scintillators, device='cpu', dtype=torch.float32)
     model.print_parameters()
 
     loss = torch.nn.MSELoss()
@@ -507,9 +507,9 @@ def init_logging(filename):
 def param_based_spec_estimate(energies,
                               y,
                               F,
-                              src_config: [src_spec_params],
-                              Fltr_config: [fltr_resp_params],
-                              Scint_config: [scint_cvt_func_params],
+                              sources: [Source],
+                              filters: [Filter],
+                              scintillators: [Scintillator],
                               model_combination: [Model_combination],
                               learning_rate=0.02,
                               max_iterations=5000,
@@ -523,20 +523,20 @@ def param_based_spec_estimate(energies,
 
     Parameters
     ----------
-    energies : numpy.ndarray
+    energies : list
         List of X-ray energies of a poly-energetic source in units of keV.
     y : list
         Transmission Data :math:`y`.  (#datasets, #samples, #views, #rows, #columns).
         Normalized transmission data, background should be close to 1.
     F : list
         Forward matrix. (#datasets, #samples, #views, #rows, #columns, #energy_bins)
-    src_config : list of src_spec_params
+    sources : list of Source
         Specify all sources used across datasets.
-    Fltr_config : list of fltr_resp_params
-        Specify all filters used across datasets. For each filter, Fltr_config provides possible material list instead of specific material.
+    filters : list of Filter
+        Specify all filters used across datasets. For each filter, Filter.psb_mat is required.
         The function will find out the best filter material among fltr_resp_params.psb_fltr_mat.
-    Scint_config : list of scint_cvt_func_params
-        Specify all scintillators used across datasets. For each scintillator, Scint_config provides possible material list instead of specific material.
+    scintillators : list of Scintillator
+        Specify all scintillators used across datasets. For each scintillator, Scintillator.psb
         The function will find out the best scintillator material among scint_cvt_func_params.psb_scint_mat.
     model_combination : list of Model_combination
         Each instance of Model_combination specify one experimental scenario. Length is equal to #datasets of y.
@@ -564,19 +564,23 @@ def param_based_spec_estimate(energies,
     """
     args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
 
-    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in Fltr_config]
-    scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
-    model_params_list = list(product(*fltr_config_list, *scint_config_lsit))
-    model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
+    possible_filters_combinations = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in filters]
+    possible_scintilators_combinations = [[sc for sc in scm.next_psb_scint_mat()] for scm in scintillators]
+
+    # Combine possible filters and scintillators
+    model_params_list = list(product(*possible_filters_combinations, *possible_scintilators_combinations))
+    # Regroup filters and scintillators
+    model_params_list = [nested_list(model_params, [len(d) for d in [possible_filters_combinations,
+                                                          possible_scintilators_combinations]]) for model_params in
                          model_params_list]
 
     with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath,)) as pool:
         result_objects = [
             pool.apply_async(
                 param_based_spec_estimate_cell,
-                args=args[:4] + (fltr_config, scint_config,) + args[6:]
+                args=args[:4] + (possible_filters, possible_scintillators,) + args[6:]
             )
-            for fltr_config, scint_config in model_params_list
+            for possible_filters, possible_scintillators in model_params_list
         ]
 
         # Gather results

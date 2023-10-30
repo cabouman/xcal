@@ -377,7 +377,7 @@ if __name__ == '__main__':
 
                 psb_fltr_mat_comb = [Material(formula='Al', density=2.73),Material(formula='Cu', density=8.92)]
                 fltr_th_bound = Bound(lower=0.0, upper=10.0)
-                fltr_config = fltr_resp_params(psb_fltr_mat_comb, fltr_th_bound, fltr_th=ref_fltr_thickness)
+                fltr_config = Filter(psb_fltr_mat_comb, fltr_th_bound, fltr_th=ref_fltr_thickness)
                 fltr_config.set_mat(Material(formula=ref_fltr_formula, density=ref_fltr_formula_density))
 
                 fltr_dict_h5 = {
@@ -391,7 +391,7 @@ if __name__ == '__main__':
                 psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in
                                  scint_params]
                 scint_th_bound = Bound(lower=0.01, upper=0.5)
-                scint_config = scint_cvt_func_params(psb_scint_mat, scint_th_bound, scint_th=ref_scint_thickness)
+                scint_config = Scintillator(psb_scint_mat, scint_th_bound, scint_th=ref_scint_thickness)
                 gt_scint_mat = Material(formula=ref_scint_formula, density=ref_scint_formula_density)
                 scint_config.set_mat(gt_scint_mat)
 

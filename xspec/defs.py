@@ -105,19 +105,19 @@ class Material:
         return f"Material(formula='{self.formula}', density={self.density})"
 
 
-class src_spec_params:
-    def __init__(self, energies, src_vol_list, src_spec_list, src_vol_bound, voltage=None, require_gradient=True):
+class Source:
+    def __init__(self, energies, src_voltage_list, src_spec_list, src_voltage_bound, voltage=None, require_gradient=True):
         """A data structure to store and check source spectrum parameters.
 
         Parameters
         ----------
         energies : numpy.ndarray
             1D numpy array of X-ray energies of a poly-energetic source in units of keV.
-        src_vol_list : list
+        src_voltage_list : list
             A list of source voltage corresponding to src_spect_list.
         src_spec_list: list
             A list of source spectrum corresponding to src_vol_list.
-        src_vol_bound: Bound
+        src_voltage_bound: Bound
             Source voltage lower and uppder bound.
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
@@ -135,23 +135,23 @@ class src_spec_params:
             self.energies = energies
 
         # Check if voltages in src_vol_list is sorted from small to large
-        if not is_sorted(src_vol_list):
+        if not is_sorted(src_voltage_list):
             raise ValueError("Warning: source voltage in src_response_dict are not sorted!")
         else:
-            self.src_vol_list = src_vol_list
+            self.src_voltage_list = src_voltage_list
 
         self.src_spec_list = src_spec_list
 
         # Check if src_vol_bound is an instance of Bound
-        if not isinstance(src_vol_bound, Bound):
+        if not isinstance(src_voltage_bound, Bound):
             raise ValueError(
-                "Expected an instance of Bound for src_vol_bound, but got {}.".format(type(src_vol_bound).__name__))
+                "Expected an instance of Bound for src_vol_bound, but got {}.".format(type(src_voltage_bound).__name__))
         else:
-            self.src_vol_bound = src_vol_bound
+            self.src_voltage_bound = src_voltage_bound
 
         # Check voltage
         if voltage is None:
-            voltage = 0.5 * (src_vol_bound.lower + src_vol_bound.upper)
+            voltage = 0.5 * (src_voltage_bound.lower + src_voltage_bound.upper)
         elif isinstance(voltage, float):
             # It's already a float, no action needed
             voltage = voltage
@@ -165,18 +165,18 @@ class src_spec_params:
         if voltage <= 0:
             raise ValueError(f"Expected 'voltage' to be positive, but got {voltage}.")
 
-        if not self.src_vol_bound.is_within_bound(voltage):
+        if not self.src_voltage_bound.is_within_bound(voltage):
             raise ValueError(f"Expected 'voltage' to be inside src_vol_bound, but got {voltage}.")
         self.voltage = voltage
         self.require_gradient= require_gradient
 
-class fltr_resp_params:
-    def __init__(self, psb_fltr_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, require_gradient=True):
+class Filter:
+    def __init__(self, possible_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, require_gradient=True):
         """A data structure to store and check filter response parameters.
 
         Parameters
         ----------
-        psb_fltr_mat: list
+        possible_mat: list
             List of possible filter material.
         fltr_th_bound: Bound
             fltr_th_bound is an instance of class Bound.
@@ -193,13 +193,13 @@ class fltr_resp_params:
         """
 
         # Check if psb_fltr_mat's elements are all instance of class Material.
-        for mat in psb_fltr_mat:
+        for mat in possible_mat:
             # Check mat is an instance of Material
             if not isinstance(mat, Material):  # The tolerance can be adjusted
                 raise ValueError(
                     "Expected an instance of class Material for mat, but got {}.".format(type(mat).__name__))
 
-            self.psb_fltr_mat = psb_fltr_mat
+            self.possible_mat = possible_mat
 
         self.fltr_mat = fltr_mat
 
@@ -225,7 +225,7 @@ class fltr_resp_params:
         self.require_gradient = require_gradient
 
     def next_psb_fltr_mat(self):
-        for fltr_mat in self.psb_fltr_mat:
+        for fltr_mat in self.possible_mat:
             self.fltr_mat = fltr_mat
             yield deepcopy(self)
 
@@ -236,13 +236,13 @@ class fltr_resp_params:
                 "Expected an instance of class Material for fm, but got {}.".format(type(fltr_mat).__name__))
         self.fltr_mat = fltr_mat
 
-class scint_cvt_func_params:
-    def __init__(self, psb_scint_mat:[Material], scint_th_bound: Bound, scint_mat=None, scint_th=None, require_gradient=True):
+class Scintillator:
+    def __init__(self, possible_mat:[Material], scint_th_bound: Bound, scint_mat=None, scint_th=None, require_gradient=True):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
         ----------
-        psb_scint_mat: list of Material
+        possible_mat: list of Material
             Possible list of scintillator materials
         scint_th_bound: Bound
             Scintillator thickness bound
@@ -257,7 +257,7 @@ class scint_cvt_func_params:
         -------
 
         """
-        self.possible_scint_mat = psb_scint_mat
+        self.possible_mat = possible_mat
         self.scint_mat = scint_mat
 
         if not isinstance(scint_th_bound, Bound):
@@ -287,7 +287,7 @@ class scint_cvt_func_params:
         self.require_gradient = require_gradient
 
     def next_psb_scint_mat(self):
-        for mat in self.possible_scint_mat:
+        for mat in self.possible_mat:
             self.scint_mat = mat
             yield deepcopy(self)
 

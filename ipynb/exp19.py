@@ -73,19 +73,19 @@ if __name__ == '__main__':
     num_src = 2
     src_vol_bound = Bound(lower=30.0, upper=200.0)
     voltage_list = [100.0, 160.0]
-    Src_config = [src_spec_params(energies, simkV_list, src_spec_list, src_vol_bound, voltage_list[i], require_gradient=False) for i in range(num_src)]
-    # Src_config = [src_spec_params(energies, simkV_list, src_spec_list, src_vol_bound) for i in range(num_src)]
+    # Src_config = [src_spec_params(energies, simkV_list, src_spec_list, src_vol_bound, voltage_list[i], require_gradient=False) for i in range(num_src)]
+    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound) for i in range(num_src)]
 
     num_fltr = 2
     psb_fltr_mat_list = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    fltr_th_bound = [Bound(lower=0.0, upper=3.0), Bound(lower=0.0, upper=3.0)]
+    fltr_th_bound = [Bound(lower=1.8, upper=2.3), Bound(lower=1.8, upper=2.3)]
 
-    # Fltr_config = [fltr_resp_params(psb_fltr_mat_list, fltr_th_bound[i], fltr_th=2.0, require_gradient=False) for i in range(num_fltr)]
-    Fltr_config = [fltr_resp_params(psb_fltr_mat_list, fltr_th_bound[i]) for i in range(num_fltr)]
+    Fltr_config = [Filter(psb_fltr_mat_list, fltr_th_bound[i], fltr_th=2.0, require_gradient=False) for i in range(num_fltr)]
+    # Fltr_config = [fltr_resp_params(psb_fltr_mat_list, fltr_th_bound[i]) for i in range(num_fltr)]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
     scint_th_bound = Bound(lower=0.01, upper=0.5)
-    Scint_config = [scint_cvt_func_params(psb_scint_mat, scint_th_bound)]
+    Scint_config = [Scintillator(psb_scint_mat, scint_th_bound)]
 
     model_combination = [Model_combination(src_ind=0, fltr_ind_list=[0], scint_ind=0),
                          Model_combination(src_ind=1, fltr_ind_list=[0,1], scint_ind=0),
@@ -113,7 +113,7 @@ if __name__ == '__main__':
                                     model_combination,
                                     learning_rate=learning_rate,
                                     max_iterations=200,
-                                    stop_threshold=1e-8,
+                                    stop_threshold=1e-4,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
                                     logpath='./output_exp19/log/%s'%savefile_name,
