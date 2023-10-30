@@ -122,7 +122,7 @@ class Source:
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
         optimize : bool
-            Specify if requiring gradient for scintillator thickness.
+            Specify if requiring optimization over source voltage.
 
         Returns
         -------
@@ -185,7 +185,7 @@ class Filter:
         fltr_th: float
             filter thickness.
         optimize : bool
-            Specify if requiring gradient for scintillator thickness.
+            Specify if requiring optimization over filter thickness.
 
         Returns
         -------
@@ -251,7 +251,7 @@ class Scintillator:
         scint_th: float
             Scintillator thickness. Default is None. Can be set for initial value. Default None.
         optimize : bool
-            Specify if requiring gradient for scintillator thickness.
+            Specify if requiring optimization over scintillator thickness.
 
         Returns
         -------
