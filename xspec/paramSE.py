@@ -533,11 +533,11 @@ def param_based_spec_estimate(energies,
     sources : list of Source
         Specify all sources used across datasets.
     filters : list of Filter
-        Specify all filters used across datasets. For each filter, Filter.psb_mat is required.
-        The function will find out the best filter material among fltr_resp_params.psb_fltr_mat.
+        Specify all filters used across datasets. For each filter, Filter.possible_mat is required.
+        The function will find out the best filter material among Filter.possible_mat.
     scintillators : list of Scintillator
-        Specify all scintillators used across datasets. For each scintillator, Scintillator.psb
-        The function will find out the best scintillator material among scint_cvt_func_params.psb_scint_mat.
+        Specify all scintillators used across datasets. For each scintillator, Scintillator.possible_mat is required.
+        The function will find out the best scintillator material among Scintillator.possible_mat.
     model_combination : list of Model_combination
         Each instance of Model_combination specify one experimental scenario. Length is equal to #datasets of y.
     learning_rate : int
