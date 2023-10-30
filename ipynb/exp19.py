@@ -80,7 +80,7 @@ if __name__ == '__main__':
     psb_fltr_mat_list = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
     fltr_th_bound = [Bound(lower=1.8, upper=2.3), Bound(lower=1.8, upper=2.3)]
 
-    Fltr_config = [Filter(psb_fltr_mat_list, fltr_th_bound[i], fltr_th=2.0, require_gradient=False) for i in range(num_fltr)]
+    Fltr_config = [Filter(psb_fltr_mat_list, fltr_th_bound[i], fltr_th=2.0, optimize=False) for i in range(num_fltr)]
     # Fltr_config = [fltr_resp_params(psb_fltr_mat_list, fltr_th_bound[i]) for i in range(num_fltr)]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]

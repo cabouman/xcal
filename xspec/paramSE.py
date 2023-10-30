@@ -103,7 +103,7 @@ class Source_Model(torch.nn.Module):
         self.scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
         normalized_voltage = (source.voltage - self.lower) / self.scale
         # Instantiate parameters
-        if source.require_gradient:
+        if source.optimize:
             self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
@@ -152,7 +152,7 @@ class Filter_Model(torch.nn.Module):
         self.scale = filter.fltr_th_bound.upper - filter.fltr_th_bound.lower
         normalized_fltr_th = (filter.fltr_th - self.lower) / self.scale
         # Instantiate parameters
-        if filter.require_gradient:
+        if filter.optimize:
             self.normalized_fltr_th = Parameter(torch.tensor(normalized_fltr_th, **factory_kwargs))
         else:
             self.normalized_fltr_th = torch.tensor(normalized_fltr_th, **factory_kwargs)
@@ -220,7 +220,7 @@ class Scintillator_Model(torch.nn.Module):
         self.scale = scintillator.scint_th_bound.upper - scintillator.scint_th_bound.lower
         normalized_scint_th = (scintillator.scint_th - self.lower) / self.scale
         # Instantiate parameter
-        if scintillator.require_gradient:
+        if scintillator.optimize:
             self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
         else:
             self.normalized_scint_th = torch.tensor(normalized_scint_th, **factory_kwargs)
@@ -378,9 +378,9 @@ def param_based_spec_estimate_cell(energies,
     Parameters
     ----------
     filters : list of Filter
-        Each fltr_resp_params.fltr_mat should be specified to a Material instead of None.
+        Each Filter.fltr_mat should be specified to a Material instead of None.
     scintillators
-        Each scint_cvt_func_params.scint_mat should be specified to a Material instead of None.
+        Each Scintillator.scint_mat should be specified to a Material instead of None.
 
     Returns
     -------

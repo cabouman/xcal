@@ -106,7 +106,7 @@ class Material:
 
 
 class Source:
-    def __init__(self, energies, src_voltage_list, src_spec_list, src_voltage_bound, voltage=None, require_gradient=True):
+    def __init__(self, energies, src_voltage_list, src_spec_list, src_voltage_bound, voltage=None, optimize=True):
         """A data structure to store and check source spectrum parameters.
 
         Parameters
@@ -121,7 +121,7 @@ class Source:
             Source voltage lower and uppder bound.
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
-        require_gradient : bool
+        optimize : bool
             Specify if requiring gradient for scintillator thickness.
 
         Returns
@@ -168,10 +168,10 @@ class Source:
         if not self.src_voltage_bound.is_within_bound(voltage):
             raise ValueError(f"Expected 'voltage' to be inside src_vol_bound, but got {voltage}.")
         self.voltage = voltage
-        self.require_gradient= require_gradient
+        self.optimize= optimize
 
 class Filter:
-    def __init__(self, possible_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, require_gradient=True):
+    def __init__(self, possible_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, optimize=True):
         """A data structure to store and check filter response parameters.
 
         Parameters
@@ -184,7 +184,7 @@ class Filter:
             fltr_mat is an instances of class Material, containing chemical formula and density.
         fltr_th: float
             filter thickness.
-        require_gradient : bool
+        optimize : bool
             Specify if requiring gradient for scintillator thickness.
 
         Returns
@@ -222,7 +222,7 @@ class Filter:
         if not fltr_th_bound.is_within_bound(fltr_th):
             raise ValueError(f"Expected 'ft' to be inside ftb, but got {fltr_th}.")
         self.fltr_th = fltr_th
-        self.require_gradient = require_gradient
+        self.optimize = optimize
 
     def next_psb_fltr_mat(self):
         for fltr_mat in self.possible_mat:
@@ -237,7 +237,7 @@ class Filter:
         self.fltr_mat = fltr_mat
 
 class Scintillator:
-    def __init__(self, possible_mat:[Material], scint_th_bound: Bound, scint_mat=None, scint_th=None, require_gradient=True):
+    def __init__(self, possible_mat:[Material], scint_th_bound: Bound, scint_mat=None, scint_th=None, optimize=True):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
@@ -250,7 +250,7 @@ class Scintillator:
             Scintillator Material, an instance of class Material. Default None.
         scint_th: float
             Scintillator thickness. Default is None. Can be set for initial value. Default None.
-        require_gradient : bool
+        optimize : bool
             Specify if requiring gradient for scintillator thickness.
 
         Returns
@@ -284,7 +284,7 @@ class Scintillator:
         if not self.scint_th_bound.is_within_bound(scint_th):
             raise ValueError(f"Expected 'voltage' to be inside scint_th_bound, but got {scint_th}.")
         self.scint_th = scint_th
-        self.require_gradient = require_gradient
+        self.optimize = optimize
 
     def next_psb_scint_mat(self):
         for mat in self.possible_mat:
