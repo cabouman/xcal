@@ -1,5 +1,8 @@
+import re
 import numpy as np
 from numpy.core.numeric import asanyarray
+import h5py
+import torch
 from scipy.signal import butter,filtfilt,find_peaks
 import matplotlib.pyplot as plt
 
@@ -8,6 +11,40 @@ light_speed = 299792458.0 # Speed of light
 Planck_constant = 6.62607015E-34 # Planck's constant
 Joule_per_eV = 1.602176565E-19 # Joules per electron-volts
 
+
+def to_tensor(data):
+    if isinstance(data, torch.Tensor):
+        return data
+    return torch.tensor(data)
+
+
+def min_max_normalize_scalar(value, data_min, data_max):
+    value = to_tensor(value)
+    data_min = to_tensor(data_min)
+    data_max = to_tensor(data_max)
+
+    normalized_value = (value - data_min) / (data_max - data_min)
+
+    # If the original input was a standard Python scalar, return a scalar
+    if isinstance(value, (float, int)):
+        return normalized_value.item()
+    return normalized_value
+
+
+def min_max_denormalize_scalar(normalized_value, data_min, data_max):
+    normalized_value = to_tensor(normalized_value)
+    data_min = to_tensor(data_min)
+    data_max = to_tensor(data_max)
+
+    value = normalized_value * (data_max - data_min) + data_min
+
+    # If the original input was a standard Python scalar, return a scalar
+    if isinstance(normalized_value, (float, int)):
+        return value.item()
+    return value
+
+def is_sorted(lst):
+    return all(lst[i] <= lst[i+1] for i in range(len(lst)-1))
 
 def get_wavelength(energy):
     # How is energy related to the wavelength of radiation?
@@ -183,3 +220,124 @@ def binwised_spec_cali_cost(y,x,h,F,W,B,beta,c,energies):
         rho_cost+=beta*(energies[i+1]-energies[i])*huber_func((x[i+1]-x[i])/(energies[i+1]-energies[i]),c)
         
     return cost,rho_cost
+
+
+def concatenate_items(*items):
+    concatenated = []
+    lengths_info = {}
+
+    for index, item in enumerate(items):
+        if isinstance(item, (list, tuple)):
+            concatenated.extend(item)
+            lengths_info[index] = {'length': len(item), 'is_list': True}
+        else:
+            concatenated.append(item)
+            lengths_info[index] = {'length': 1, 'is_list': False}
+
+    return concatenated, lengths_info
+
+def split_list(input_list, lengths_info):
+    output = []
+    start = 0
+    for index, info in lengths_info.items():
+        end = start + info['length']
+        if info['is_list']:
+            output.append(input_list[start:end])
+        else:
+            output.append(input_list[start])
+        start = end
+    return output
+
+def nested_list(tup, indices):
+    result = []
+    start = 0
+    for index in indices:
+        result.append(list(tup[start:start+index]))
+        start += index
+    return result
+
+def contains_nan(tensor):
+    return torch.isnan(tensor).any()
+
+def check_gradients_for_nan(model):
+    has_nan = False
+    for name, param in model.named_parameters():
+        if param.grad is not None and contains_nan(param.grad):
+            print(f"NaN value found in gradients of: {name}")
+            has_nan = True
+            return has_nan
+    return has_nan
+
+
+
+def find_element_change_indexes(lst):
+    start_indexes = [0]
+    current_element = lst[0]
+
+    for i in range(1, len(lst)):
+        if lst[i] != current_element:
+            start_indexes.append(i)
+            current_element = lst[i]
+
+    return start_indexes
+
+
+def find_bin_index(number, sorted_list):
+    left, right = 0, len(sorted_list) - 1
+
+    while left <= right:
+        mid = (left + right) // 2
+        if sorted_list[mid] <= number:
+            left = mid + 1
+        else:
+            right = mid - 1
+
+    return right
+
+
+def get_dict_info(dict_index, src_info, fltr_info_dict, scints_info_dict):
+    src_len = len(src_info)
+    fltr_len = len(fltr_info_dict)
+    scint_len = len(scints_info_dict)
+
+    print(src_info[dict_index // (fltr_len * scint_len)])
+    print(fltr_info_dict[dict_index // scint_len % fltr_len])
+    print(scints_info_dict[dict_index % scint_len])
+
+
+def extract_rsn_from_path(path):
+    match = re.search(r'_rsn_(\d+)', path)
+    if match:
+        return int(match.group(1))
+    return None
+
+
+def nrmse(y_true, y_pred):
+    mse = np.mean((y_true - y_pred) ** 2)
+    rmse = np.sqrt(mse)
+    y_range = np.sqrt(np.mean((y_true) ** 2))
+    return rmse / y_range
+
+
+def neg_log_space(vmin, vmax, num, scale=1):
+    """
+    vmin, vmax must be positive.
+    """
+    return np.abs(
+        -np.log(np.linspace(np.exp(-vmin / vmax / scale), np.exp(-vmax / vmax / scale), num=num))) * vmax * scale
+
+
+
+def read_mv_hdf5(file_name):
+    data = []
+    with h5py.File(file_name, 'r') as f:
+        for key in f.keys():
+            grp_i = f[key]
+            dict_i = {}
+            for sub_key in grp_i.keys():
+                if isinstance(grp_i[sub_key], h5py.Group):
+                    dict_i[sub_key] = {k: v for k, v in grp_i[sub_key].attrs.items()}
+                else:
+                    dict_i[sub_key] = np.array(grp_i[sub_key])
+            data.append(dict_i)
+    return data
