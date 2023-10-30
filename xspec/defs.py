@@ -111,8 +111,8 @@ class Source:
 
         Parameters
         ----------
-        energies : numpy.ndarray
-            1D numpy array of X-ray energies of a poly-energetic source in units of keV.
+        energies : list
+            List of X-ray energies of a poly-energetic source in units of keV.
         src_voltage_list : list
             A list of source voltage corresponding to src_spect_list.
         src_spec_list: list

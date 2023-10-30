@@ -85,7 +85,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
 class Source_Model(torch.nn.Module):
     def __init__(self, source: Source, device=None, dtype=None) -> None:
-        """
+        """Source Model
 
         Parameters
         ----------
@@ -185,7 +185,7 @@ class Filter_Model(torch.nn.Module):
 
         Parameters
         ----------
-        energies : numpy.ndarray
+        energies : list
             List of X-ray energies of a poly-energetic source in units of keV.
 
         fltr_ind_list: list of int
@@ -253,7 +253,7 @@ class Scintillator_Model(torch.nn.Module):
 
         Parameters
         ----------
-        energies: numpy.ndarray
+        energies: list
             List of X-ray energies of a poly-energetic source in units of keV.
 
         Returns
@@ -276,7 +276,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
 
         Parameters
         ----------
-        energies: numpy.ndarray
+        energies: list
             List of X-ray energies of a poly-energetic source in units of keV.
         sources: list of Source
             List of source model configurations.
