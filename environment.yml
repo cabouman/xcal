@@ -1,11 +1,12 @@
-name: myenv
+name: xspec
 channels:
   - defaults
 dependencies:
-  - python=3.8
+  - python=3.10
+  - numpy
+  - ipykernel
   - pip
   - pip:
-    - numpy~=1.22.0
     - psutil>=5.8
     - scipy
     - matplotlib~=3.3.4
@@ -17,3 +18,5 @@ dependencies:
     - svmbir
   - git
   - git+https://bitbucket.org/spekpy/spekpy_release.git#egg=spekpy_release
+  postBuild: |
+    python -m ipykernel install --user --name xspec --display-name "xspec"
