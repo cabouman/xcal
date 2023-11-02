@@ -1,0 +1,19 @@
+name: myenv
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
+  - pip:
+    - numpy~=1.22.0
+    - psutil>=5.8
+    - scipy
+    - matplotlib~=3.3.4
+    - chemparse==0.0.9
+    - h5py
+    - torch
+    - torchvision
+    - torchaudio
+    - svmbir
+  - git
+  - git+https://bitbucket.org/spekpy/spekpy_release.git#egg=spekpy_release
