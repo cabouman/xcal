@@ -466,7 +466,7 @@ def param_based_spec_estimate_cell(energies,
             optimizer.step()
         elif optimizer_type == 'NNAT_LBFGS':
             options = {'closure': closure, 'current_loss': cost,
-                       'max_ls': 200, 'damping': False}
+                       'max_ls': 500, 'damping': False}
             cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
                 options=options)
 
@@ -485,6 +485,8 @@ def param_based_spec_estimate_cell(energies,
             if small_update:
                 print(f"Stopping at epoch {iter} because updates are too small.")
                 print('Cost:', cost.item())
+                # for k, v in model.state_dict().items():
+                #     print(v.item(), old_params[k].item())
                 model.print_ori_parameters()
                 break
     return iter, cost.item(), model
