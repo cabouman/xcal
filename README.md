@@ -16,7 +16,7 @@ touch xspec/opt/_pytorch_lbfgs/functions/__init__.py
 - (recommended) Create a clean virtual environment, such as
 
 ```
-conda create -n xspec
+conda env create -f environment.yml
 conda activate xspec
 ```
 
