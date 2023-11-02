@@ -1,13 +1,8 @@
 API reference
 =============
-
-* dictSE_ Spectral estimation using dictionary learning.
-
-.. _dictSE: dictSE.html
-
 * paramSE_ Spectral estimation using parametric-based model.
 
-.. _paramSE: dictSE.html
+.. _paramSE: paramSE.html
 
 * defs_ Define data structure.
 
@@ -18,6 +13,5 @@ API reference
    :titlesonly:
    :hidden:
 
-   dictSE
    paramSE
    defs
