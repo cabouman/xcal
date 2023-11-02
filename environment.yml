@@ -18,5 +18,5 @@ dependencies:
     - svmbir
   - git
   - git+https://bitbucket.org/spekpy/spekpy_release.git#egg=spekpy_release
-  postBuild: |
-    python -m ipykernel install --user --name xspec --display-name "xspec"
+postBuild: 
+  python -m ipykernel install --user --name xspec --display-name "xspec"
