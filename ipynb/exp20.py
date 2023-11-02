@@ -94,7 +94,7 @@ if __name__ == '__main__':
 
     model_combination = [Model_combination(src_ind=0, fltr_ind_list=[i], scint_ind=0) for i in range(num_fltr)]
 
-    learning_rate = 0.01
+    learning_rate =1
     optimizer_type = 'NNAT_LBFGS'
     loss_type = 'wmse'
 
@@ -108,8 +108,8 @@ if __name__ == '__main__':
                                     Scint_config,
                                     model_combination,
                                     learning_rate=learning_rate,
-                                    max_iterations=100,
-                                    stop_threshold=1e-11,
+                                    max_iterations=200,
+                                    stop_threshold=1e-6,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
                                     logpath='./output_exp20/log/%s'%savefile_name,
