@@ -17,7 +17,8 @@ touch xspec/opt/_pytorch_lbfgs/functions/__init__.py
 
 ```
 conda env create -f environment.yml
-conda activate xspec
+source activate xspec
+python -m ipykernel install --user --name xspec --display-name "xspec"
 ```
 
 - To install with source, go to the root folder and run

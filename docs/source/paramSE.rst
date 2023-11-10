@@ -9,8 +9,8 @@ xspec.paramSE
    .. rubric:: **Functions:**
 
    .. autosummary::
-      src_spec_model
-      fltr_resp_model
-      scint_cvt_model
+      Source_Model
+      Filter_Model
+      Scintillator_Model
       spec_distrb_energy_resp
       param_based_spec_estimate

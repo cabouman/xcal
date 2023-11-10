@@ -11,7 +11,7 @@ xspec.defs
    .. autosummary::
       Bound
       Material
-      src_spec_params
-      fltr_resp_params
-      scint_cvt_func_params
+      Source
+      Filter
+      Scintillator
       Model_combination

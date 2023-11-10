@@ -11,24 +11,23 @@ import spekpy as sp  # Import SpekPy
 import argparse
 
 if __name__ == '__main__':
-
     filename = __file__.split('.')[0]
-    os.makedirs('./output_exp19/', exist_ok=True)
-    os.makedirs('./output_exp19/log/', exist_ok=True)
-    os.makedirs('./output_exp19/res/', exist_ok=True)
+    os.makedirs('./output_exp20/', exist_ok=True)
+    os.makedirs('./output_exp20/log/', exist_ok=True)
+    os.makedirs('./output_exp20/res/', exist_ok=True)
 
     # Initialize the ArgumentParser object
     parser = argparse.ArgumentParser(description='Parse input parameters.')
 
     # Add arguments
-    parser.add_argument('--num_datasets', default=2, type=int, help='Number of datasets.')
-    parser.add_argument('--dataset_ind', default=0, type=int, help='Dataset index.')
+    parser.add_argument('--num_fltr', type=int, help='Number of filters.')
+    parser.add_argument('--dataset_ind', type=int, help='Dataset index.')
 
     # Parse the arguments
     args = parser.parse_args()
 
     # Now you can use the arguments in your script like this:
-    num_datasets = args.num_datasets
+    num_fltr = args.num_fltr
     dataset_ind = args.dataset_ind
 
     src_spec_list = []
@@ -48,6 +47,16 @@ if __name__ == '__main__':
 
     print('\nFinished!\n')
 
+
+
+    # Generate filter response
+    fltr_params = [
+        {'formula': 'Al', 'density': 2.702, 'thickness_list': neg_log_space(vmin=0.1, vmax=6, num=10, scale=1),
+         'thickness_bound': (0, 10)},
+        {'formula': 'Cu', 'density': 8.92, 'thickness_list': neg_log_space(vmin=0.25, vmax=0.6, num=10, scale=1),
+         'thickness_bound': (0, 2)},
+    ]
+
     # Scintillator model
     scint_params = [
         {'formula': 'CsI', 'density': 4.51, 'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1),
@@ -66,43 +75,30 @@ if __name__ == '__main__':
          'thickness_bound': (0.02, 0.5)}
     ]
 
-    data = read_mv_hdf5('../sim_data/sim_2v2f1s_dataset.hdf5')
-    signal_train_list = [d['measurement'] for d in data][dataset_ind:dataset_ind + num_datasets]
-    spec_F_train_list = [d['forward_mat'] for d in data][dataset_ind:dataset_ind + num_datasets]
+    data = read_mv_hdf5('../sim_data/sim_1v3f1s_dataset.hdf5')
+    signal_train_list = [d['measurement'] for d in data][dataset_ind:dataset_ind + num_fltr]
+    spec_F_train_list = [d['forward_mat'] for d in data][dataset_ind:dataset_ind + num_fltr]
 
-    num_src = 2
+
     src_vol_bound = Bound(lower=30.0, upper=200.0)
-    voltage_list = [100.0, 160.0]
-    # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, voltage_list[i], optimize=False) for i in range(num_src)]
-    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound) for i in range(num_src)]
+    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, 100.0, optimize=False)]
+    # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
 
-    num_fltr = 2
-    psb_fltr_mat_list = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    fltr_th_bound = [Bound(lower=1.8, upper=2.3), Bound(lower=1.8, upper=2.3)]
-
-    Fltr_config = [Filter(psb_fltr_mat_list, fltr_th_bound[i], fltr_th=2.0, optimize=False) for i in range(num_fltr)]
-    # Fltr_config = [Filter(psb_fltr_mat_list, fltr_th_bound[i]) for i in range(num_fltr)]
+    psb_fltr_mat_comb =[Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
+    fltr_th_bound = Bound(lower=1.0, upper=10.0)
+    Fltr_config = [Filter(psb_fltr_mat_comb, fltr_th_bound) for i in range(num_fltr)]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
     scint_th_bound = Bound(lower=0.01, upper=0.5)
     Scint_config = [Scintillator(psb_scint_mat, scint_th_bound)]
 
-    model_combination = [Model_combination(src_ind=0, fltr_ind_list=[0], scint_ind=0),
-                         Model_combination(src_ind=1, fltr_ind_list=[0,1], scint_ind=0),
-                        ]
+    model_combination = [Model_combination(src_ind=0, fltr_ind_list=[i], scint_ind=0) for i in range(num_fltr)]
 
-    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in Fltr_config]
-    scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
-    model_params_list = list(itertools.product(*fltr_config_list, *scint_config_lsit))
-    print('Total number of models:', len(model_params_list))
-    model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
-                         model_params_list]
-
-    learning_rate = 0.01
+    learning_rate =1
     optimizer_type = 'NNAT_LBFGS'
     loss_type = 'wmse'
 
-    savefile_name = 'case_mvmf_%d_%d_%s_%s_lr%.0e' % (num_datasets, dataset_ind, optimizer_type, loss_type, learning_rate)
+    savefile_name = 'case_mf_%d_%d_%s_%s_lr%.0e' % (num_fltr, dataset_ind, optimizer_type, loss_type, learning_rate)
 
     res = param_based_spec_estimate(energies,
                                     signal_train_list,
@@ -113,11 +109,11 @@ if __name__ == '__main__':
                                     model_combination,
                                     learning_rate=learning_rate,
                                     max_iterations=200,
-                                    stop_threshold=1e-4,
+                                    stop_threshold=1e-6,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
-                                    logpath='./output_exp19/log/%s'%savefile_name,
-                                    num_processes=7,
+                                    logpath='./output_exp20/log/%s'%savefile_name,
+                                    num_processes=8,
                                     return_history=False)
 
-    np.save('./output_exp19/res/%s.npy'%savefile_name, res, allow_pickle=True)
+    np.save('./output_exp20/res/%s.npy'%savefile_name, res, allow_pickle=True)

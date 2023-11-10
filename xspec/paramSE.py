@@ -85,7 +85,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
 class Source_Model(torch.nn.Module):
     def __init__(self, source: Source, device=None, dtype=None) -> None:
-        """
+        """Source Model
 
         Parameters
         ----------
@@ -103,7 +103,7 @@ class Source_Model(torch.nn.Module):
         self.scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
         normalized_voltage = (source.voltage - self.lower) / self.scale
         # Instantiate parameters
-        if source.require_gradient:
+        if source.optimize:
             self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
@@ -152,7 +152,7 @@ class Filter_Model(torch.nn.Module):
         self.scale = filter.fltr_th_bound.upper - filter.fltr_th_bound.lower
         normalized_fltr_th = (filter.fltr_th - self.lower) / self.scale
         # Instantiate parameters
-        if filter.require_gradient:
+        if filter.optimize:
             self.normalized_fltr_th = Parameter(torch.tensor(normalized_fltr_th, **factory_kwargs))
         else:
             self.normalized_fltr_th = torch.tensor(normalized_fltr_th, **factory_kwargs)
@@ -185,7 +185,7 @@ class Filter_Model(torch.nn.Module):
 
         Parameters
         ----------
-        energies : numpy.ndarray
+        energies : list
             List of X-ray energies of a poly-energetic source in units of keV.
 
         fltr_ind_list: list of int
@@ -220,7 +220,7 @@ class Scintillator_Model(torch.nn.Module):
         self.scale = scintillator.scint_th_bound.upper - scintillator.scint_th_bound.lower
         normalized_scint_th = (scintillator.scint_th - self.lower) / self.scale
         # Instantiate parameter
-        if scintillator.require_gradient:
+        if scintillator.optimize:
             self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
         else:
             self.normalized_scint_th = torch.tensor(normalized_scint_th, **factory_kwargs)
@@ -253,7 +253,7 @@ class Scintillator_Model(torch.nn.Module):
 
         Parameters
         ----------
-        energies: numpy.ndarray
+        energies: list
             List of X-ray energies of a poly-energetic source in units of keV.
 
         Returns
@@ -276,7 +276,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
 
         Parameters
         ----------
-        energies: numpy.ndarray
+        energies: list
             List of X-ray energies of a poly-energetic source in units of keV.
         sources: list of Source
             List of source model configurations.
@@ -378,9 +378,9 @@ def param_based_spec_estimate_cell(energies,
     Parameters
     ----------
     filters : list of Filter
-        Each fltr_resp_params.fltr_mat should be specified to a Material instead of None.
+        Each Filter.fltr_mat should be specified to a Material instead of None.
     scintillators
-        Each scint_cvt_func_params.scint_mat should be specified to a Material instead of None.
+        Each Scintillator.scint_mat should be specified to a Material instead of None.
 
     Returns
     -------
@@ -466,7 +466,7 @@ def param_based_spec_estimate_cell(energies,
             optimizer.step()
         elif optimizer_type == 'NNAT_LBFGS':
             options = {'closure': closure, 'current_loss': cost,
-                       'max_ls': 200, 'damping': False}
+                       'max_ls': 500, 'damping': False}
             cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
                 options=options)
 
@@ -485,6 +485,8 @@ def param_based_spec_estimate_cell(energies,
             if small_update:
                 print(f"Stopping at epoch {iter} because updates are too small.")
                 print('Cost:', cost.item())
+                # for k, v in model.state_dict().items():
+                #     print(v.item(), old_params[k].item())
                 model.print_ori_parameters()
                 break
     return iter, cost.item(), model
@@ -533,11 +535,11 @@ def param_based_spec_estimate(energies,
     sources : list of Source
         Specify all sources used across datasets.
     filters : list of Filter
-        Specify all filters used across datasets. For each filter, Filter.psb_mat is required.
-        The function will find out the best filter material among fltr_resp_params.psb_fltr_mat.
+        Specify all filters used across datasets. For each filter, Filter.possible_mat is required.
+        The function will find out the best filter material among Filter.possible_mat.
     scintillators : list of Scintillator
-        Specify all scintillators used across datasets. For each scintillator, Scintillator.psb
-        The function will find out the best scintillator material among scint_cvt_func_params.psb_scint_mat.
+        Specify all scintillators used across datasets. For each scintillator, Scintillator.possible_mat is required.
+        The function will find out the best scintillator material among Scintillator.possible_mat.
     model_combination : list of Model_combination
         Each instance of Model_combination specify one experimental scenario. Length is equal to #datasets of y.
     learning_rate : int
