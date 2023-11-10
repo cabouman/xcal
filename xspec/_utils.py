@@ -3,7 +3,6 @@ import numpy as np
 from numpy.core.numeric import asanyarray
 import h5py
 import torch
-from scipy.signal import butter,filtfilt,find_peaks
 import matplotlib.pyplot as plt
 
 
@@ -128,42 +127,6 @@ def plot_est_spec_versa(energies, weights_list, coef_, method, spec_info_dict, S
 
 
 
-def sep_lh_freq(spectrum, order=2, cutoff=0.2, height=1e-3):
-    """
-
-    Parameters
-    ----------
-    spectrum: numpy.ndarray
-        X-Ray spectrum to be seperate into smooth part and peaks.
-    order: int
-        The order of the filter. An input to scipy.signal.butter.
-    cutoff: float
-        Desired cutoff frequency of the filter. (0,1)
-    height: float
-        Required height of peaks.
-
-    Returns
-    -------
-    smooth: 1D numpy.ndarray
-        Smooth part of an 1D sequence.
-    high_freq: 1D numpy.ndarray
-        High frequency part of an 1D sequence.
-    peaks: list
-        1D sequence represents the indexes of peaks.
-
-    """
-
-    b, a = butter(order, cutoff, btype='low', analog=False)
-    smooth = filtfilt(b, a, spectrum)
-    high_freq = spectrum - smooth
-
-    x1, _ = find_peaks(high_freq, height)
-    x2, _ = find_peaks(spectrum, height)
-    x = set(x1) & set(x2)
-    peaks = np.array(list(x))
-
-    return smooth, high_freq, peaks
-
 def gen_high_con_mat(peaks, energies, width=2, mat_type='Equilateral Triangle'):
     """Generate high contrast matrix containing normalized triangles functions as columns,
 
@@ -191,19 +154,6 @@ def gen_high_con_mat(peaks, energies, width=2, mat_type='Equilateral Triangle'):
         mask = (yv-xv)<=0
         B = np.clip(1+(1/width * (yv-xv)),0,1)*mask
     return B
-
-def normalize_sp(spectrum, energies, high_freq, peaks,energies_w=None, order=2, cutoff=0.2, height=1e-3):
-    if energies_w is None:
-        energies_w = np.ones(np.shape(spectrum))
-    smooth, high_freq, peaks=sep_lh_freq(spectrum.flatten(), order=order, cutoff=cutoff, height=height)
-    smooth = np.clip(smooth,0,np.inf)
-    B=gen_high_con_mat(peaks, energies, width=5,mat_type='Right Triangle')
-    W = np.diag(energies_w)
-    B /= np.sum(W@B)
-    sm_pks = np.sum(W@(smooth+B@high_freq[peaks]))
-    smooth/= sm_pks
-    high_freq/= sm_pks 
-    return smooth, high_freq, peaks
 
 def huber_func(omega, c):
     if np.abs(omega)<c:

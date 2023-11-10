@@ -1,0 +1,4 @@
+git+https://bitbucket.org/spekpy/spekpy_release.git@master#egg=spekpy
+svmbir
+matplotlib~=3.3.4
+h5py
