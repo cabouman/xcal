@@ -12,3 +12,5 @@ dependencies:
     - torch
     - torchvision
     - torchaudio
+    - matplotlib
+    - h5py

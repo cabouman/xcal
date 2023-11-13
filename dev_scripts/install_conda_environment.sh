@@ -6,6 +6,6 @@ cd ..
 conda deactivate
 conda remove env --name xspec --all
 conda env create -f environment.yml
-source activate xspec
+conda activate xspec
 python -m ipykernel install --user --name xspec --display-name "xspec"
 cd dev_scripts

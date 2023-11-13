@@ -4,6 +4,6 @@
 
 # Build documentation
 cd ../docs
-pip install -r docs/requirements.txt
+pip install -r requirements.txt
 make clean html
 cd ../dev_scripts
