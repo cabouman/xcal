@@ -65,3 +65,23 @@ c.Build documentation
 d.Open documentation in build/html/index.html. You will see API references on that webpage.
 
 
+Build documentation
+-------------------
+
+a.Go to folder demo/
+.. code-block::
+
+	cd demo/
+
+b.Install required dependencies
+.. code-block::
+
+    pip install -r requirements.txt
+
+c.Download simulated dataset
+.. code-block::
+    curl
+
+d. Run demo
+.. code-block::
+    python
