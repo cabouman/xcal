@@ -40,6 +40,7 @@ Installing xspec
         2. *Install package:*
 
             .. code-block::
+
                 pip install .
 Build documentation
 -------------------
