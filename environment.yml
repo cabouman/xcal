@@ -7,13 +7,10 @@ dependencies:
   - ipykernel
   - pip
   - pip:
-    - git+https://bitbucket.org/spekpy/spekpy_release.git@master#egg=spekpy
-    - svmbir
     - psutil>=5.8
-    - scipy
-    - matplotlib~=3.3.4
     - chemparse==0.0.9
-    - h5py
     - torch
     - torchvision
     - torchaudio
+    - matplotlib
+    - h5py
