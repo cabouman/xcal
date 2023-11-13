@@ -1,6 +1,7 @@
 # Basic Packages
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 from xspec.paramSE import param_based_spec_estimate
 from xspec.defs import *
 from xspec._utils import *
@@ -11,16 +12,16 @@ import argparse
 
 if __name__ == '__main__':
     filename = __file__.split('.')[0]
-    os.makedirs('./output_3_source_voltages/', exist_ok=True)
-    os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
-    os.makedirs('./output_3_source_voltages/res/', exist_ok=True)
+    os.makedirs('./output_3_filters/', exist_ok=True)
+    os.makedirs('./output_3_filters/log/', exist_ok=True)
+    os.makedirs('./output_3_filters/res/', exist_ok=True)
 
     # Initialize the ArgumentParser object
     parser = argparse.ArgumentParser(description='Parse input parameters.')
 
     # Add arguments
     parser.add_argument('--dataset_path', type=str, help='Dataset path.')
-    # parser.add_argument('--num_src_v', type=int, help='Number of source voltages.')
+    # parser.add_argument('--num_fltr', type=int, help='Number of filters.')
     # parser.add_argument('--dataset_ind', type=int, help='Dataset index.')
 
     # Parse the arguments
@@ -29,11 +30,12 @@ if __name__ == '__main__':
     # Now you can use the arguments in your script like this:
     dataset_path = args.dataset_path
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
+
     # dataset_ind = args.dataset_ind
 
     src_spec_list = []
     src_info = []
-    simkV_list = np.linspace(30, 160, 14, endpoint=True).astype('int')
+    simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
     max_simkV = max(simkV_list)
     energies = np.linspace(1, max_simkV, max_simkV)
     print('\nRunning demo script (1 mAs, 100 cm)\n')
@@ -76,40 +78,32 @@ if __name__ == '__main__':
          'thickness_bound': (0.02, 0.5)}
     ]
 
-    data = read_mv_hdf5(dataset_path)
-    num_src_v = len(data)
-
+    data = read_mv_hdf5('../sim_data/sim_1v3f1s_dataset.hdf5')
     signal_train_list = [d['measurement'] for d in data]
     spec_F_train_list = [d['forward_mat'] for d in data]
 
 
-    src_vol_bound = Bound(lower=30.0, upper=160.0)
-    # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound) for _ in range(num_src_v)]
-    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, v, optimize=False) for v in [40.0, 80.0, 120.0]]
+    src_vol_bound = Bound(lower=30.0, upper=200.0)
+    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, 100.0, optimize=False)]
+    # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
 
+    num_fltr = len(data)
     psb_fltr_mat_comb =[Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    fltr_th_bound = Bound(lower=0.0, upper=10.0)
-    Fltr_config = [Filter(psb_fltr_mat_comb, fltr_th_bound)]
+    fltr_th_bound = Bound(lower=1.0, upper=10.0)
+    Fltr_config = [Filter(psb_fltr_mat_comb, fltr_th_bound) for i in range(num_fltr)]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
     scint_th_bound = Bound(lower=0.01, upper=0.5)
     Scint_config = [Scintillator(psb_scint_mat, scint_th_bound)]
 
-    model_combination = [Model_combination(src_ind=i, fltr_ind_list=[0], scint_ind=0) for i in range(num_src_v)]
-
-    fltr_config_list = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in Fltr_config]
-    scint_config_lsit = [[sc for sc in scm.next_psb_scint_mat()] for scm in Scint_config]
-    model_params_list = list(itertools.product(*fltr_config_list, *scint_config_lsit))
-    model_params_list = [nested_list(l, [len(d) for d in [fltr_config_list, scint_config_lsit]]) for l in
-                         model_params_list]
-
+    model_combination = [Model_combination(src_ind=0, fltr_ind_list=[i], scint_ind=0) for i in range(num_fltr)]
 
     learning_rate = 0.1
     optimizer_type = 'NNAT_LBFGS'
     loss_type = 'wmse'
 
     savefile_name = 'case_%s_%s_%s_lr%.0e' % (dataset_name, optimizer_type, loss_type, learning_rate)
-    print('Source is Known:')
+
     res = param_based_spec_estimate(energies,
                                     signal_train_list,
                                     spec_F_train_list,
@@ -122,16 +116,16 @@ if __name__ == '__main__':
                                     stop_threshold=1e-6,
                                     optimizer_type=optimizer_type,
                                     loss_type=loss_type,
-                                    logpath='./output_3_source_voltages/log/%s'%savefile_name,
+                                    logpath='./output_3_filters/log/%s'%savefile_name,
                                     num_processes=8,
                                     return_history=False)
 
     print()
     print('Ground Truth Parameter:')
-    print('Source Voltage:', [d['src_config']['voltage']for d in data])
-    print('Filter Material:',  data[0]['fltr_config']['fltr_mat_0_formula'])
-    print('Filter Thickness:',  data[0]['fltr_config']['fltr_th'], 'mm')
+    print('Source Voltage:', data[0]['src_config']['voltage'])
+    print('Filter Material:',  [d['fltr_config']['fltr_mat_0_formula'] for d in data])
+    print('Filter Thickness:',  [d['fltr_config']['fltr_mat_0_th'] for d in data], 'mm')
     print('Scintillator Material:', data[0]['scint_config']['scint_mat_formula'])
     print('Scintillator Thickness:', data[0]['scint_config']['scint_th'], 'mm')
 
-    np.save('./output_3_source_voltages/res/%s.npy'%savefile_name, res, allow_pickle=True)
+    np.save('./output_3_filters/res/%s.npy'%savefile_name, res, allow_pickle=True)
