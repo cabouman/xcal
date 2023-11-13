@@ -20,8 +20,8 @@ if __name__ == '__main__':
 
     # Add arguments
     parser.add_argument('--dataset_path', type=str, help='Dataset path.')
-    parser.add_argument('--num_src_v', type=int, help='Number of source voltages.')
-    parser.add_argument('--dataset_ind', type=int, help='Dataset index.')
+    # parser.add_argument('--num_src_v', type=int, help='Number of source voltages.')
+    # parser.add_argument('--dataset_ind', type=int, help='Dataset index.')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -29,8 +29,7 @@ if __name__ == '__main__':
     # Now you can use the arguments in your script like this:
     dataset_path = args.dataset_path
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
-    num_src_v = args.num_src_v
-    dataset_ind = args.dataset_ind
+    # dataset_ind = args.dataset_ind
 
     src_spec_list = []
     src_info = []
@@ -78,10 +77,10 @@ if __name__ == '__main__':
     ]
 
     data = read_mv_hdf5(dataset_path)
+    num_src_v = len(data)
 
-
-    signal_train_list = [d['measurement'] for d in data][dataset_ind:dataset_ind+num_src_v]
-    spec_F_train_list = [d['forward_mat'] for d in data][dataset_ind:dataset_ind+num_src_v]
+    signal_train_list = [d['measurement'] for d in data]
+    spec_F_train_list = [d['forward_mat'] for d in data]
 
 
     src_vol_bound = Bound(lower=30.0, upper=160.0)
@@ -109,7 +108,7 @@ if __name__ == '__main__':
     optimizer_type = 'NNAT_LBFGS'
     loss_type = 'wmse'
 
-    savefile_name = 'case%s_%d_%d_%s_%s_lr%.0e' % (dataset_name, num_src_v, dataset_ind, optimizer_type, loss_type, learning_rate)
+    savefile_name = 'case_%s_%s_%s_lr%.0e' % (dataset_name, optimizer_type, loss_type, learning_rate)
     print('Source is Known:')
     res = param_based_spec_estimate(energies,
                                     signal_train_list,
@@ -127,6 +126,7 @@ if __name__ == '__main__':
                                     num_processes=8,
                                     return_history=False)
 
+    print()
     print('Ground Truth Parameter:')
     print('Source Voltage:', [d['src_config']['voltage']for d in data])
     print('Filter Material:',  data[0]['fltr_config']['fltr_mat_0_formula'])

@@ -21,8 +21,8 @@ if __name__ == '__main__':
 
     # Add arguments
     parser.add_argument('--dataset_path', type=str, help='Dataset path.')
-    parser.add_argument('--num_fltr', type=int, help='Number of filters.')
-    parser.add_argument('--dataset_ind', type=int, help='Dataset index.')
+    # parser.add_argument('--num_fltr', type=int, help='Number of filters.')
+    # parser.add_argument('--dataset_ind', type=int, help='Dataset index.')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -30,8 +30,8 @@ if __name__ == '__main__':
     # Now you can use the arguments in your script like this:
     dataset_path = args.dataset_path
     dataset_name = dataset_path.split('/')[-1].split('.')[0]
-    num_fltr = args.num_fltr
-    dataset_ind = args.dataset_ind
+
+    # dataset_ind = args.dataset_ind
 
     src_spec_list = []
     src_info = []
@@ -79,14 +79,15 @@ if __name__ == '__main__':
     ]
 
     data = read_mv_hdf5('../sim_data/sim_1v3f1s_dataset.hdf5')
-    signal_train_list = [d['measurement'] for d in data][dataset_ind:dataset_ind + num_fltr]
-    spec_F_train_list = [d['forward_mat'] for d in data][dataset_ind:dataset_ind + num_fltr]
+    signal_train_list = [d['measurement'] for d in data]
+    spec_F_train_list = [d['forward_mat'] for d in data]
 
 
     src_vol_bound = Bound(lower=30.0, upper=200.0)
     Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, 100.0, optimize=False)]
     # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
 
+    num_fltr = len(data)
     psb_fltr_mat_comb =[Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
     fltr_th_bound = Bound(lower=1.0, upper=10.0)
     Fltr_config = [Filter(psb_fltr_mat_comb, fltr_th_bound) for i in range(num_fltr)]
@@ -101,7 +102,7 @@ if __name__ == '__main__':
     optimizer_type = 'NNAT_LBFGS'
     loss_type = 'wmse'
 
-    savefile_name = 'case_mf_%d_%d_%s_%s_lr%.0e' % (num_fltr, dataset_ind, optimizer_type, loss_type, learning_rate)
+    savefile_name = 'case_%s_%s_%s_lr%.0e' % (dataset_name, optimizer_type, loss_type, learning_rate)
 
     res = param_based_spec_estimate(energies,
                                     signal_train_list,
@@ -119,6 +120,7 @@ if __name__ == '__main__':
                                     num_processes=8,
                                     return_history=False)
 
+    print()
     print('Ground Truth Parameter:')
     print('Source Voltage:', data[0]['src_config']['voltage'])
     print('Filter Material:',  [d['fltr_config']['fltr_mat_0_formula'] for d in data])
