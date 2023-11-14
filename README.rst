@@ -85,8 +85,10 @@ c.Download simulated dataset
 
 .. code-block::
 
-    curl
-    tar
+    curl https://engineering.purdue.edu/~bouman/data_repository/data/spectral_source_estimation.tgz -s -o spectral_source_estimation.tgz
+    tar -xvf spectral_source_estimation.tgz
+    mv spectral_source_estimation/sim_data/ sim_data/
+    rm -rf spectral_source_estimation
 
 d. Run demo 1: 3 Datasets scanned with 3 different source voltages and same filter and scintillator.
 
