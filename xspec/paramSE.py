@@ -48,7 +48,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     if torch_mode:
         # index = torch.searchsorted(voltage_list, interp_voltage)
         voltage_list = torch.tensor(voltage_list, dtype=torch.int32)
-        src_spec_list = torch.tensor(src_spec_list, dtype=torch.float32)
+        src_spec_list = [torch.tensor(src_spec, dtype=torch.float32) for src_spec in src_spec_list]
         index = np.searchsorted(voltage_list.detach().clone().numpy(), interp_voltage.detach().clone().numpy())
     else:
         index = np.searchsorted(voltage_list, interp_voltage)
@@ -586,7 +586,7 @@ def param_based_spec_estimate(energies,
         ]
 
         # Gather results
-        print('result_objects', result_objects)
+        print('Number of parallel optimizations:', len(result_objects))
         results = [r.get() for r in result_objects]
 
     cost_list = [res[1] for res in results]
