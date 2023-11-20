@@ -26,3 +26,4 @@ Indices and tables
    :caption: User Guide
 
    api
+   tutorial
