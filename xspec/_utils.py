@@ -291,3 +291,55 @@ def read_mv_hdf5(file_name):
                     dict_i[sub_key] = np.array(grp_i[sub_key])
             data.append(dict_i)
     return data
+
+
+class Gen_Circle:
+    def __init__(self, canvas_shape, pixel_size):
+        """
+        Initialize the Circle class.
+
+        Parameters:
+        canvas_shape (tuple): The shape of the canvas, in pixels.
+        pixel_size (tuple): The size of a pixel, in the same units as the canvas.
+        """
+        self.canvas_shape = canvas_shape
+        self.pixel_size = pixel_size
+        self.canvas_center = ((canvas_shape[0] - 1) / 2.0, (canvas_shape[1] - 1) / 2.0,)
+
+    def generate_mask(self, radius, center=None):
+        """
+        Generate a binary mask for the circle.
+
+        Parameters:
+        radius (int): The radius of the circle, in pixels.
+        center (tuple): The center of the circle.
+
+        Returns:
+        ndarray: A 2D numpy array where points inside the circle are marked as True and points outside are marked as False.
+        """
+        if center is None:
+            center = ((self.canvas_shape[0] - 1) / 2.0, (self.canvas_shape[1] - 1) / 2.0)
+
+        # Generate a grid of coordinates in the shape of the mask.
+        Y, X = np.ogrid[:self.canvas_shape[0], :self.canvas_shape[1]]
+        X = X - self.canvas_center[1]
+        Y = Y - self.canvas_center[0]
+
+        # Scale the coordinates by the pixel size.
+        X = X * self.pixel_size[1]
+        Y = Y * self.pixel_size[0]
+
+        # Calculate the distance from the center to each coordinate.
+        dist_from_center = np.sqrt((X - center[1]) ** 2 + (Y - center[0]) ** 2)
+
+        # Create a mask where points with a distance less than or equal to the radius are marked as True.
+        mask = dist_from_center <= radius
+
+        # Calculate the radius of the largest circle that can be inscribed in the canvas.
+        inscribed_circle_radius = min(self.canvas_shape) // 2
+
+        # Check if the mask is outside the inscribed circle.
+        if radius > inscribed_circle_radius:
+            warnings.warn("The generated mask falls outside the largest inscribed circle in the canvas.")
+
+        return mask
