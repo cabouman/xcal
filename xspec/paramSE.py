@@ -367,6 +367,7 @@ def param_based_spec_estimate_cell(energies,
                                    filters: [Filter],
                                    scintillators: [Scintillator],
                                    model_combination: [Model_combination],
+                                   weight=None,
                                    learning_rate=0.02,
                                    max_iterations=5000,
                                    stop_threshold=1e-3,
@@ -419,7 +420,11 @@ def param_based_spec_estimate_cell(energies,
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
         sys.exit("Exiting the script due to unsupported optimizer type.")
     y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
-    weights = [1.0 / yy for yy in y]
+    if weight is None:
+        weight = [1.0 / yy for yy in y]
+    else:
+        weight = [torch.tensor(np.concatenate([w.reshape((-1, 1)) for w in ww]), dtype=torch.float32) for ww in weight]
+
     F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
     for iter in range(1, max_iterations + 1):
         if iter % iter_prt == 0:
@@ -429,7 +434,7 @@ def param_based_spec_estimate_cell(energies,
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
             cost = 0
-            for yy, FF, ww, mc in zip(y, F, weights, model_combination):
+            for yy, FF, ww, mc in zip(y, F, weight, model_combination):
                 trans_val = model(FF, mc)
                 if loss_type == 'mse':
                     sub_cost = 0.5*loss(trans_val, yy)
@@ -513,6 +518,7 @@ def param_based_spec_estimate(energies,
                               filters: [Filter],
                               scintillators: [Scintillator],
                               model_combination: [Model_combination],
+                              weight=None,
                               learning_rate=0.02,
                               max_iterations=5000,
                               stop_threshold=1e-3,
