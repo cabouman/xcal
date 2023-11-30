@@ -42,28 +42,23 @@ Installing xspec
             .. code-block::
 
                 pip install .
-Build documentation
--------------------
 
-After the package is installed, you can build the documentation.
-In your terminal window,
 
-a.Go to folder docs/
-.. code-block::
+	3. *Build documentation*
+	    After the package is installed, you can build the documentation.
+	    In your terminal window,
 
-	cd docs/
+		a.Install required dependencies
+		.. code-block::
+			cd docs/
+			pip install -r requirements.txt
 
-b.Install required dependencies
-.. code-block::
+		b.Build documentation
+		.. code-block::
+		
+			make clean html
 
-	pip install -r requirements.txt
-
-c.Build documentation
-.. code-block::
-
-	make clean html
-
-d.Open documentation in build/html/index.html. You will see API references on that webpage.
+		c.Open documentation in build/html/index.html. You will see API references on that webpage.
 
 
 Run Demo
