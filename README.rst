@@ -77,10 +77,10 @@ a. Go to folder demo/
 
 
 
-b. Run demo 1: 3 Datasets scanned with 3 different source voltages and same filter and scintillator.
+b. Run demo 1: 3 Datasets scanned with 3 different source voltages and the same filter and scintillator.
 
 .. code-block::
 
-    python demo_spec_est_3_voltages.py --dataset_path ../sim_data/sim_mv_dataset_rsn_1.hdf5
+    python demo_spec_est_3_voltages.py
 
 
