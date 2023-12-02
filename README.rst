@@ -60,39 +60,27 @@ Installing xspec
 
 		c.Open documentation in build/html/index.html. You will see API references on that webpage.
 
+	4. *install demo requirement*
+
+            .. code-block::
+
+                pip install -r demo/requirements.txt
 
 Run Demo
 --------
 
-a.Go to folder demo/
+a. Go to folder demo/
 
 .. code-block::
 
 	cd demo/
 
-b.Install required dependencies
 
-.. code-block::
 
-    pip install -r requirements.txt
-
-c.Download simulated dataset
-
-.. code-block::
-
-    curl https://engineering.purdue.edu/~bouman/data_repository/data/spectral_source_estimation.tgz -s -o spectral_source_estimation.tgz
-    tar -xvf spectral_source_estimation.tgz
-    mv spectral_source_estimation/sim_data/ ../sim_data/
-    rm -rf spectral_source_estimation
-
-d. Run demo 1: 3 Datasets scanned with 3 different source voltages and same filter and scintillator.
+b. Run demo 1: 3 Datasets scanned with 3 different source voltages and same filter and scintillator.
 
 .. code-block::
 
     python demo_spec_est_3_voltages.py --dataset_path ../sim_data/sim_mv_dataset_rsn_1.hdf5
 
-e. Run demo 2: 3 Datasets scanned with 3 different filters and same source voltage and scintillator.
 
-.. code-block::
-
-	python demo_spec_est_3_filters.py --dataset_path ../sim_data/sim_1v3f1s_dataset.hdf5
