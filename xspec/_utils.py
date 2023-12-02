@@ -1,10 +1,9 @@
 import re
 import numpy as np
 from numpy.core.numeric import asanyarray
-import h5py
 import torch
 import matplotlib.pyplot as plt
-
+import warnings
 
 light_speed = 299792458.0 # Speed of light
 Planck_constant = 6.62607015E-34 # Planck's constant
@@ -276,21 +275,6 @@ def neg_log_space(vmin, vmax, num, scale=1):
     return np.abs(
         -np.log(np.linspace(np.exp(-vmin / vmax / scale), np.exp(-vmax / vmax / scale), num=num))) * vmax * scale
 
-
-
-def read_mv_hdf5(file_name):
-    data = []
-    with h5py.File(file_name, 'r') as f:
-        for key in f.keys():
-            grp_i = f[key]
-            dict_i = {}
-            for sub_key in grp_i.keys():
-                if isinstance(grp_i[sub_key], h5py.Group):
-                    dict_i[sub_key] = {k: v for k, v in grp_i[sub_key].attrs.items()}
-                else:
-                    dict_i[sub_key] = np.array(grp_i[sub_key])
-            data.append(dict_i)
-    return data
 
 
 class Gen_Circle:
