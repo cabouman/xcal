@@ -1,11 +1,17 @@
 #!/bin/bash
 # This script destroys the conda environment named "xspec" and reinstall it.
 
-# Create and activate new conda environment
+# First check if the target environment is active and deactivate if so
+NAME=xspec
+
+ENV_STRING=$((conda env list) | grep $NAME)
+if [[ $ENV_STRING == *$NAME* ]]; then
+    conda deactivate
+fi
 cd ..
-conda deactivate
-conda remove env --name xspec --all
+
+conda remove env --name $NAME --all
 conda env create -f environment.yml
-conda activate xspec
-python -m ipykernel install --user --name xspec --display-name "xspec"
+conda activate $NAME
+python -m ipykernel install --user --name $NAME --display-name $NAME
 cd dev_scripts
