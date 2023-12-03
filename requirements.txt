@@ -1,0 +1,7 @@
+numpy
+psutil>=5.8
+chemparse==0.0.9
+torch
+torchvision
+torchaudio
+matplotlib

@@ -11,7 +11,8 @@ fi
 cd ..
 
 conda remove env --name $NAME --all
-conda env create -f environment.yml
+conda create --name $NAME python=3.10
+conda install ipykernel
 conda activate $NAME
 python -m ipykernel install --user --name $NAME --display-name $NAME
 cd dev_scripts
