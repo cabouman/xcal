@@ -100,7 +100,7 @@ if __name__ == '__main__':
     # Use class Source to store a source's paramter.
     # optimize=False means do not optimize source voltage.
     src_vol_bound = Bound(lower=30.0, upper=200.0)
-    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, voltage=vv, optimize=False) for vv in
+    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, voltage=vv, optimize_voltage=False) for vv in
                   voltage_list]
     # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
 

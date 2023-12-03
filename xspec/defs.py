@@ -106,7 +106,9 @@ class Material:
 
 
 class Source:
-    def __init__(self, energies, src_voltage_list, src_spec_list, src_voltage_bound, voltage=None, optimize=True):
+    def __init__(self, energies, src_voltage_list, takeoff_angle_cur, src_spec_list,
+                 src_voltage_bound, takeoff_angle_bound=Bound(0,90), voltage=None,
+                 takeoff_angle=None, optimize_voltage=True, optimize_takeoff_angle=True):
         """A data structure to store and check source spectrum parameters.
 
         Parameters
@@ -121,7 +123,7 @@ class Source:
             Source voltage lower and uppder bound.
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
-        optimize : bool
+        optimize_voltage : bool
             Specify if requiring optimization over source voltage.
 
         Returns
@@ -141,6 +143,7 @@ class Source:
             self.src_voltage_list = src_voltage_list
 
         self.src_spec_list = src_spec_list
+        self.takeoff_angle_cur = takeoff_angle_cur
 
         # Check if src_vol_bound is an instance of Bound
         if not isinstance(src_voltage_bound, Bound):
@@ -148,6 +151,13 @@ class Source:
                 "Expected an instance of Bound for src_vol_bound, but got {}.".format(type(src_voltage_bound).__name__))
         else:
             self.src_voltage_bound = src_voltage_bound
+
+        if not isinstance(takeoff_angle_bound, Bound):
+            raise ValueError(
+                "Expected an instance of Bound for takeOffAngle_bound, but got {}.".format(type(takeoff_angle_bound).__name__))
+        else:
+            self.takeoff_angle_bound = takeoff_angle_bound
+
 
         # Check voltage
         if voltage is None:
@@ -168,7 +178,25 @@ class Source:
         if not self.src_voltage_bound.is_within_bound(voltage):
             raise ValueError(f"Expected 'voltage' to be inside src_vol_bound, but got {voltage}.")
         self.voltage = voltage
-        self.optimize= optimize
+        self.optimize_voltage= optimize_voltage
+
+        # Check takeoff_angle
+        if takeoff_angle is None:
+            takeoff_angle = 0.5 * (takeoff_angle_bound.lower + takeoff_angle_bound.upper)
+        elif isinstance(takeoff_angle, float):
+            # It's already a float, no action needed
+            takeoff_angle = takeoff_angle
+        elif isinstance(takeoff_angle, int):
+            # It's an integer, convert to float
+            takeoff_angle = float(takeoff_angle)
+        else:
+            # It's not a float or int, so raise an error
+            raise ValueError(f"Expected 'takeoff_angle' to be a float or an integer, but got {type(takeoff_angle).__name__}.")
+
+        if not self.takeoff_angle_bound.is_within_bound(takeoff_angle):
+            raise ValueError(f"Expected 'takeoff_angle' to be inside takeoff_angle_bound, but got {takeoff_angle}.")
+        self.takeoff_angle = takeoff_angle
+        self.optimize_takeoff_angle = optimize_takeoff_angle
 
 class Filter:
     def __init__(self, possible_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, optimize=True):

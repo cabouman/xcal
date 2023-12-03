@@ -13,9 +13,29 @@ import logging
 from xspec._utils import *
 from xspec.defs import *
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
+from xspec.chem_consts._consts_from_table import get_lin_att_c_vs_E
+from xspec.chem_consts._periodictabledata import atom_weights, density,ptableinverse
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
 
+def philibert_absorption_correction_factor(voltage, takeOffAngle, energies):
+    Z = 74 # Tungsten
+    PhilibertConstant = 4.0e5
+    PhilibertExponent = 1.65
+
+    sin_psi = np.sin(takeOffAngle * np.pi / 180.0)
+    h_local = 1.2 * atom_weights[Z] / (Z**2)
+    h_factor = h_local / (1.0 + h_local)
+
+    kVp_e165 = voltage ** PhilibertExponent
+
+    kappa = PhilibertConstant/(kVp_e165-energies)
+    mu = get_lin_att_c_vs_E(density, ptableinverse[Z], energies)
+
+    return (1+mu/kappa/sin_psi)**-1*(1+h_factor*mu/kappa/sin_psi)**-1
+
+def takeoff_angle_conversion_factor(voltage, takeOffAngle_cur, takeOffAngle_new, energies):
+    return philibert_absorption_correction_factor(voltage, takeOffAngle_new)/philibert_absorption_correction_factor(voltage, takeOffAngle_cur)
 
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
@@ -46,7 +66,6 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
 
     # Find corresponding voltage bin.
     if torch_mode:
-        # index = torch.searchsorted(voltage_list, interp_voltage)
         voltage_list = torch.tensor(voltage_list, dtype=torch.int32)
         src_spec_list = [torch.tensor(src_spec, dtype=torch.float32) for src_spec in src_spec_list]
         index = np.searchsorted(voltage_list.detach().clone().numpy(), interp_voltage.detach().clone().numpy())
@@ -99,14 +118,23 @@ class Source_Model(torch.nn.Module):
         self.source = source
 
         # Min-Max Normalization
-        self.lower = source.src_voltage_bound.lower
-        self.scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
-        normalized_voltage = (source.voltage - self.lower) / self.scale
+        self.volt_lower = source.src_voltage_bound.lower
+        self.volt_scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
+        normalized_voltage = (source.voltage - self.volt_lower) / self.volt_scale
+        self.toa_lower = source.takeoff_angle_bound.lower
+        self.toa_scale = source.takeoff_angle_bound.upper - source.takeoff_angle_bound.lower
+        normalized_takeoff_angle = (source.takeoff_angle - self.toa_lower) / self.toa_scale
+
         # Instantiate parameters
-        if source.optimize:
+        if source.optimize_voltage:
             self.normalized_voltage = Parameter(torch.tensor(normalized_voltage, **factory_kwargs))
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
+
+        if source.optimize_takeoff_angle:
+            self.normalized_takeoff_angle = Parameter(torch.tensor(normalized_takeoff_angle, **factory_kwargs))
+        else:
+            self.normalized_takeoff_angle = torch.tensor(normalized_takeoff_angle, **factory_kwargs)
 
     def get_voltage(self):
         """Read voltage.
@@ -117,9 +145,20 @@ class Source_Model(torch.nn.Module):
             Read voltage.
         """
 
-        return torch.clamp(self.normalized_voltage, 0, 1) * self.scale + self.lower
+        return torch.clamp(self.normalized_voltage, 0, 1) * self.volt_scale + self.volt_lower
 
-    def forward(self):
+    def get_takeoff_angle(self):
+        """Read takeoff_angle.
+
+        Returns
+        -------
+        voltage: float
+            Read takeoff_angle.
+        """
+
+        return torch.clamp(self.normalized_takeoff_angle, 0, 1) * self.toa_scale + self.toa_lower
+
+    def forward(self, energies):
         """Calculate source spectrum.
 
         Returns
@@ -128,8 +167,9 @@ class Source_Model(torch.nn.Module):
             Source spectrum.
 
         """
-
-        return interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
+        src_spec = interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
+        src_spec = src_spec * takeoff_angle_conversion_factor(self.voltage, self.source.takeoff_angle_cur, self.get_takeoff_angle(), energies)
+        return src_spec
 
 
 class Filter_Model(torch.nn.Module):
@@ -318,7 +358,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
             Transmission value calculated by total spectrally distributed energy response model.
 
         """
-        src_func = self.src_spec_list[mc.src_ind]()
+        src_func = self.src_spec_list[mc.src_ind](self.energies)
         fltr_func = self.fltr_resp_list[mc.fltr_ind_list[0]](self.energies)
         for fii in mc.fltr_ind_list[1:]:
             fltr_func = fltr_func * self.fltr_resp_list[fii](self.energies)

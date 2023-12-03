@@ -84,7 +84,7 @@ if __name__ == '__main__':
 
 
     src_vol_bound = Bound(lower=30.0, upper=200.0)
-    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, 100.0, optimize=False)]
+    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, 100.0, optimize_voltage=False)]
     # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
 
     num_fltr = len(data)
