@@ -24,6 +24,7 @@ Installing xspec
             cd dev_scripts
             yes | source install_all.sh
             cd ..
+            conda activate xspec
 
     b. Option 2: Manual install
 
@@ -32,11 +33,11 @@ Installing xspec
 
             .. code-block::
 
-				conda remove env --name xspec --all
-				conda create --name xspec python=3.10
-				conda install ipykernel
-				conda activate xspec
-				python -m ipykernel install --user --name xspec --display-name xspec
+		conda remove env --name xspec --all
+		conda create --name xspec python=3.10
+		conda install ipykernel
+		conda activate xspec
+		python -m ipykernel install --user --name xspec --display-name xspec
 
         2. *Install package:*
 
@@ -51,16 +52,17 @@ Installing xspec
 
 		a.Install required dependencies
 		.. code-block::
-            conda install pandoc
-			cd docs/
-			pip install -r requirements.txt
+
+		    conda install pandoc
+		    cd docs/
+		    pip install -r requirements.txt
 
 
 		b.Build documentation
 		.. code-block::
 		
-			make clean html
-            cd ..
+		    make clean html
+                    cd ..
 
 		c.Open documentation in docs/build/html/index.html. You will see API references on that webpage.
 
@@ -77,7 +79,7 @@ a. Go to folder demo/
 
 .. code-block::
 
-	cd demo/
+    cd demo/
 
 
 
