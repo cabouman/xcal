@@ -27,9 +27,8 @@ Option 2 explains how to perform manual installation.
         .. code-block::
 
             cd dev_scripts
-            yes | source install_all.sh
+            source install_all.sh
             cd ..
-            conda activate xspec
 
     Option 2: Manual install
 
