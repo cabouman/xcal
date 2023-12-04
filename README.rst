@@ -1,19 +1,25 @@
 xspec
 =====
 
-Python code for X-ray spectral estimation.
+xspec is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material targets at different energies.
 
-Download xspec
---------------
+
+Step 1: Clone repository
+------------------------
+It is very important to clone the repository using the **--recursive** command so it downloads the submodule components. 
 
 .. code-block::
 
-	git clone --recursive https://github.com/cabouman/xspec.git
+	git clone --recursive git@github.com:cabouman/xspec.git
 
 
-Installing xspec
-----------------
-    a. Option 1: Clean install from dev_scripts
+Step 2: Install xspec
+---------------------
+Two options are listed below for installing xspec. 
+Option 1 only requires that a bash script be run, but it is less flexible. 
+Option 2 explains how to perform manual installation.
+
+    Option 1: Clean install from dev_scripts
 
         *******You can skip all other steps if you do a clean install.******
 
@@ -26,7 +32,7 @@ Installing xspec
             cd ..
             conda activate xspec
 
-    b. Option 2: Manual install
+    Option 2: Manual install
 
         1. *Create conda environment:*
             Create a new conda environment named ``jax_labs`` using the following commands:
@@ -72,8 +78,8 @@ Installing xspec
 
                 pip install -r demo/requirements.txt
 
-Run Demo
---------
+Step 3: Run Demo
+----------------
 
 a. Go to folder demo/
 
