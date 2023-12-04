@@ -4,13 +4,14 @@
 # It also installs the documentation.
 
 # Clean out old installation
-source clean_xspec.sh
+yes | source clean_xspec.sh
 
 # Destroy conda environement named xspec and reinstall it
-source install_conda_environment.sh
+yes | source install_conda_environment.sh
+conda activate xspec
 
 # Install xspec
-source install_xspec.sh
+yes | source install_xspec.sh
 
 # Build documentation
-source install_docs.sh
+yes | source install_docs.sh
