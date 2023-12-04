@@ -24,6 +24,7 @@ Installing xspec
             cd dev_scripts
             yes | source install_all.sh
             cd ..
+            conda activate xspec
 
     b. Option 2: Manual install
 
