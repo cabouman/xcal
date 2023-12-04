@@ -27,7 +27,7 @@ Option 2 explains how to perform manual installation.
         .. code-block::
 
             cd dev_scripts
-            source install_all.sh
+            source ./install_all.sh
             cd ..
 
     Option 2: Manual install
