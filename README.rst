@@ -1,16 +1,15 @@
 xspec
 =====
 
-xspec is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material targets at different energies.
+xspec is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material target at different energies.
 
 
 Step 1: Clone repository
 ------------------------
-It is very important to clone the repository using the **--recursive** command so it downloads the submodule components. 
 
 .. code-block::
 
-	git clone --recursive git@github.com:cabouman/xspec.git
+	git clone git@github.com:cabouman/xspec.git
 
 
 Step 2: Install xspec
