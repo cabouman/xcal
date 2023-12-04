@@ -1,13 +1,3 @@
-"""
-Author: Wenrui Li
-Email: li3120@purdue.edu
-Description:
-    This script includes dictionary learning algorithm to do spectrum calibration.
-
-Date: Dec 1st, 2022.
-"""
-
-
 import itertools
 
 from multiprocessing import Pool
