@@ -1,3 +1,0 @@
-[submodule "xspec/opt/_pytorch_lbfgs"]
-	path = xspec/opt/_pytorch_lbfgs
-	url = https://github.com/DamonLee5/PyTorch-LBFGS
