@@ -111,7 +111,7 @@ def gen_datasets_3_voltages():
 
     simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
     max_simkV = max(simkV_list)
-    anode_angle = 12
+    anode_angle = 11
 
     # Energy bins.
     energies = np.linspace(1, max_simkV, max_simkV)
@@ -120,7 +120,7 @@ def gen_datasets_3_voltages():
     src_spec_list = []
     plt.figure(2)
     fig, axs = plt.subplots(1, 1, figsize=(12, 9), dpi=80)
-    print('\nRunning demo script (1 mAs, 100 cm)\n')
+    print('\nRunning demo script (10 mAs, 100 cm)\n')
     for simkV in simkV_list:
         s = sp.Spek(kvp=simkV + 1, th=anode_angle, dk=1, mas=10, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
@@ -148,18 +148,21 @@ def gen_datasets_3_voltages():
     voltage_list = [80.0, 130.0, 180.0] # kV
     # Bound is a python structure to store the possible range for a continuous variable.
     src_vol_bound = Bound(lower=30.0, upper=200.0)
+    takeoff_angle_bound = Bound(lower=5.0, upper=45.0)
     # Source is a python structure to store a source's parameters, including
     # energy bins, kV list and corresponding source spectral dictionary, bound of source voltage, and source voltage.
-    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, voltage_list[i]) for i in range(num_src_v)]
-
+    Src_config = [Source(energies, simkV_list, 11, src_spec_list,
+                         src_vol_bound, takeoff_angle_bound, voltage=vv, takeoff_angle=14,
+                         optimize_voltage=False, optimize_takeoff_angle=False) for vv in
+                  voltage_list]
     ref_src_spec_list = []
     for sc in Src_config:
         # Pass a source's parameters to Source_Model.
         src_model = paramSE.Source_Model(sc)
         with (torch.no_grad()):
             # Forward function of the Source_Model is the source spectrum/spectrally distributed photon flux.
-            ref_src_spec_list.append(src_model().data.numpy())
-            plt.plot(energies, src_model().data, label = '%d kV'%sc.voltage)
+            ref_src_spec_list.append(src_model(energies).data.numpy())
+            plt.plot(energies, src_model(energies).data, label = '%d kV'%sc.voltage)
     plt.title('Spectrally distributed photon flux')
     plt.xlabel('Energy  [keV]')
     plt.legend()

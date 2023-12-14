@@ -13,29 +13,35 @@ import logging
 from xspec._utils import *
 from xspec.defs import *
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
-from xspec.chem_consts._consts_from_table import get_lin_att_c_vs_E
+from xspec.chem_consts._consts_from_table import get_mass_att_c_vs_E
 from xspec.chem_consts._periodictabledata import atom_weights, density,ptableinverse
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
 
 def philibert_absorption_correction_factor(voltage, takeOffAngle, energies):
     Z = 74 # Tungsten
+    target_material = ptableinverse[Z]
     PhilibertConstant = 4.0e5
     PhilibertExponent = 1.65
-
-    sin_psi = np.sin(takeOffAngle * np.pi / 180.0)
-    h_local = 1.2 * atom_weights[Z] / (Z**2)
+    sin_psi = torch.sin(takeOffAngle * torch.pi / 180.0)
+    h_local = 1.2 * atom_weights[target_material] / (Z**2)
     h_factor = h_local / (1.0 + h_local)
 
     kVp_e165 = voltage ** PhilibertExponent
-
-    kappa = PhilibertConstant/(kVp_e165-energies)
-    mu = get_lin_att_c_vs_E(density, ptableinverse[Z], energies)
+    kappa = torch.zeros((energies.shape))
+    if not isinstance(energies, torch.Tensor):
+        energies = torch.tensor(energies)
+    kappa[:-1] = (PhilibertConstant / (kVp_e165 - energies ** PhilibertExponent)[:-1])
+    kappa[-1] = torch.inf
+    mu = torch.tensor(get_mass_att_c_vs_E(ptableinverse[Z], energies)) # cm^-1
 
     return (1+mu/kappa/sin_psi)**-1*(1+h_factor*mu/kappa/sin_psi)**-1
 
 def takeoff_angle_conversion_factor(voltage, takeOffAngle_cur, takeOffAngle_new, energies):
-    return philibert_absorption_correction_factor(voltage, takeOffAngle_new)/philibert_absorption_correction_factor(voltage, takeOffAngle_cur)
+    # Assuming takeOffAngle_cur is already defined
+    if not isinstance(takeOffAngle_cur, torch.Tensor):
+        takeOffAngle_cur = torch.tensor(takeOffAngle_cur)
+    return philibert_absorption_correction_factor(voltage, takeOffAngle_new, energies)/philibert_absorption_correction_factor(voltage, takeOffAngle_cur, energies)
 
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
@@ -168,7 +174,7 @@ class Source_Model(torch.nn.Module):
 
         """
         src_spec = interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
-        src_spec = src_spec * takeoff_angle_conversion_factor(self.voltage, self.source.takeoff_angle_cur, self.get_takeoff_angle(), energies)
+        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), self.source.takeoff_angle_cur, self.get_takeoff_angle(), energies)
         return src_spec
 
 
@@ -332,6 +338,8 @@ class spec_distrb_energy_resp(torch.nn.Module):
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         self.src_spec_list = torch.nn.ModuleList(
             [Source_Model(source, **factory_kwargs) for source in sources])
+        for smm in self.src_spec_list[1:]:
+            smm._parameters['normalized_takeoff_angle'] = self.src_spec_list[0]._parameters['normalized_takeoff_angle']
         self.fltr_resp_list = torch.nn.ModuleList(
             [Filter_Model(filter, **factory_kwargs) for filter in filters])
         self.scint_cvt_list = torch.nn.ModuleList(
@@ -386,7 +394,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
         if self.print_method is not None:
             print = self.print_method
         for src_i, src_spec in enumerate(self.src_spec_list):
-            print('Voltage %d:' % (src_i), src_spec.get_voltage().item())
+            print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
 
         for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
             print(
@@ -641,7 +649,7 @@ def param_based_spec_estimate(energies,
     print('Optimal Result:')
     print('Cost:', cost_list[optimal_cost_ind])
     for src_i, src_spec in enumerate(best_res.src_spec_list):
-        print('Voltage %d:' % (src_i), src_spec.get_voltage().item())
+        print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
 
     for fltr_i, fltr_resp in enumerate(best_res.fltr_resp_list):
         print(
