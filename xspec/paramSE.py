@@ -41,6 +41,8 @@ def takeoff_angle_conversion_factor(voltage, takeOffAngle_cur, takeOffAngle_new,
     # Assuming takeOffAngle_cur is already defined
     if not isinstance(takeOffAngle_cur, torch.Tensor):
         takeOffAngle_cur = torch.tensor(takeOffAngle_cur)
+    if not isinstance(takeOffAngle_new, torch.Tensor):
+        takeOffAngle_new = torch.tensor(takeOffAngle_new)
     return philibert_absorption_correction_factor(voltage, takeOffAngle_new, energies)/philibert_absorption_correction_factor(voltage, takeOffAngle_cur, energies)
 
 
