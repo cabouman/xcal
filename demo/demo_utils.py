@@ -122,7 +122,7 @@ def gen_datasets_3_voltages():
     fig, axs = plt.subplots(1, 1, figsize=(12, 9), dpi=80)
     print('\nRunning demo script (1 mAs, 100 cm)\n')
     for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=anode_angle, dk=1, mas=10, char=True)  # Create the spectrum model
+        s = sp.Spek(kvp=simkV + 1, th=anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
         phi_k = phi_k * ((rsize / 10) ** 2)
         ## Plot the x-ray spectrum
@@ -257,11 +257,16 @@ def gen_datasets_3_voltages():
         scint_s = ref_scint_cvt_list[mc.scint_ind]
 
         # Add poisson noise before reaching detector/scintillator.
-        lambda_1 = spec_F * src_s * fltr_s
-        lambda_0 = src_s * fltr_s
-        lambda_noise = np.random.poisson(lambda_1)
-        trans_noise = np.trapz(lambda_noise * scint_s, energies, axis=-1)
-        trans_noise /= np.trapz(lambda_0 * scint_s, energies, axis=-1)
+        # lambda_1 = spec_F * src_s * fltr_s
+        # lambda_0 = src_s * fltr_s
+        # lambda_noise = np.random.poisson(lambda_1)
+        # trans_noise = np.trapz(lambda_noise * scint_s, energies, axis=-1)
+        # trans_noise /= np.trapz(lambda_0 * scint_s, energies, axis=-1)
+        trans = np.trapz(spec_F * src_s * fltr_s* scint_s, energies, axis=-1)
+        trans_0 = np.trapz(src_s * fltr_s* scint_s, energies, axis=-1)
+        trans_noise = np.random.poisson(trans).astype(np.float64)
+        trans_noise /= trans_0
+
 
         # Store noiseless transmission data and forward matrix.
         trans_list.append(trans_noise)
@@ -300,4 +305,5 @@ def gen_datasets_3_voltages():
             'scint_config': scint_dict_h5,
         }
         datasets.append(d)
+    plt.savefig('./output/7.png')
     return datasets
