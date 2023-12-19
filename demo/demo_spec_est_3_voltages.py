@@ -19,51 +19,6 @@ if __name__ == '__main__':
     os.makedirs('./output_3_source_voltages/res/', exist_ok=True)
 
 
-    src_spec_list = []
-    src_info = []
-    simkV_list = np.linspace(30, 160, 14, endpoint=True).astype('int')
-    max_simkV = max(simkV_list)
-    energies = np.linspace(1, max_simkV, max_simkV)
-    print('\nRunning demo script (1 mAs, 100 cm)\n')
-    for simkV in simkV_list:
-        for th in [12]:
-            s = sp.Spek(kvp=simkV + 1, th=th, dk=1, char=True)  # Create the spectrum model
-            k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
-            src_info.append((simkV,))
-            src_spec = np.zeros((max_simkV))
-            src_spec[:simkV] = phi_k[::2]
-            src_spec_list.append(src_spec)
-
-    print('\nFinished!\n')
-
-
-
-    # Generate filter response
-    fltr_params = [
-        {'formula': 'Al', 'density': 2.702, 'thickness_list': neg_log_space(vmin=0.1, vmax=6, num=10, scale=1),
-         'thickness_bound': (0, 10)},
-        {'formula': 'Cu', 'density': 8.92, 'thickness_list': neg_log_space(vmin=0.25, vmax=0.6, num=10, scale=1),
-         'thickness_bound': (0, 2)},
-    ]
-
-    # Scintillator model
-    scint_params = [
-        {'formula': 'CsI', 'density': 4.51, 'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1),
-         'thickness_bound': (0.02, 0.5)},
-        {'formula': 'Gd3Al2Ga3O12', 'density': 6.63,
-         'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1), 'thickness_bound': (0.02, 0.5)},
-        {'formula': 'Lu3Al5O12', 'density': 6.73,
-         'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1), 'thickness_bound': (0.02, 0.5)},
-        {'formula': 'CdWO4', 'density': 7.9, 'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1),
-         'thickness_bound': (0.02, 0.5)},
-        {'formula': 'Y3Al5O12', 'density': 4.56,
-         'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1), 'thickness_bound': (0.02, 0.5)},
-        {'formula': 'Bi4Ge3O12', 'density': 7.13,
-         'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1), 'thickness_bound': (0.02, 0.5)},
-        {'formula': 'Gd2O2S', 'density': 7.32, 'thickness_list': neg_log_space(vmin=0.02, vmax=0.35, num=10, scale=1),
-         'thickness_bound': (0.02, 0.5)}
-    ]
-
     data = gen_datasets_3_voltages()
     num_src_v = len(data)
 
