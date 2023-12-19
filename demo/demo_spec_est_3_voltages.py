@@ -31,7 +31,8 @@ if __name__ == '__main__':
     voltage_list = [80.0, 130.0, 180.0]
     simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
     max_simkV = max(simkV_list)
-    anode_angle = 12
+    dict_anode_angle = 11
+
     # Pixel size in mm units.
     rsize = 0.01  # mm
 
@@ -42,7 +43,7 @@ if __name__ == '__main__':
     src_spec_list = []
     print('\nRunning demo script (1 mAs, 100 cm)\n')
     for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
+        s = sp.Spek(kvp=simkV + 1, th=dict_anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
         phi_k = phi_k * ((rsize / 10) ** 2)
 
@@ -55,7 +56,10 @@ if __name__ == '__main__':
     # Use class Source to store a source's paramter.
     # optimize=False means do not optimize source voltage.
     src_vol_bound = Bound(lower=30.0, upper=200.0)
-    Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound, voltage=vv, optimize_voltage=False) for vv in
+    takeoff_angle_bound = Bound(lower=5.0, upper=45.0)
+    Src_config = [Source(energies, simkV_list, dict_anode_angle, src_spec_list,
+                         src_vol_bound, takeoff_angle_bound, voltage=vv,
+                         optimize_voltage=False, optimize_takeoff_angle=True) for vv in
                   voltage_list]
     # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
 
@@ -113,7 +117,7 @@ if __name__ == '__main__':
 
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     for i in range(3):
-        axs[i].plot(energies, best_res.src_spec_list[i]().data, '--', label='Estimated %d' % i)
+        axs[i].plot(energies, best_res.src_spec_list[i](energies).data, '--', label='Estimated %d' % i)
         axs[i].set_ylim((0, 0.2e3))
         axs[i].legend()
     plt.savefig('./output_3_source_voltages/res/Est_source.png')
@@ -132,3 +136,47 @@ if __name__ == '__main__':
     plt.plot(energies, best_res.scint_cvt_list[0](energies).data, '--', label='Estimated')
     plt.legend()
     plt.savefig('./output_3_source_voltages/res/Est_scintillator.png')
+
+    # Define the data for each section
+    source_data = [
+        ["Source Parameters", "GT", "Estimated"],
+        ["Voltage 1(kV)", 80, "/"],
+        ["Voltage 2(kV)", 130, "/"],
+        ["Voltage 3(kV)", 180, "/"],
+        ["Takeoff Angle(°)", 20, best_res.src_spec_list[0].get_takeoff_angle()]
+    ]
+
+    filter_data = [
+        ["Filter 1 Parameters", "GT", "Estimated"],
+        ["material", "Al", best_res.fltr_resp_list[0].get_fltr_mat().formula],
+        ["thickness(mm)", 3, best_res.fltr_resp_list[0].get_fltr_th().data]
+    ]
+
+    scintillator_data = [
+        ["Scintillator Parameters", "Parameter", "Value"],
+        ["material", "CsI", best_res.scint_cvt_list[0].get_scint_mat().formula],
+        ["thickness(mm)", 0.33, best_res.scint_cvt_list[0].get_scint_th().data]
+    ]
+
+
+    # Function to print a section of the table
+    def print_section(data):
+        # Determine the maximum width for each column
+        col_widths = [max(len(str(row[i])) for row in data) for i in range(len(data[0]))]
+        # Create a format string for each row
+        row_format = " | ".join(["{:<" + str(width) + "}" for width in col_widths])
+
+        # Print the header row
+        print(row_format.format(*data[0]))
+        print('-' * sum(col_widths))  # Separator
+
+        # Print each data row
+        for row in data[1:]:
+            print(row_format.format(*row))
+        print()  # Add a blank line after the section
+
+
+    # Print the table sections
+    print_section(source_data)
+    print_section(filter_data)
+    print_section(scintillator_data)
