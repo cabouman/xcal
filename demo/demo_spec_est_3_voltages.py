@@ -87,7 +87,7 @@ if __name__ == '__main__':
     src_spec_list = []
     print('\nRunning demo script (1 mAs, 100 cm)\n')
     for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=anode_angle, dk=1, mas=10, char=True)  # Create the spectrum model
+        s = sp.Spek(kvp=simkV + 1, th=anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
         phi_k = phi_k * ((rsize / 10) ** 2)
 
@@ -133,7 +133,7 @@ if __name__ == '__main__':
 
     savefile_name = 'case_mv_%s_%s_lr%.0e' % (optimizer_type, loss_type, learning_rate)
 
-    os.makedirs('./output/log/', exist_ok=True)
+    os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
 
     res = param_based_spec_estimate(energies,
                                     signal_train_list,
