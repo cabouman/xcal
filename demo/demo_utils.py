@@ -257,11 +257,6 @@ def gen_datasets_3_voltages():
         scint_s = ref_scint_cvt_list[mc.scint_ind]
 
         # Add poisson noise before reaching detector/scintillator.
-        # lambda_1 = spec_F * src_s * fltr_s
-        # lambda_0 = src_s * fltr_s
-        # lambda_noise = np.random.poisson(lambda_1)
-        # trans_noise = np.trapz(lambda_noise * scint_s, energies, axis=-1)
-        # trans_noise /= np.trapz(lambda_0 * scint_s, energies, axis=-1)
         trans = np.trapz(spec_F * src_s * fltr_s* scint_s, energies, axis=-1)
         trans_0 = np.trapz(src_s * fltr_s* scint_s, energies, axis=-1)
         trans_noise = np.random.poisson(trans).astype(np.float64)
