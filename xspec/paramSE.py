@@ -1,4 +1,5 @@
 import sys
+import atexit
 import warnings
 import numpy as np
 
@@ -8,6 +9,8 @@ from torch.nn.parameter import Parameter
 
 from torch.multiprocessing import Pool
 import torch.multiprocessing as mp
+mp.set_sharing_strategy('file_system')
+
 import logging
 
 from xspec._utils import *
@@ -17,6 +20,21 @@ from xspec.chem_consts._consts_from_table import get_mass_att_c_vs_E
 from xspec.chem_consts._periodictabledata import atom_weights, density,ptableinverse
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
+
+class ClampFunction(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input, min, max):
+        ctx.save_for_backward(input)
+        return input.clamp(min, max)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        return grad_input, None, None
+
+def clamp_with_grad(input, min, max):
+    return ClampFunction.apply(input, min, max)
 
 def philibert_absorption_correction_factor(voltage, takeOffAngle, energies):
     Z = 74 # Tungsten
@@ -153,7 +171,7 @@ class Source_Model(torch.nn.Module):
             Read voltage.
         """
 
-        return torch.clamp(self.normalized_voltage, 0, 1) * self.volt_scale + self.volt_lower
+        return clamp_with_grad(self.normalized_voltage, 0, 1) * self.volt_scale + self.volt_lower
 
     def get_takeoff_angle(self):
         """Read takeoff_angle.
@@ -164,7 +182,7 @@ class Source_Model(torch.nn.Module):
             Read takeoff_angle.
         """
 
-        return torch.clamp(self.normalized_takeoff_angle, 0, 1) * self.toa_scale + self.toa_lower
+        return clamp_with_grad(self.normalized_takeoff_angle, 0, 1) * self.toa_scale + self.toa_lower
 
     def forward(self, energies):
         """Calculate source spectrum.
@@ -214,7 +232,7 @@ class Filter_Model(torch.nn.Module):
             List of filter thickness. Length is equal to num_fltr.
 
         """
-        return torch.clamp(self.normalized_fltr_th, 0, 1) * self.scale + self.lower
+        return clamp_with_grad(self.normalized_fltr_th, 0, 1) * self.scale + self.lower
 
 
     def get_fltr_mat(self):
@@ -283,7 +301,7 @@ class Scintillator_Model(torch.nn.Module):
             Sintillator thickness.
 
         """
-        return torch.clamp(self.normalized_scint_th, 0, 1) * self.scale + self.lower
+        return clamp_with_grad(self.normalized_scint_th, 0, 1) * self.scale + self.lower
 
     def get_scint_mat(self):
         """
@@ -464,7 +482,7 @@ def param_based_spec_estimate_cell(energies,
         iter_prt = 50
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_type == 'NNAT_LBFGS':
-        iter_prt = 10
+        iter_prt = 5
         optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate)
     else:
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
@@ -521,9 +539,8 @@ def param_based_spec_estimate_cell(energies,
             optimizer.step()
         elif optimizer_type == 'NNAT_LBFGS':
             options = {'closure': closure, 'current_loss': cost,
-                       'max_ls': 500, 'damping': False}
-            cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(
-                options=options)
+                       'max_ls': 100, 'damping': False}
+            cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(options=options)
 
         with (torch.no_grad()):
             if iter % iter_prt == 0:
@@ -533,7 +550,7 @@ def param_based_spec_estimate_cell(energies,
             # After the update, check if the update is too small
             small_update = True
             for k, v in model.state_dict().items():
-                if torch.norm(v - old_params[k]) > stop_threshold:
+                if torch.norm(v.clamp(0,1) - old_params[k].clamp(0,1)) > stop_threshold:
                     small_update = False
                     break
 
@@ -547,7 +564,7 @@ def param_based_spec_estimate_cell(energies,
     return iter, cost.item(), model
 
 
-def init_logging(filename):
+def init_logging(filename, num_processes):
     worker_id = mp.current_process().pid
     logger = logging.getLogger(str(worker_id))
     logger.setLevel(logging.INFO)
@@ -555,11 +572,20 @@ def init_logging(filename):
     if filename is None:
         handler = logging.StreamHandler()
     else:
-        handler = logging.FileHandler(f"{filename}_{worker_id}.log")
+        handler = logging.FileHandler(f"{filename}_{worker_id%num_processes}.log")
 
     formatter = logging.Formatter('%(asctime)s  - %(message)s')
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+    # Register a cleanup function to close the logger when the process exits
+    atexit.register(close_logging, logger)
+
+def close_logging(logger):
+    handlers = logger.handlers[:]
+    for handler in handlers:
+        handler.close()
+        logger.removeHandler(handler)
 
 def param_based_spec_estimate(energies,
                               y,
@@ -632,7 +658,7 @@ def param_based_spec_estimate(energies,
                                                           possible_scintilators_combinations]]) for model_params in
                          model_params_list]
 
-    with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath,)) as pool:
+    with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath, num_processes)) as pool:
         result_objects = [
             pool.apply_async(
                 param_based_spec_estimate_cell,
