@@ -36,12 +36,12 @@ class ClampFunction(torch.autograd.Function):
 def clamp_with_grad(input, min, max):
     return ClampFunction.apply(input, min, max)
 
-def philibert_absorption_correction_factor(voltage, takeOffAngle, energies):
+def philibert_absorption_correction_factor(voltage, sin_psi, energies):
     Z = 74 # Tungsten
     target_material = ptableinverse[Z]
     PhilibertConstant = 4.0e5
     PhilibertExponent = 1.65
-    sin_psi = torch.sin(takeOffAngle * torch.pi / 180.0)
+    #sin_psi = torch.sin(takeOffAngle * torch.pi / 180.0)
     h_local = 1.2 * atom_weights[target_material] / (Z**2)
     h_factor = h_local / (1.0 + h_local)
 
@@ -480,7 +480,7 @@ def param_based_spec_estimate_cell(energies,
     loss = torch.nn.MSELoss()
     if optimizer_type == 'Adam':
         iter_prt = 50
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.8,0.999))
     elif optimizer_type == 'NNAT_LBFGS':
         iter_prt = 5
         optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate)
