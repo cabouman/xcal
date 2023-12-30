@@ -55,13 +55,13 @@ def philibert_absorption_correction_factor(voltage, sin_psi, energies):
 
     return (1+mu/kappa/sin_psi)**-1*(1+h_factor*mu/kappa/sin_psi)**-1
 
-def takeoff_angle_conversion_factor(voltage, takeOffAngle_cur, takeOffAngle_new, energies):
+def takeoff_angle_conversion_factor(voltage, sin_psi_cur, sin_psi_new, energies):
     # Assuming takeOffAngle_cur is already defined
-    if not isinstance(takeOffAngle_cur, torch.Tensor):
-        takeOffAngle_cur = torch.tensor(takeOffAngle_cur)
-    if not isinstance(takeOffAngle_new, torch.Tensor):
-        takeOffAngle_new = torch.tensor(takeOffAngle_new)
-    return philibert_absorption_correction_factor(voltage, takeOffAngle_new, energies)/philibert_absorption_correction_factor(voltage, takeOffAngle_cur, energies)
+    if not isinstance(sin_psi_cur, torch.Tensor):
+        sin_psi_cur = torch.tensor(sin_psi_cur)
+    if not isinstance(sin_psi_new, torch.Tensor):
+        sin_psi_new = torch.tensor(sin_psi_new)
+    return philibert_absorption_correction_factor(voltage, sin_psi_new, energies)/philibert_absorption_correction_factor(voltage, sin_psi_cur, energies)
 
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
@@ -126,7 +126,8 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     else:
         return np.clip(interpolated_values, 0, None)
 
-
+def angle_sin(psi):
+    return torch.sin(psi * torch.pi / 180.0)
 
 class Source_Model(torch.nn.Module):
     def __init__(self, source: Source, device=None, dtype=None) -> None:
@@ -147,9 +148,9 @@ class Source_Model(torch.nn.Module):
         self.volt_lower = source.src_voltage_bound.lower
         self.volt_scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
         normalized_voltage = (source.voltage - self.volt_lower) / self.volt_scale
-        self.toa_lower = source.takeoff_angle_bound.lower
-        self.toa_scale = source.takeoff_angle_bound.upper - source.takeoff_angle_bound.lower
-        normalized_takeoff_angle = (source.takeoff_angle - self.toa_lower) / self.toa_scale
+        self.toa_lower = angle_sin(source.takeoff_angle_bound.lower)
+        self.toa_scale = angle_sin(source.takeoff_angle_bound.upper) - angle_sin(source.takeoff_angle_bound.lower)
+        normalized_sin_psi = (angle_sin(source.takeoff_angle) - self.toa_lower) / self.toa_scale
 
         # Instantiate parameters
         if source.optimize_voltage:
@@ -158,9 +159,9 @@ class Source_Model(torch.nn.Module):
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
 
         if source.optimize_takeoff_angle:
-            self.normalized_takeoff_angle = Parameter(torch.tensor(normalized_takeoff_angle, **factory_kwargs))
+            self.normalized_sin_psi = Parameter(torch.tensor(normalized_sin_psi, **factory_kwargs))
         else:
-            self.normalized_takeoff_angle = torch.tensor(normalized_takeoff_angle, **factory_kwargs)
+            self.normalized_sin_psi = torch.tensor(normalized_sin_psi, **factory_kwargs)
 
     def get_voltage(self):
         """Read voltage.
@@ -182,8 +183,18 @@ class Source_Model(torch.nn.Module):
             Read takeoff_angle.
         """
 
-        return clamp_with_grad(self.normalized_takeoff_angle, 0, 1) * self.toa_scale + self.toa_lower
+        return torch.arcsin(clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower)*180.0/torch.pi
 
+    def get_sin_psi(self):
+        """Read takeoff_angle.
+
+        Returns
+        -------
+        voltage: float
+            Read takeoff_angle.
+        """
+
+        return clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower
     def forward(self, energies):
         """Calculate source spectrum.
 
@@ -194,7 +205,8 @@ class Source_Model(torch.nn.Module):
 
         """
         src_spec = interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
-        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), self.source.takeoff_angle_cur, self.get_takeoff_angle(), energies)
+        sin_psi_cur = angle_sin(self.source.takeoff_angle_cur)
+        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(), energies)
         return src_spec
 
 
