@@ -127,7 +127,7 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
         return np.clip(interpolated_values, 0, None)
 
 def angle_sin(psi):
-    return torch.sin(psi * torch.pi / 180.0)
+    return np.sin(psi * np.pi / 180.0)
 
 class Source_Model(torch.nn.Module):
     def __init__(self, source: Source, device=None, dtype=None) -> None:
@@ -371,7 +371,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
         self.src_spec_list = torch.nn.ModuleList(
             [Source_Model(source, **factory_kwargs) for source in sources])
         for smm in self.src_spec_list[1:]:
-            smm._parameters['normalized_takeoff_angle'] = self.src_spec_list[0]._parameters['normalized_takeoff_angle']
+            smm._parameters['normalized_sin_psi'] = self.src_spec_list[0]._parameters['normalized_sin_psi']
         self.fltr_resp_list = torch.nn.ModuleList(
             [Filter_Model(filter, **factory_kwargs) for filter in filters])
         self.scint_cvt_list = torch.nn.ModuleList(
@@ -492,7 +492,7 @@ def param_based_spec_estimate_cell(energies,
     loss = torch.nn.MSELoss()
     if optimizer_type == 'Adam':
         iter_prt = 50
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate, betas=(0.8,0.999))
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_type == 'NNAT_LBFGS':
         iter_prt = 5
         optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate)
