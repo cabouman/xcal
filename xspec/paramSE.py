@@ -370,10 +370,11 @@ class spec_distrb_energy_resp(torch.nn.Module):
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         self.src_spec_list = torch.nn.ModuleList(
             [Source_Model(source, **factory_kwargs) for source in sources])
-        for smm in self.src_spec_list[1:]:
-            smm._parameters['normalized_sin_psi'] = self.src_spec_list[0]._parameters['normalized_sin_psi']
+        if sources[0].optimize_takeoff_angle:
+            for smm in self.src_spec_list[1:]:
+                smm._parameters['normalized_sin_psi'] = self.src_spec_list[0]._parameters['normalized_sin_psi']
         self.fltr_resp_list = torch.nn.ModuleList(
-            [Filter_Model(filter, **factory_kwargs) for filter in filters])
+        [Filter_Model(filter, **factory_kwargs) for filter in filters])
         self.scint_cvt_list = torch.nn.ModuleList(
             [Scintillator_Model(scintillator, **factory_kwargs) for scintillator in scintillators])
         self.logger = logging.getLogger(str(mp.current_process().pid))
