@@ -35,6 +35,7 @@ class ClampFunction(torch.autograd.Function):
 
 def clamp_with_grad(input, min, max):
     return ClampFunction.apply(input, min, max)
+    
 
 def philibert_absorption_correction_factor(voltage, sin_psi, energies):
     Z = 74 # Tungsten
@@ -158,7 +159,7 @@ class Source_Model(torch.nn.Module):
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
 
-        if source.optimize_takeoff_angle:
+        if self.source.optimize_takeoff_angle:
             self.normalized_sin_psi = Parameter(torch.tensor(normalized_sin_psi, **factory_kwargs))
         else:
             self.normalized_sin_psi = torch.tensor(normalized_sin_psi, **factory_kwargs)
@@ -349,7 +350,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
                  energies,
                  sources: [Source],
                  filters: [Filter],
-                 scintillators: [Scintillator], device=None, dtype=None):
+                 scintillators: [Scintillator], optimizer_type='Adam', device=None, dtype=None):
         """Total spectrally distributed energy response model based on torch.nn.Module.
 
         Parameters
@@ -367,6 +368,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
+        self.ot =optimizer_type
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         self.src_spec_list = torch.nn.ModuleList(
             [Source_Model(source, **factory_kwargs) for source in sources])
@@ -382,6 +384,9 @@ class spec_distrb_energy_resp(torch.nn.Module):
     def print_method(self,*args, **kwargs):
         message = ' '.join(map(str, args))
         self.logger.info(message)
+    
+    def update_optimizer_type(self, optimizer_type):
+        self.ot = optimizer_type
 
     def forward(self, F: torch.Tensor, mc: Model_combination):
         """
@@ -399,6 +404,14 @@ class spec_distrb_energy_resp(torch.nn.Module):
             Transmission value calculated by total spectrally distributed energy response model.
 
         """
+        if self.ot == 'Adam':
+            with torch.no_grad():
+                if self.src_spec_list[mc.src_ind].source.optimize_takeoff_angle:
+                    self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1-1e-6)
+                for fii in mc.fltr_ind_list:
+                     self.fltr_resp_list[fii]._parameters['normalized_fltr_th'].data.clamp_(min=1e-6, max=1-1e-6)
+                self.scint_cvt_list[mc.scint_ind]._parameters['normalized_scint_th'].data.clamp_(min=1e-6, max=1-1e-6)
+            
         src_func = self.src_spec_list[mc.src_ind](self.energies)
         fltr_func = self.fltr_resp_list[mc.fltr_ind_list[0]](self.energies)
         for fii in mc.fltr_ind_list[1:]:
@@ -488,29 +501,60 @@ def param_based_spec_estimate_cell(energies,
 
     # Construct our model by instantiating the class defined above
     model = spec_distrb_energy_resp(energies, sources, filters, scintillators, device='cpu', dtype=torch.float32)
-    model.print_parameters()
-
+    model.print_parameters()    
+    
     loss = torch.nn.MSELoss()
+    
     if optimizer_type == 'Adam':
+        ot ='Adam'
         iter_prt = 50
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_type == 'NNAT_LBFGS':
+        ot = 'NNAT_LBFGS'
         iter_prt = 5
         optimizer = NNAT_LBFGS(model.parameters(), lr=learning_rate)
+    elif optimizer_type == 'Adam+NNAT_LBFGS':
+        ot = 'Adam'
+        iter_prt = 50
+        optimizer = optim.Adam(model.parameters(), lr=0.001)
+        optimizerN = NNAT_LBFGS(model.parameters(), lr=learning_rate)        
     else:
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
         sys.exit("Exiting the script due to unsupported optimizer type.")
+        
+    model.update_optimizer_type(ot)
+    
+    print('Initial optimizer:', optimizer)
+    print('Initial optimizer_type:', model.ot)
+        
     y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
+    num_sp_datasets=len(y)
     if weight is None:
         weight = [1.0 / yy for yy in y]
     else:
         weight = [torch.tensor(np.concatenate([w.reshape((-1, 1)) for w in ww]), dtype=torch.float32) for ww in weight]
 
     F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
+    
+    cost = torch.inf
+    LBFGS_iter = 0
     for iter in range(1, max_iterations + 1):
         if iter % iter_prt == 0:
             print('Iteration:', iter)
-
+            
+        if optimizer_type == 'Adam+NNAT_LBFGS':
+            if cost<=0.6*num_sp_datasets or iter>5000:
+          
+                if optimizer != optimizerN:
+                    print('Start use NNAT_LBFGS')
+                    print('Current cost value:',cost.item())
+                    iter_prt = 5
+                    ot = 'NNAT_LBFGS'
+                    optimizer = optimizerN
+                    model.update_optimizer_type(ot)
+                else:
+                    LBFGS_iter+=1
+                    
         def closure():
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
@@ -526,7 +570,7 @@ def param_based_spec_estimate_cell(energies,
                 else:
                     raise ValueError('loss_type should be \'mse\' or \'wmse\' or \'attmse\'. ','Given', loss_type)
                 cost += sub_cost
-            if cost.requires_grad and optimizer_type != 'NNAT_LBFGS':
+            if cost.requires_grad and ot != 'NNAT_LBFGS':
                 cost.backward()
             return cost
 
@@ -534,7 +578,9 @@ def param_based_spec_estimate_cell(energies,
         if torch.isnan(cost):
             model.print_parameters()
             return iter, closure().item(), model
-        if optimizer_type == 'NNAT_LBFGS':
+        
+                
+        if ot == 'NNAT_LBFGS':
             cost.backward()
 
         has_nan = check_gradients_for_nan(model)
@@ -548,9 +594,9 @@ def param_based_spec_estimate_cell(energies,
         # Before the update, clone the current parameters
         old_params = {k: v.clone() for k, v in model.state_dict().items()}
 
-        if optimizer_type == 'Adam':
+        if ot == 'Adam':
             optimizer.step()
-        elif optimizer_type == 'NNAT_LBFGS':
+        elif ot == 'NNAT_LBFGS':
             options = {'closure': closure, 'current_loss': cost,
                        'max_ls': 100, 'damping': False}
             cost, grad_new, _, _, closures_new, grads_new, desc_dir, fail = optimizer.step(options=options)
@@ -567,7 +613,7 @@ def param_based_spec_estimate_cell(energies,
                     small_update = False
                     break
 
-            if small_update:
+            if small_update or LBFGS_iter>max_iterations-5000:
                 print(f"Stopping at epoch {iter} because updates are too small.")
                 print('Cost:', cost.item())
                 # for k, v in model.state_dict().items():
