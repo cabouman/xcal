@@ -16,7 +16,7 @@ import logging
 from xspec._utils import *
 from xspec.defs import *
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
-from xspec.chem_consts._consts_from_table import get_mass_att_c_vs_E
+from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
 from xspec.chem_consts._periodictabledata import atom_weights, density,ptableinverse
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
@@ -52,7 +52,7 @@ def philibert_absorption_correction_factor(voltage, sin_psi, energies):
         energies = torch.tensor(energies)
     kappa[:-1] = (PhilibertConstant / (kVp_e165 - energies ** PhilibertExponent)[:-1])
     kappa[-1] = torch.inf
-    mu = torch.tensor(get_mass_att_c_vs_E(ptableinverse[Z], energies)) # cm^-1
+    mu = torch.tensor(get_mass_absp_c_vs_E(ptableinverse[Z], energies)) # cm^-1
 
     return (1+mu/kappa/sin_psi)**-1*(1+h_factor*mu/kappa/sin_psi)**-1
 

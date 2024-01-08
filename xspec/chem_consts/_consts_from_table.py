@@ -32,10 +32,10 @@ def interpret_formula(formula):
         # interpret string to a dictionary
         return chemparse.parse_formula(formula)
 
-def get_mass_att_c_vs_E(formula, energy_vector):
+def get_mass_absp_c_vs_E(formula, energy_vector):
     """
-    Calculate the linear attenuation coefficient (mu) as a function of energy,
-    using mass attenuation coefficients from the NIST website:
+    Calculate the mass absorption coefficient (mu) as a function of energy,
+    using mass absorption coefficients from the NIST website:
     https://physics.nist.gov/PhysRefData/XrayMassCoef/tab3.html.
 
     Author: Wenrui Li, Purdue University
@@ -75,13 +75,13 @@ def get_mass_att_c_vs_E(formula, energy_vector):
             d = np.array(fid[f"/{elem}/data"])
 
             E = d[:, 0]
-            mu_rho = d[:, 1]
+            mu_rho = d[:, 2]
 
             # Interpolate in log-log space using the prescribed method
             logmu_rho = np.interp(np.log(energy_vector), np.log(E), np.log(mu_rho), left=0.0, right=0.0)
             mu_rho_loginterp = np.exp(logmu_rho)
 
-            # Accumulate the total mass attenuation coefficient
+            # Accumulate the total mass energy-absorption coefficient
             mu_rhotot += wi * mu_rho_loginterp
 
         # Calculate the linear attenuation coefficient (g/cm^2))
