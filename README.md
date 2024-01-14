@@ -1,6 +1,3 @@
-Sure, here's the provided reStructuredText (RST) content converted to Markdown:
-
-```markdown
 # xspec
 
 xspec is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material target at different energies.
