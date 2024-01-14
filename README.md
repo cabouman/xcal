@@ -30,7 +30,7 @@ cd ..
 ### Option 2: Manual install
 
 1. **Create conda environment:**
-   Create a new conda environment named `jax_labs` using the following commands:
+   Create a new conda environment named `xspec` using the following commands:
 
    ```bash
    conda remove env --name xspec --all
