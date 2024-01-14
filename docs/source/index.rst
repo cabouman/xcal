@@ -5,6 +5,14 @@
 
 Welcome to xspec's documentation!
 =================================
+**xspec** is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, anode take-off angle, filter material and thickness, and scintillator and thickness. The package takes as input views of serval known material targets at different energies.
+
+
+Features
+--------
+* Supports X-ray system parameters estimation using numerical optimization from normalized radiographs of serval known material targets such as Titanium (Ti), Vanadium (V), and Aluminum (Al) at different energies.
+* Supports spectral energy response calculation with estimated system paramters.
+* Supports the computation of ideal normalized radiographs using any customized forward projection method.
 
 .. toctree::
    :maxdepth: 2
@@ -19,6 +27,12 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+.. toctree::
+   :hidden:
+   :maxdepth: 4
+   :caption: Background
+
+   overview
 
 .. toctree::
    :hidden:
