@@ -33,6 +33,7 @@ Indices and tables
    :caption: Background
 
    overview
+   theory
 
 .. toctree::
    :hidden:
