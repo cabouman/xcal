@@ -40,5 +40,7 @@ Indices and tables
    :maxdepth: 4
    :caption: User Guide
 
+   install
    api
+   demo
    tutorial
