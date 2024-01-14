@@ -17,8 +17,6 @@ Option 2 explains how to perform manual installation.
 
 ### Option 1: Clean install from dev_scripts
 
-**You can skip all other steps if you do a clean install.**
-
 To do a clean install, use the command:
 
 ```bash
@@ -35,14 +33,15 @@ cd ..
    ```bash
    conda remove env --name xspec --all
    conda create --name xspec python=3.10
-   conda install ipykernel
    conda activate xspec
+   conda install ipykernel
    python -m ipykernel install --user --name xspec --display-name xspec
    ```
 
 2. **Install package:**
 
    ```bash
+   pip install -r requirements.txt
    pip install .
    ```
 
@@ -53,8 +52,8 @@ cd ..
    a. Install required dependencies
 
    ```bash
-   conda install pandoc
    cd docs/
+   conda install pandoc
    pip install -r requirements.txt
    ```
 
