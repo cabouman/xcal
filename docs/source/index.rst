@@ -44,3 +44,10 @@ Indices and tables
    api
    demo
    tutorial
+
+.. toctree::
+   :hidden:
+   :maxdepth: 4
+   :caption: Developer Guide
+
+   docs

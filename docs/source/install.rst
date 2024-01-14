@@ -51,29 +51,3 @@ Option 2: Manual install
       pip install -r requirements.txt
       pip install .
 
-3. **Build documentation**
-   After the package is installed, you can build the documentation.
-   In your terminal window:
-
-   a. Install required dependencies
-
-   .. code-block:: bash
-
-      cd docs/
-      conda install pandoc
-      pip install -r requirements.txt
-
-   b. Build documentation
-
-   .. code-block:: bash
-
-      make clean html
-      cd ..
-
-   c. Open documentation in ``docs/build/html/index.html``. You will see API references on that webpage.
-
-4. **Install demo requirement**
-
-   .. code-block:: bash
-
-      pip install -r demo/requirements.txt

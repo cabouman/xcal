@@ -113,6 +113,7 @@ MAP Cost Function
 .. math::
 
    l(\theta^{sr}_{a_k}, \{\theta^{fl}_{p} \mid p \in B_k\}, \theta^{sc}) = \frac{1}{2}\|\boldsymbol{y}^{(k)} - \boldsymbol{A} \boldsymbol{x}^{(k)} \|_{\Lambda^{(k)}}^2,
+
 where :math:`l` is a function of the :math:`a_k`-th source parameter :math:`\theta^{sr}_{a_k}`, a set of filter parameters :math:`\left\{\theta^{fl}_{p} \right\}` determined by the index set :math:`B_k`, and the scintillator parameter :math:`\theta^{sc}`; :math:`\Lambda^{(k)}` can be an identity matrix or a diagonal matrix with :math:`\Lambda^{(k)}_{i, i} = \frac{I_{\text{blank},i}}{y_i}`.
 
 2. For multi-polychromatic datasets, it extends to:
@@ -120,4 +121,5 @@ where :math:`l` is a function of the :math:`a_k`-th source parameter :math:`\the
 .. math::
 
    L(\Theta) = \sum_{k=1}^{K} l(\theta^{sr}_{a_k}, \{\theta^{fl}_{p} \mid p \in B_k\}, \theta^{sc}),
+
 where :math:`\Theta` denotes the aggregate set of parameters across all datasets, with :math:`K` representing the total number of single-polychromatic datasets. The parameter set :math:`\Theta` is composed of the source parameters :math:`\left\{\theta^{sr}_{a} \mid a = 1, \ldots, N_a\right\}`, the filter parameters :math:`\left\{\theta^{fl}_{b} \mid b = 1, \ldots, N_b\right\}`, and the scintillator parameter :math:`\theta^{sc}`.
