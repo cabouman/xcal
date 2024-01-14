@@ -6,6 +6,7 @@ xspec is a Python package for automatically estimating the X-ray CT parameters t
 
 ```bash
 git clone git@github.com:cabouman/xspec.git
+cd xspec
 ```
 
 ## Step 2: Install xspec
