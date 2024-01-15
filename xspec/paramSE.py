@@ -184,7 +184,7 @@ class Source_Model(torch.nn.Module):
             Read takeoff_angle.
         """
 
-        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower)*180.0/np.pi
+        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0, 1).detach().numpy() * self.toa_scale + self.toa_lower)*180.0/np.pi
 
     def get_sin_psi(self):
         """Read takeoff_angle.
