@@ -21,6 +21,98 @@ from xspec.chem_consts._periodictabledata import atom_weights, density,ptableinv
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
 
+def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_params, scintillator_params,
+             weight=None, weight_type='unweighted', single_voltage=True, single_filter_set=True,
+             learning_rate=0.001, max_iterations=5000, stop_threshold=1e-4, optimizer_type='Adam', logpath=None,
+             num_processes=1, return_all_result=False):
+    """
+    Estimate the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage,
+    anode take-off angle, filter material and thickness, and scintillator and thickness.
+
+    Args:
+        energies (numpy.ndarray): Array of interested X-ray photon energies from a poly-energetic source, in keV.
+        normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
+        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
+
+        source_params (dict): Parameters defining the source model. Keys include:
+
+            - 'num_voltage' (int): Number of used voltage to collect all normalized radiographs.
+            - 'voltage_1' (float): The first used voltage of the X-ray source in kV.
+            - 'voltage_1_range' (tuple): Range of first voltage in kV.
+            - ...
+            - 'anode_angle' (float): Anode take-off angle in degrees.
+            - 'anode_angle_range' (tuple): Range of anode angle in degrees.
+            - 'source_voltage_indices' (list): Specify which source voltage index corresponds to each radiograph.
+
+        filter_params (dict): Parameters defining the filter system. Keys include:
+
+            - 'num_filter' (int): Number of used filters to collect all normalized radiographs.
+            - 'possible_material' (list): List of possible filter materials. Each item is an instance of Material.
+            - 'material_1' (object): An instance of Material for the first filter.
+            - 'thickness_1' (float): Thickness of the first filter in mm.
+            - 'thickness_1_range' (tuple): Range of filter thickness in mm.
+            - ...
+            - 'filter_indices' (list): Specify which filter index corresponds to each radiograph.
+
+        scintillator_params (dict): Parameters defining the scintillator properties. Keys include:
+
+            - 'possible_material' (list): List of possible scintillator materials. Each item is an instance of Material.
+            - 'material' (object): An instance of Material for the scintillator.
+            - 'thickness' (float): Thickness of the scintillator in mm.
+            - 'thickness_range' (tuple): Range of scintillator thickness in mm.
+
+        weight (optional): [Default=None] Weights to apply during the estimation process.
+        weight_type (str, optional): [Default='unweighted'] Type of weighting to use.
+        single_voltage (bool, optional): [Default=True] Flag to indicate if a single voltage is used.
+        single_filter_set (bool, optional): [Default=True] Flag to indicate if a single filter set is used.
+        learning_rate (float, optional): [Default=0.001] Learning rate for the optimization process.
+        max_iterations (int, optional): [Default=5000] Maximum number of iterations for the optimization.
+        stop_threshold (float, optional): [Default=1e-4] Scalar valued stopping threshold in percent.
+            If stop_threshold=0.0, then run max iterations.
+        optimizer_type (str, optional): [Default='Adam'] Type of optimizer to use. If we do not have
+            accurate initial guess use 'Adam', otherwise, 'NNAT_LBFGS' can provide a faster convergence.
+        logpath (optional): [Default=None] Path for logging, if required.
+        num_processes (int, optional): [Default=1] Number of processes to use for parallel computation.
+        return_all_result (bool, optional): [Default=False] Flag to return all discrete cases results.
+
+    Returns:
+        The estimated X-ray CT parameters as per the specified configuration.
+    """
+
+
+
+    results=[]
+    return results
+
+
+def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector):
+    """
+    Calculate the forward matrix for a combination of multiple solid objects using a given forward projector.
+
+    Args:
+        homogenous_vol_masks (list of numpy.ndarray): Each 3D array in the list represents a mask for a homogenous,
+            pure object.
+        lac_vs_energies (list of numpy.ndarray): Each 1D array contains the linear attenuation coefficient (LAC)
+            curve and the corresponding energies for the materials represented in `homogenous_vol_masks`.
+        forward_projector (object): An instance of a class that implements a forward projection method. This
+            instance should have a method, forward(mask), takes a 3D volume mask as input and computes the photon's line
+            path length.
+
+    Returns:
+        numpy.ndarray: The calculated forward matrix for spectral estimation.
+    """
+
+    linear_att_intg_list = []
+    for mask, lac_vs_energies in zip(homogenous_vol_masks, lac_vs_energies):
+        linear_intg = forward_projector.forward(mask)
+        linear_att_intg_list.append(
+            linear_intg[np.newaxis, :, :, :] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis])
+
+    tot_lai = np.sum(np.array(linear_att_intg_list), axis=0)
+    forward_matrix = np.exp(- tot_lai.transpose((1, 2, 3, 0)))
+
+    return forward_matrix
+
 class ClampFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, min, max):
@@ -745,3 +837,6 @@ def param_based_spec_estimate(energies,
     for scint_i, scint_cvt in enumerate(best_res.scint_cvt_list):
         print(f'Scintillator {scint_i}: Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
     return results
+
+
+

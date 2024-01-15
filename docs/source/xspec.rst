@@ -9,5 +9,5 @@ xspec
    .. rubric:: **Functions:**
 
    .. autosummary::
-      cal_fw_mat
-      param_based_spec_estimate
+      estimate
+      calc_forward_matrix
