@@ -708,13 +708,13 @@ def param_based_spec_estimate(energies,
     args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
 
     possible_filters_combinations = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in filters]
-    possible_scintilators_combinations = [[sc for sc in scm.next_psb_scint_mat()] for scm in scintillators]
+    possible_scintillators_combinations = [[sc for sc in scm.next_psb_scint_mat()] for scm in scintillators]
 
     # Combine possible filters and scintillators
-    model_params_list = list(product(*possible_filters_combinations, *possible_scintilators_combinations))
+    model_params_list = list(product(*possible_filters_combinations, *possible_scintillators_combinations))
     # Regroup filters and scintillators
     model_params_list = [nested_list(model_params, [len(d) for d in [possible_filters_combinations,
-                                                          possible_scintilators_combinations]]) for model_params in
+                                                          possible_scintillators_combinations]]) for model_params in
                          model_params_list]
 
     with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath, num_processes)) as pool:
