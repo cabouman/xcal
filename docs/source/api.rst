@@ -1,17 +1,13 @@
 API reference
 =============
-* paramSE_ Spectral estimation using parametric-based model.
 
-.. _paramSE: paramSE.html
+* xspec_ includes functions for X-ray system parameter estimations and spectral energy response calculation as well as some helper functions.
 
-* defs_ Define data structure.
-
-.. _defs: defs.html
+.. _xspec: xspec.html
 
 
 .. toctree::
    :titlesonly:
    :hidden:
 
-   paramSE
-   defs
+   xspec
