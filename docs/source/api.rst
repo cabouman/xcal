@@ -13,6 +13,5 @@ API reference
    :titlesonly:
    :hidden:
 
-   dictSE
    paramSE
    defs
