@@ -34,6 +34,7 @@ Indices and tables
 
    overview
    theory
+   credits
 
 .. toctree::
    :hidden:
@@ -43,7 +44,6 @@ Indices and tables
    install
    api
    demo
-   tutorial
 
 .. toctree::
    :hidden:
