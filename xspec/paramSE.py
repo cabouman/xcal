@@ -51,7 +51,7 @@ def philibert_absorption_correction_factor(voltage, sin_psi, energies):
     if not isinstance(energies, torch.Tensor):
         energies = torch.tensor(energies)
     kappa[:-1] = (PhilibertConstant / (kVp_e165 - energies ** PhilibertExponent)[:-1])
-    kappa[-1] = torch.inf
+    kappa[-1] = np.inf
     mu = torch.tensor(get_mass_absp_c_vs_E(ptableinverse[Z], energies)) # cm^-1
 
     return (1+mu/kappa/sin_psi)**-1*(1+h_factor*mu/kappa/sin_psi)**-1
@@ -184,7 +184,7 @@ class Source_Model(torch.nn.Module):
             Read takeoff_angle.
         """
 
-        return torch.arcsin(clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower)*180.0/torch.pi
+        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower)*180.0/np.pi
 
     def get_sin_psi(self):
         """Read takeoff_angle.
@@ -536,7 +536,7 @@ def param_based_spec_estimate_cell(energies,
 
     F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
     
-    cost = torch.inf
+    cost = np.inf
     LBFGS_iter = 0
     for iter in range(1, max_iterations + 1):
         if iter % iter_prt == 0:
