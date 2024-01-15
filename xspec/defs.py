@@ -347,3 +347,99 @@ class Model_combination:
         self.src_ind=src_ind
         self.fltr_ind_list=fltr_ind_list
         self.scint_ind=scint_ind
+
+def dict_to_sources(source_params, energies):
+    num_voltage = source_params.get('num_voltage')
+    reference_voltages = source_params.get('reference_voltages')
+    reference_anode_angle = source_params.get('reference_anode_angle')
+    reference_spectra = source_params.get('reference_spectra')
+    anode_angle = source_params.get('anode_angle', None)
+    anode_angle_range = source_params.get('anode_angle_range')
+    optimize_voltage = source_params.get('optimize_voltage', True)
+    optimize_anode_angle = source_params.get('optimize_anode_angle', True)
+
+    # Create Bound object for anode angle range
+    takeoff_angle_bound = Bound(anode_angle_range) if anode_angle_range else Bound(0, 90)
+
+    # List to hold created Source objects
+    sources = []
+
+    for i in range(1, num_voltage + 1):
+        voltage_key = f'voltage_{i}'
+        voltage_range_key = f'voltage_{i}_range'
+
+        voltage = source_params.get(voltage_key, None)
+        voltage_range = source_params.get(voltage_range_key)
+
+        # Create Bound object for voltage range
+        src_voltage_bound = Bound(voltage_range) if voltage_range else None
+
+        # Create a Source object and append to the list
+        src = Source(energies=energies,
+                     src_voltage_list=reference_voltages,
+                     takeoff_angle_cur=reference_anode_angle,
+                     src_spec_list=reference_spectra,
+                     src_voltage_bound=src_voltage_bound,
+                     takeoff_angle_bound=takeoff_angle_bound,
+                     voltage=voltage,
+                     takeoff_angle=anode_angle,
+                     optimize_voltage=optimize_voltage,
+                     optimize_takeoff_angle=optimize_anode_angle)
+
+        sources.append(src)
+
+    return sources
+
+
+
+
+def dict_to_filters(filter_params):
+    num_filters = filter_params.get('num_filter')
+    possible_materials = filter_params.get('possible_material')
+    optimize = filter_params.get('optimize')
+
+    # List to hold created Filter objects
+    filters = []
+
+    for i in range(1, num_filters + 1):
+        material_key = f'material_{i}'
+        thickness_key = f'thickness_{i}'
+        thickness_range_key = f'thickness_{i}_range'
+
+        # Extracting the material, thickness, and thickness range for each filter
+        material = filter_params.get(material_key)
+        thickness = filter_params.get(thickness_key)
+        thickness_range = filter_params.get(thickness_range_key)
+
+        # Create a Bound object for thickness range, if available
+        fltr_th_bound = Bound(thickness_range) if thickness_range else None
+
+        # Create a Filter object and append to the list
+        fltr = Filter(possible_mat=possible_materials,
+                      fltr_th_bound=fltr_th_bound,
+                      fltr_mat=material,
+                      fltr_th=thickness,
+                      optimize=optimize)  # Assuming optimization is required
+        filters.append(fltr)
+
+    return filters
+
+
+def dict_to_scintillator(scintillator_params):
+    possible_materials = scintillator_params.get('possible_material')
+    material = scintillator_params.get('material')
+    thickness = scintillator_params.get('thickness')
+    thickness_range = scintillator_params.get('thickness_range')
+    optimize = scintillator_params.get('optimize', True)
+
+    # Create a Bound object for thickness range
+    scint_th_bound = Bound(thickness_range) if thickness_range else None
+
+    # Create a Scintillator object
+    scintillator = Scintillator(possible_mat=possible_materials,
+                                scint_th_bound=scint_th_bound,
+                                scint_mat=material,
+                                scint_th=thickness,
+                                optimize=optimize)
+
+    return [scintillator]

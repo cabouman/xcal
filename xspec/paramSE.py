@@ -23,8 +23,8 @@ from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFG
 from itertools import product
 
 
-def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_params, scintillator_params,
-             weight=None, weight_type='unweighted', single_voltage=True, single_filter_set=True,
+def estimate(energies, normalized_rads, forward_matrices, source_params, filter_params, scintillator_params,
+             weight=None, weight_type='unweighted', blank_rads=None,
              learning_rate=0.001, max_iterations=5000, stop_threshold=1e-4, optimizer_type='Adam', logpath=None,
              num_processes=1, return_all_result=False):
     """
@@ -34,16 +34,23 @@ def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies from a poly-energetic source, in keV.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
+            Each radiograph has size, N_views*N_rows*N_cols.
         forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
 
         source_params (dict): Parameters defining the source model. Keys include:
 
             - 'num_voltage' (int): Number of used voltage to collect all normalized radiographs.
+            - 'reference_voltages' (numpy.ndarray):  Sorted array of source voltages for corresponding reference source
+                spectra.
+            - 'reference_anode_angle' (float): Reference anode take-off angle in degree.
+            - 'reference_spectra' (numpy.ndarray):  Reference source spectra.
             - 'voltage_1' (float): The first used voltage of the X-ray source in kV.
             - 'voltage_1_range' (tuple): Range of first voltage in kV.
             - ...
             - 'anode_angle' (float): Anode take-off angle in degrees.
             - 'anode_angle_range' (tuple): Range of anode angle in degrees.
+            - 'optimize_voltage' (bool): Specify if requiring optimization over source voltage.
+            - 'optimize_anode_angle' (bool): Specify if requiring optimization over anode_angle.
             - 'source_voltage_indices' (list): Specify which source voltage index corresponds to each radiograph.
 
         filter_params (dict): Parameters defining the filter system. Keys include:
@@ -54,7 +61,8 @@ def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_
             - 'thickness_1' (float): Thickness of the first filter in mm.
             - 'thickness_1_range' (tuple): Range of filter thickness in mm.
             - ...
-            - 'filter_indices' (list): Specify which filter index corresponds to each radiograph.
+            - 'optimize' (bool): Specify if requiring optimization over filter thickness.
+            - 'filter_indices' (list): Each item is a list specify which filters used for each radiograph.
 
         scintillator_params (dict): Parameters defining the scintillator properties. Keys include:
 
@@ -62,11 +70,15 @@ def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_
             - 'material' (object): An instance of Material for the scintillator.
             - 'thickness' (float): Thickness of the scintillator in mm.
             - 'thickness_range' (tuple): Range of scintillator thickness in mm.
+            - 'optimize' (bool): Specify if requiring optimization over scintillator thickness.
+
 
         weight (optional): [Default=None] Weights to apply during the estimation process.
-        weight_type (str, optional): [Default='unweighted'] Type of weighting to use.
-        single_voltage (bool, optional): [Default=True] Flag to indicate if a single voltage is used.
-        single_filter_set (bool, optional): [Default=True] Flag to indicate if a single filter set is used.
+        weight_type (str, optional): [Default='unweighted'] Type of noise model used for data.
+            Option “unweighted” corresponds to unweighted reconstruction;
+            Option “transmission” is the correct weighting for transmission CT with constant dose or given blank
+            radiograph.
+        blank_rads (list of 2D numpy.ndarray, optional): Measured Radiographs without object.
         learning_rate (float, optional): [Default=0.001] Learning rate for the optimization process.
         max_iterations (int, optional): [Default=5000] Maximum number of iterations for the optimization.
         stop_threshold (float, optional): [Default=1e-4] Scalar valued stopping threshold in percent.
@@ -80,9 +92,75 @@ def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_
     Returns:
         The estimated X-ray CT parameters as per the specified configuration.
     """
+    # Create a tuple of arguments to be used later, excluding 'self', 'num_processes', and 'logpath'
+    args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
 
-    results = []
-    return results
+    # Create lists of Source, Filter, and Scintillator objects from the provided parameter dictionaries
+    sources = dict_to_sources(source_params, energies)
+    filters = dict_to_filters(filter_params)
+    scintillators = dict_to_scintillator(scintillator_params)
+
+    # Adjust indices from source and filter params to be zero-based (Python indexing starts from 0)
+    source_voltage_indices = [i - 1 for i in source_params['source_voltage_indices']]
+    filter_indices = [[i - 1 for i in fp] for fp in filter_params['filter_indices']]
+
+    # Create Model_combination objects for all combinations of sources and filters
+    model_combination = [Model_combination(src_ind, fltr_ind_set, 0) for src_ind, fltr_ind_set in
+                         zip(source_voltage_indices, filter_indices)]
+
+    # Generate all possible combinations of filters and scintillators
+    possible_filters_combinations = [[fc for fc in fcm.next_psb_fltr_mat()] for fcm in filters]
+    possible_scintillators_combinations = [[sc for sc in scm.next_psb_scint_mat()] for scm in scintillators]
+
+    # Combine possible filters and scintillators into a single list of parameter combinations
+    model_params_list = list(product(*possible_filters_combinations, *possible_scintillators_combinations))
+
+    # Regroup filters and scintillators combinations into a structured format
+    model_params_list = [nested_list(model_params, [len(d) for d in [possible_filters_combinations,
+                                                                     possible_scintillators_combinations]]) for
+                         model_params in model_params_list]
+
+    # Initialize weights based on the weight type
+    if weight is None:
+        if weight_type == 'unweighted':
+            weight = [1.0 + 0 * yy for yy in normalized_rads]
+        elif weight_type == 'transmission':
+            if blank_rads is None:
+                weight = [1.0 / yy for yy in normalized_rads]
+            else:
+                weight = [br / yy for br, yy in zip(blank_rads, normalized_rads)]
+
+    # Convert weights to tensor format
+    weight = [torch.tensor(np.concatenate([w.reshape((-1, 1)) for w in ww]), dtype=torch.float32) for ww in weight]
+
+    # Use multiprocessing pool to parallelize the optimization process
+    with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath, num_processes)) as pool:
+        # Apply optimization function to each combination of model parameters
+        result_objects = [
+            pool.apply_async(
+                param_based_spec_estimate_cell,
+                args=args[:3] + (
+                sources, possible_filters, possible_scintillators, model_combination,
+                weight, learning_rate,
+                max_iterations, stop_threshold,
+                optimizer_type, 'wmse', False)
+            )
+            for possible_filters, possible_scintillators in model_params_list
+        ]
+
+        # Gather results from all parallel optimizations
+        print('Number of parallel optimizations:', len(result_objects))
+        results = [r.get() for r in result_objects]  # Retrieve results from async calls
+
+    # Decide what to return based on 'return_all_result' flag
+    if return_all_result:
+        return results  # Return all results if requested
+    else:
+        # Find and return the result with the optimal cost
+        cost_list = [res[1] for res in results]
+        optimal_cost_ind = np.argmin(cost_list)
+        best_res = results[optimal_cost_ind][2]
+        return best_res
 
 
 def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector):
