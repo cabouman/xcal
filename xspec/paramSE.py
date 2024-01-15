@@ -9,6 +9,7 @@ from torch.nn.parameter import Parameter
 
 from torch.multiprocessing import Pool
 import torch.multiprocessing as mp
+
 mp.set_sharing_strategy('file_system')
 
 import logging
@@ -17,9 +18,10 @@ from xspec._utils import *
 from xspec.defs import *
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
-from xspec.chem_consts._periodictabledata import atom_weights, density,ptableinverse
+from xspec.chem_consts._periodictabledata import atom_weights, density, ptableinverse
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from itertools import product
+
 
 def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_params, scintillator_params,
              weight=None, weight_type='unweighted', single_voltage=True, single_filter_set=True,
@@ -79,9 +81,7 @@ def estimate(energies, noramlized_rads, forward_matrices, source_params, filter_
         The estimated X-ray CT parameters as per the specified configuration.
     """
 
-
-
-    results=[]
+    results = []
     return results
 
 
@@ -113,9 +113,12 @@ def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector
 
     return forward_matrix
 
+
 class ClampFunction(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, min, max):
+        """
+        """
         ctx.save_for_backward(input)
         return input.clamp(min, max)
 
@@ -125,17 +128,18 @@ class ClampFunction(torch.autograd.Function):
         grad_input = grad_output.clone()
         return grad_input, None, None
 
+
 def clamp_with_grad(input, min, max):
     return ClampFunction.apply(input, min, max)
-    
+
 
 def philibert_absorption_correction_factor(voltage, sin_psi, energies):
-    Z = 74 # Tungsten
+    Z = 74  # Tungsten
     target_material = ptableinverse[Z]
     PhilibertConstant = 4.0e5
     PhilibertExponent = 1.65
-    #sin_psi = torch.sin(takeOffAngle * torch.pi / 180.0)
-    h_local = 1.2 * atom_weights[target_material] / (Z**2)
+    # sin_psi = torch.sin(takeOffAngle * torch.pi / 180.0)
+    h_local = 1.2 * atom_weights[target_material] / (Z ** 2)
     h_factor = h_local / (1.0 + h_local)
 
     kVp_e165 = voltage ** PhilibertExponent
@@ -144,9 +148,10 @@ def philibert_absorption_correction_factor(voltage, sin_psi, energies):
         energies = torch.tensor(energies)
     kappa[:-1] = (PhilibertConstant / (kVp_e165 - energies ** PhilibertExponent)[:-1])
     kappa[-1] = np.inf
-    mu = torch.tensor(get_mass_absp_c_vs_E(ptableinverse[Z], energies)) # cm^-1
+    mu = torch.tensor(get_mass_absp_c_vs_E(ptableinverse[Z], energies))  # cm^-1
 
-    return (1+mu/kappa/sin_psi)**-1*(1+h_factor*mu/kappa/sin_psi)**-1
+    return (1 + mu / kappa / sin_psi) ** -1 * (1 + h_factor * mu / kappa / sin_psi) ** -1
+
 
 def takeoff_angle_conversion_factor(voltage, sin_psi_cur, sin_psi_new, energies):
     # Assuming takeOffAngle_cur is already defined
@@ -154,7 +159,10 @@ def takeoff_angle_conversion_factor(voltage, sin_psi_cur, sin_psi_new, energies)
         sin_psi_cur = torch.tensor(sin_psi_cur)
     if not isinstance(sin_psi_new, torch.Tensor):
         sin_psi_new = torch.tensor(sin_psi_new)
-    return philibert_absorption_correction_factor(voltage, sin_psi_new, energies)/philibert_absorption_correction_factor(voltage, sin_psi_cur, energies)
+    return philibert_absorption_correction_factor(voltage, sin_psi_new,
+                                                  energies) / philibert_absorption_correction_factor(voltage,
+                                                                                                     sin_psi_cur,
+                                                                                                     energies)
 
 
 def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=True):
@@ -219,8 +227,10 @@ def interp_src_spectra(voltage_list, src_spec_list, interp_voltage, torch_mode=T
     else:
         return np.clip(interpolated_values, 0, None)
 
+
 def angle_sin(psi):
     return np.sin(psi * np.pi / 180.0)
+
 
 class Source_Model(torch.nn.Module):
     def __init__(self, source: Source, device=None, dtype=None) -> None:
@@ -276,7 +286,8 @@ class Source_Model(torch.nn.Module):
             Read takeoff_angle.
         """
 
-        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0, 1).detach().numpy() * self.toa_scale + self.toa_lower)*180.0/np.pi
+        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0,
+                                         1).detach().numpy() * self.toa_scale + self.toa_lower) * 180.0 / np.pi
 
     def get_sin_psi(self):
         """Read takeoff_angle.
@@ -288,6 +299,7 @@ class Source_Model(torch.nn.Module):
         """
 
         return clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower
+
     def forward(self, energies):
         """Calculate source spectrum.
 
@@ -299,7 +311,8 @@ class Source_Model(torch.nn.Module):
         """
         src_spec = interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
         sin_psi_cur = angle_sin(self.source.takeoff_angle_cur)
-        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(), energies)
+        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(),
+                                                              energies)
         return src_spec
 
 
@@ -339,13 +352,12 @@ class Filter_Model(torch.nn.Module):
         """
         return clamp_with_grad(self.normalized_fltr_th, 0, 1) * self.scale + self.lower
 
-
     def get_fltr_mat(self):
         """Get filter thickness.
 
         Returns
         -------
-        fltr_mat: Material
+        fltr_mat: xspec.Material
             Filter material.
 
         """
@@ -395,7 +407,6 @@ class Scintillator_Model(torch.nn.Module):
             self.normalized_scint_th = Parameter(torch.tensor(normalized_scint_th, **factory_kwargs))
         else:
             self.normalized_scint_th = torch.tensor(normalized_scint_th, **factory_kwargs)
-
 
     def get_scint_th(self):
         """
@@ -460,7 +471,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         factory_kwargs = {'device': device, 'dtype': dtype}
         super().__init__()
-        self.ot =optimizer_type
+        self.ot = optimizer_type
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         self.src_spec_list = torch.nn.ModuleList(
             [Source_Model(source, **factory_kwargs) for source in sources])
@@ -468,15 +479,15 @@ class spec_distrb_energy_resp(torch.nn.Module):
             for smm in self.src_spec_list[1:]:
                 smm._parameters['normalized_sin_psi'] = self.src_spec_list[0]._parameters['normalized_sin_psi']
         self.fltr_resp_list = torch.nn.ModuleList(
-        [Filter_Model(filter, **factory_kwargs) for filter in filters])
+            [Filter_Model(filter, **factory_kwargs) for filter in filters])
         self.scint_cvt_list = torch.nn.ModuleList(
             [Scintillator_Model(scintillator, **factory_kwargs) for scintillator in scintillators])
         self.logger = logging.getLogger(str(mp.current_process().pid))
 
-    def print_method(self,*args, **kwargs):
+    def print_method(self, *args, **kwargs):
         message = ' '.join(map(str, args))
         self.logger.info(message)
-    
+
     def update_optimizer_type(self, optimizer_type):
         self.ot = optimizer_type
 
@@ -499,11 +510,11 @@ class spec_distrb_energy_resp(torch.nn.Module):
         if self.ot == 'Adam':
             with torch.no_grad():
                 if self.src_spec_list[mc.src_ind].source.optimize_takeoff_angle:
-                    self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1-1e-6)
+                    self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1 - 1e-6)
                 for fii in mc.fltr_ind_list:
-                     self.fltr_resp_list[fii]._parameters['normalized_fltr_th'].data.clamp_(min=1e-6, max=1-1e-6)
-                self.scint_cvt_list[mc.scint_ind]._parameters['normalized_scint_th'].data.clamp_(min=1e-6, max=1-1e-6)
-            
+                    self.fltr_resp_list[fii]._parameters['normalized_fltr_th'].data.clamp_(min=1e-6, max=1 - 1e-6)
+                self.scint_cvt_list[mc.scint_ind]._parameters['normalized_scint_th'].data.clamp_(min=1e-6, max=1 - 1e-6)
+
         src_func = self.src_spec_list[mc.src_ind](self.energies)
         fltr_func = self.fltr_resp_list[mc.fltr_ind_list[0]](self.energies)
         for fii in mc.fltr_ind_list[1:]:
@@ -532,7 +543,8 @@ class spec_distrb_energy_resp(torch.nn.Module):
         if self.print_method is not None:
             print = self.print_method
         for src_i, src_spec in enumerate(self.src_spec_list):
-            print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
+            print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (
+            src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
 
         for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
             print(
@@ -593,12 +605,12 @@ def param_based_spec_estimate_cell(energies,
 
     # Construct our model by instantiating the class defined above
     model = spec_distrb_energy_resp(energies, sources, filters, scintillators, device='cpu', dtype=torch.float32)
-    model.print_parameters()    
-    
+    model.print_parameters()
+
     loss = torch.nn.MSELoss()
-    
+
     if optimizer_type == 'Adam':
-        ot ='Adam'
+        ot = 'Adam'
         iter_prt = 50
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     elif optimizer_type == 'NNAT_LBFGS':
@@ -609,44 +621,44 @@ def param_based_spec_estimate_cell(energies,
         ot = 'Adam'
         iter_prt = 50
         optimizer = optim.Adam(model.parameters(), lr=0.001)
-        optimizerN = NNAT_LBFGS(model.parameters(), lr=learning_rate)        
+        optimizerN = NNAT_LBFGS(model.parameters(), lr=learning_rate)
     else:
         warnings.warn(f"The optimizer type {optimizer_type} is not supported.")
         sys.exit("Exiting the script due to unsupported optimizer type.")
-        
+
     model.update_optimizer_type(ot)
-    
+
     print('Initial optimizer:', optimizer)
     print('Initial optimizer_type:', model.ot)
-        
+
     y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
-    num_sp_datasets=len(y)
+    num_sp_datasets = len(y)
     if weight is None:
         weight = [1.0 / yy for yy in y]
     else:
         weight = [torch.tensor(np.concatenate([w.reshape((-1, 1)) for w in ww]), dtype=torch.float32) for ww in weight]
 
     F = [torch.tensor(FF, dtype=torch.float32) for FF in F]
-    
+
     cost = np.inf
     LBFGS_iter = 0
     for iter in range(1, max_iterations + 1):
         if iter % iter_prt == 0:
             print('Iteration:', iter)
-            
+
         if optimizer_type == 'Adam+NNAT_LBFGS':
-            if cost<=0.6*num_sp_datasets or iter>5000:
-          
+            if cost <= 0.6 * num_sp_datasets or iter > 5000:
+
                 if optimizer != optimizerN:
                     print('Start use NNAT_LBFGS')
-                    print('Current cost value:',cost.item())
+                    print('Current cost value:', cost.item())
                     iter_prt = 5
                     ot = 'NNAT_LBFGS'
                     optimizer = optimizerN
                     model.update_optimizer_type(ot)
                 else:
-                    LBFGS_iter+=1
-                    
+                    LBFGS_iter += 1
+
         def closure():
             if torch.is_grad_enabled():
                 optimizer.zero_grad()
@@ -654,13 +666,13 @@ def param_based_spec_estimate_cell(energies,
             for yy, FF, ww, mc in zip(y, F, weight, model_combination):
                 trans_val = model(FF, mc)
                 if loss_type == 'mse':
-                    sub_cost = 0.5*loss(trans_val, yy)
+                    sub_cost = 0.5 * loss(trans_val, yy)
                 elif loss_type == 'wmse':
                     sub_cost = weighted_mse_loss(trans_val, yy, ww)
                 elif loss_type == 'attmse':
-                    sub_cost = 0.5*loss(-torch.log(trans_val), -torch.log(yy))
+                    sub_cost = 0.5 * loss(-torch.log(trans_val), -torch.log(yy))
                 else:
-                    raise ValueError('loss_type should be \'mse\' or \'wmse\' or \'attmse\'. ','Given', loss_type)
+                    raise ValueError('loss_type should be \'mse\' or \'wmse\' or \'attmse\'. ', 'Given', loss_type)
                 cost += sub_cost
             if cost.requires_grad and ot != 'NNAT_LBFGS':
                 cost.backward()
@@ -670,8 +682,7 @@ def param_based_spec_estimate_cell(energies,
         if torch.isnan(cost):
             model.print_parameters()
             return iter, closure().item(), model
-        
-                
+
         if ot == 'NNAT_LBFGS':
             cost.backward()
 
@@ -701,11 +712,11 @@ def param_based_spec_estimate_cell(energies,
             # After the update, check if the update is too small
             small_update = True
             for k, v in model.state_dict().items():
-                if torch.norm(v.clamp(0,1) - old_params[k].clamp(0,1)) > stop_threshold:
+                if torch.norm(v.clamp(0, 1) - old_params[k].clamp(0, 1)) > stop_threshold:
                     small_update = False
                     break
 
-            if small_update or LBFGS_iter>max_iterations-5000:
+            if small_update or LBFGS_iter > max_iterations - 5000:
                 print(f"Stopping at epoch {iter} because updates are too small.")
                 print('Cost:', cost.item())
                 # for k, v in model.state_dict().items():
@@ -723,7 +734,7 @@ def init_logging(filename, num_processes):
     if filename is None:
         handler = logging.StreamHandler()
     else:
-        handler = logging.FileHandler(f"{filename}_{worker_id%num_processes}.log")
+        handler = logging.FileHandler(f"{filename}_{worker_id % num_processes}.log")
 
     formatter = logging.Formatter('%(asctime)s  - %(message)s')
     handler.setFormatter(formatter)
@@ -732,11 +743,13 @@ def init_logging(filename, num_processes):
     # Register a cleanup function to close the logger when the process exits
     atexit.register(close_logging, logger)
 
+
 def close_logging(logger):
     handlers = logger.handlers[:]
     for handler in handlers:
         handler.close()
         logger.removeHandler(handler)
+
 
 def param_based_spec_estimate(energies,
                               y,
@@ -806,7 +819,8 @@ def param_based_spec_estimate(energies,
     model_params_list = list(product(*possible_filters_combinations, *possible_scintillators_combinations))
     # Regroup filters and scintillators
     model_params_list = [nested_list(model_params, [len(d) for d in [possible_filters_combinations,
-                                                          possible_scintillators_combinations]]) for model_params in
+                                                                     possible_scintillators_combinations]]) for
+                         model_params in
                          model_params_list]
 
     with Pool(processes=num_processes, initializer=init_logging, initargs=(logpath, num_processes)) as pool:
@@ -828,7 +842,8 @@ def param_based_spec_estimate(energies,
     print('Optimal Result:')
     print('Cost:', cost_list[optimal_cost_ind])
     for src_i, src_spec in enumerate(best_res.src_spec_list):
-        print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
+        print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (
+        src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
 
     for fltr_i, fltr_resp in enumerate(best_res.fltr_resp_list):
         print(
@@ -837,6 +852,3 @@ def param_based_spec_estimate(energies,
     for scint_i, scint_cvt in enumerate(best_res.scint_cvt_list):
         print(f'Scintillator {scint_i}: Material:{scint_cvt.get_scint_mat()} Thickness:{scint_cvt.get_scint_th()}')
     return results
-
-
-
