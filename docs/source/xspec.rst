@@ -11,3 +11,5 @@ xspec
    .. autosummary::
       estimate
       calc_forward_matrix
+      Material
+      Bound
