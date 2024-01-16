@@ -106,7 +106,9 @@ class Material:
 
 
 class Source:
-    def __init__(self, energies, src_voltage_list, src_spec_list, src_voltage_bound, voltage=None, optimize=True):
+    def __init__(self, energies, src_voltage_list, takeoff_angle_cur, src_spec_list,
+                 src_voltage_bound, takeoff_angle_bound=Bound(0,90), voltage=None,
+                 takeoff_angle=None, optimize_voltage=True, optimize_takeoff_angle=True):
         """A data structure to store and check source spectrum parameters.
 
         Parameters
@@ -121,7 +123,7 @@ class Source:
             Source voltage lower and uppder bound.
         voltage: float or int
             Source voltage. Default is None. Can be set for initial value.
-        optimize : bool
+        optimize_voltage : bool
             Specify if requiring optimization over source voltage.
 
         Returns
@@ -141,6 +143,7 @@ class Source:
             self.src_voltage_list = src_voltage_list
 
         self.src_spec_list = src_spec_list
+        self.takeoff_angle_cur = takeoff_angle_cur
 
         # Check if src_vol_bound is an instance of Bound
         if not isinstance(src_voltage_bound, Bound):
@@ -148,6 +151,13 @@ class Source:
                 "Expected an instance of Bound for src_vol_bound, but got {}.".format(type(src_voltage_bound).__name__))
         else:
             self.src_voltage_bound = src_voltage_bound
+
+        if not isinstance(takeoff_angle_bound, Bound):
+            raise ValueError(
+                "Expected an instance of Bound for takeOffAngle_bound, but got {}.".format(type(takeoff_angle_bound).__name__))
+        else:
+            self.takeoff_angle_bound = takeoff_angle_bound
+
 
         # Check voltage
         if voltage is None:
@@ -168,7 +178,25 @@ class Source:
         if not self.src_voltage_bound.is_within_bound(voltage):
             raise ValueError(f"Expected 'voltage' to be inside src_vol_bound, but got {voltage}.")
         self.voltage = voltage
-        self.optimize= optimize
+        self.optimize_voltage= optimize_voltage
+
+        # Check takeoff_angle
+        if takeoff_angle is None:
+            takeoff_angle = 0.5 * (takeoff_angle_bound.lower + takeoff_angle_bound.upper)
+        elif isinstance(takeoff_angle, float):
+            # It's already a float, no action needed
+            takeoff_angle = takeoff_angle
+        elif isinstance(takeoff_angle, int):
+            # It's an integer, convert to float
+            takeoff_angle = float(takeoff_angle)
+        else:
+            # It's not a float or int, so raise an error
+            raise ValueError(f"Expected 'takeoff_angle' to be a float or an integer, but got {type(takeoff_angle).__name__}.")
+
+        if not self.takeoff_angle_bound.is_within_bound(takeoff_angle):
+            raise ValueError(f"Expected 'takeoff_angle' to be inside takeoff_angle_bound, but got {takeoff_angle}.")
+        self.takeoff_angle = takeoff_angle
+        self.optimize_takeoff_angle = optimize_takeoff_angle
 
 class Filter:
     def __init__(self, possible_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, optimize=True):
@@ -319,3 +347,99 @@ class Model_combination:
         self.src_ind=src_ind
         self.fltr_ind_list=fltr_ind_list
         self.scint_ind=scint_ind
+
+def dict_to_sources(source_params, energies):
+    num_voltage = source_params.get('num_voltage')
+    reference_voltages = source_params.get('reference_voltages')
+    reference_anode_angle = source_params.get('reference_anode_angle')
+    reference_spectra = source_params.get('reference_spectra')
+    anode_angle = source_params.get('anode_angle', None)
+    anode_angle_range = source_params.get('anode_angle_range', None)
+    optimize_voltage = source_params.get('optimize_voltage', True)
+    optimize_anode_angle = source_params.get('optimize_anode_angle', True)
+
+    # Create Bound object for anode angle range
+    takeoff_angle_bound = Bound(anode_angle_range[0],anode_angle_range[1]) if anode_angle_range else Bound(0, 90)
+
+    # List to hold created Source objects
+    sources = []
+
+    for i in range(1, num_voltage + 1):
+        voltage_key = f'voltage_{i}'
+        voltage_range_key = f'voltage_{i}_range'
+
+        voltage = source_params.get(voltage_key, None)
+        voltage_range = source_params.get(voltage_range_key, None)
+
+        # Create Bound object for voltage range
+        src_voltage_bound = Bound(voltage_range[0], voltage_range[1]) if voltage_range else Bound(30.0, 200.0)
+
+        # Create a Source object and append to the list
+        src = Source(energies=energies,
+                     src_voltage_list=reference_voltages,
+                     takeoff_angle_cur=reference_anode_angle,
+                     src_spec_list=reference_spectra,
+                     src_voltage_bound=src_voltage_bound,
+                     takeoff_angle_bound=takeoff_angle_bound,
+                     voltage=voltage,
+                     takeoff_angle=anode_angle,
+                     optimize_voltage=optimize_voltage,
+                     optimize_takeoff_angle=optimize_anode_angle)
+
+        sources.append(src)
+
+    return sources
+
+
+
+
+def dict_to_filters(filter_params):
+    num_filters = filter_params.get('num_filter')
+    possible_materials = filter_params.get('possible_material')
+    optimize = filter_params.get('optimize',True)
+
+    # List to hold created Filter objects
+    filters = []
+
+    for i in range(1, num_filters + 1):
+        material_key = f'material_{i}'
+        thickness_key = f'thickness_{i}'
+        thickness_range_key = f'thickness_{i}_range'
+
+        # Extracting the material, thickness, and thickness range for each filter
+        material = filter_params.get(material_key, None)
+        thickness = filter_params.get(thickness_key, None)
+        thickness_range = filter_params.get(thickness_range_key, None)
+
+        # Create a Bound object for thickness range, if available
+        fltr_th_bound = Bound(thickness_range[0],thickness_range[1]) if thickness_range else Bound(0.0,10.0)
+
+        # Create a Filter object and append to the list
+        fltr = Filter(possible_mat=possible_materials,
+                      fltr_th_bound=fltr_th_bound,
+                      fltr_mat=material,
+                      fltr_th=thickness,
+                      optimize=optimize)  # Assuming optimization is required
+        filters.append(fltr)
+
+    return filters
+
+
+def dict_to_scintillator(scintillator_params):
+    possible_materials = scintillator_params.get('possible_material')
+    material = scintillator_params.get('material', None)
+    thickness = scintillator_params.get('thickness', None)
+    thickness_range = scintillator_params.get('thickness_range', None)
+    optimize = scintillator_params.get('optimize', True)
+
+    # Create a Bound object for thickness range
+    scint_th_bound = Bound(thickness_range[0], thickness_range[1]) if thickness_range else Bound(0.01,0.5)
+
+    # Create a Scintillator object
+    scintillator = Scintillator(possible_mat=possible_materials,
+                                scint_th_bound=scint_th_bound,
+                                scint_mat=material,
+                                scint_th=thickness,
+                                optimize=optimize)
+
+    return [scintillator]
