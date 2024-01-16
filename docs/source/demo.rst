@@ -12,9 +12,9 @@ contains a number of sample Python scripts in the
 folder.
 
 
-1. In your terminal window, install required dependencies for the demos::
+1. In your terminal window, under demo folder, install required dependencies for the demos::
 
-    $ pip install -r requirements_demo.txt
+    $ pip install -r requirements.txt
 
 2. In your terminal window, use python to run each demo.
 
