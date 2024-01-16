@@ -3,13 +3,10 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-from xspec.paramSE import param_based_spec_estimate
+from xspec import estimate
 from xspec.defs import *
 from xspec._utils import *
-import itertools
-from xspec._utils import nested_list
 import spekpy as sp  # Import SpekPy
-import argparse
 from demo_utils import gen_datasets_3_voltages
 
 if __name__ == '__main__':
@@ -31,7 +28,7 @@ if __name__ == '__main__':
     voltage_list = [80.0, 130.0, 180.0]
     simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
     max_simkV = max(simkV_list)
-    dict_anode_angle = 11
+    reference_anode_angle = 11
 
     # Pixel size in mm units.
     rsize = 0.01  # mm
@@ -43,7 +40,7 @@ if __name__ == '__main__':
     src_spec_list = []
     print('\nRunning demo script (1 mAs, 100 cm)\n')
     for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=dict_anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
+        s = sp.Spek(kvp=simkV + 1, th=reference_anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
         phi_k = phi_k * ((rsize / 10) ** 2)
 
@@ -53,22 +50,42 @@ if __name__ == '__main__':
 
     print('\nFinished!\n')
 
-    # Use class Source to store a source's paramter.
-    # optimize=False means do not optimize source voltage.
-    src_vol_bound = Bound(lower=30.0, upper=200.0)
-    takeoff_angle_bound = Bound(lower=5.0, upper=45.0)
-    Src_config = [Source(energies, simkV_list, dict_anode_angle, src_spec_list,
-                         src_vol_bound, takeoff_angle_bound, voltage=vv,
-                         optimize_voltage=False, optimize_takeoff_angle=True) for vv in
-                  voltage_list]
-    # Src_config = [Source(energies, simkV_list, src_spec_list, src_vol_bound)]
+    # Set source's parameters.
+    # optimize_voltage=False means do not optimize source voltages.
+    # Assign values to source_params dictionary
+    source_params = {
+        'num_voltage': len(voltage_list),
+        'reference_voltages': simkV_list,
+        'reference_anode_angle': reference_anode_angle,
+        'reference_spectra': src_spec_list,
+        'voltage_1': voltage_list[0],
+        'voltage_2': voltage_list[1],
+        'voltage_3': voltage_list[2],
+        'voltage_1_range': (30.0, 200.0),
+        'voltage_2_range': (30.0, 200.0),
+        'voltage_3_range': (30.0, 200.0),
+        'anode_angle': None, # Initial Value
+        'anode_angle_range': (5, 45),
+        'optimize_voltage': False,
+        'optimize_anode_angle': True,
+        'source_voltage_indices': [1, 2, 3]  # Indices used source voltage for each radiograph
+    }
 
+    # Set filter parameters
     # There is 1 filter with 2 possible materials.
-    num_fltr = 1
     psb_fltr_mat_comb = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    fltr_th_bound = Bound(lower=0.0, upper=10.0)
-    Fltr_config = [Filter(psb_fltr_mat_comb, fltr_th_bound) for i in range(num_fltr)]
+    # Assign values to filter_params dictionary
+    filter_params = {
+        'num_filter': 1,
+        'possible_material': psb_fltr_mat_comb,
+        'material_1': None,
+        'thickness_1': 0.1,
+        'thickness_1_range': (0.0, 10.0),
+        'optimize': True,
+        'filter_indices': [[1], [1], [1]]
+    }
 
+    # Set scintillator parameters
     # 7 possible scintillators
     scint_params = [
         {'formula': 'CsI', 'density': 4.51},
@@ -81,43 +98,39 @@ if __name__ == '__main__':
     ]
 
     psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
-    scint_th_bound = Bound(lower=0.01, upper=0.5)
-    Scint_config = [Scintillator(psb_scint_mat, scint_th_bound)]
+    # Assign values to scintillator_params dictionary
+    scintillator_params = {
+        'possible_material': psb_scint_mat,
+        'material': None,
+        'thickness': None,
+        'thickness_range': (0.01, 0.5),
+        'optimize': True
+    }
 
-    model_combination = [Model_combination(src_ind=i, fltr_ind_list=[0], scint_ind=0) for i in range(num_dataset)]
 
-    learning_rate = 1.0
-    optimizer_type = 'NNAT_LBFGS'
-    loss_type = 'mse'
+    learning_rate = 0.001
+    optimizer_type = 'Adam'#'NNAT_LBFGS'
 
-    savefile_name = 'case_mv_%s_%s_lr%.0e' % (optimizer_type, loss_type, learning_rate)
+    savefile_name = 'case_mv_%s_lr%.0e' % (optimizer_type, learning_rate)
 
     os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
 
-    res = param_based_spec_estimate(energies,
-                                    signal_train_list,
-                                    spec_F_train_list,
-                                    Src_config,
-                                    Fltr_config,
-                                    Scint_config,
-                                    model_combination,
-                                    weight=None,
-                                    learning_rate=learning_rate,
-                                    max_iterations=200,
-                                    stop_threshold=1e-6,
-                                    optimizer_type=optimizer_type,
-                                    loss_type=loss_type,
-                                    logpath='./output_3_source_voltages/log/%s' % savefile_name,
-                                    num_processes=8,
-                                    return_history=False)
+    res = estimate(energies, signal_train_list, spec_F_train_list, source_params, filter_params, scintillator_params,
+                   weight=None,
+                   weight_type='unweighted',
+                   blank_rads=None,
+                   learning_rate=learning_rate,
+                   max_iterations=1000,
+                   stop_threshold=1e-4,
+                   optimizer_type=optimizer_type,
+                   logpath='./output_3_source_voltages/log/%s' % savefile_name,
+                   num_processes=2,
+                   return_all_result=False)
 
-    cost_list = [r[1] for r in res]
-    optimal_cost_ind = np.argmin(cost_list)
-    best_res = res[optimal_cost_ind][2]
 
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
     for i in range(3):
-        axs[i].plot(energies, best_res.src_spec_list[i](energies).data, '--', label='Estimated %d' % i)
+        axs[i].plot(energies, res.src_spec_list[i](energies).data, '--', label='Estimated %d' % i)
         axs[i].set_ylim((0, 0.2e3))
         axs[i].legend()
     plt.savefig('./output_3_source_voltages/res/Est_source.png')
@@ -126,14 +139,14 @@ if __name__ == '__main__':
     ll = ['3 mm Al']
 
     plt.figure(2)
-    plt.plot(energies, best_res.fltr_resp_list[0](energies).data, '--', label='Estimate')
+    plt.plot(energies, res.fltr_resp_list[0](energies).data, '--', label='Estimate')
     plt.ylim((0,1))
     plt.title(ll[0])
     plt.legend()
     plt.savefig('./output_3_source_voltages/res/Est_filter.png')
 
     plt.figure(3)
-    plt.plot(energies, best_res.scint_cvt_list[0](energies).data, '--', label='Estimated')
+    plt.plot(energies, res.scint_cvt_list[0](energies).data, '--', label='Estimated')
     plt.legend()
     plt.savefig('./output_3_source_voltages/res/Est_scintillator.png')
 
@@ -143,19 +156,19 @@ if __name__ == '__main__':
         ["Voltage 1(kV)", 80, "/"],
         ["Voltage 2(kV)", 130, "/"],
         ["Voltage 3(kV)", 180, "/"],
-        ["Takeoff Angle(°)", 20, best_res.src_spec_list[0].get_takeoff_angle()]
+        ["Takeoff Angle(°)", 20, res.src_spec_list[0].get_takeoff_angle()]
     ]
 
     filter_data = [
         ["Filter 1 Parameters", "GT", "Estimated"],
-        ["material", "Al", best_res.fltr_resp_list[0].get_fltr_mat().formula],
-        ["thickness(mm)", 3, best_res.fltr_resp_list[0].get_fltr_th().data]
+        ["material", "Al", res.fltr_resp_list[0].get_fltr_mat().formula],
+        ["thickness(mm)", 3, res.fltr_resp_list[0].get_fltr_th().data]
     ]
 
     scintillator_data = [
         ["Scintillator Parameters", "Parameter", "Value"],
-        ["material", "CsI", best_res.scint_cvt_list[0].get_scint_mat().formula],
-        ["thickness(mm)", 0.33, best_res.scint_cvt_list[0].get_scint_th().data]
+        ["material", "CsI", res.scint_cvt_list[0].get_scint_mat().formula],
+        ["thickness(mm)", 0.33, res.scint_cvt_list[0].get_scint_th().data]
     ]
 
 

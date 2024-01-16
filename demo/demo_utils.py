@@ -112,6 +112,7 @@ def gen_datasets_3_voltages():
     simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
     max_simkV = max(simkV_list)
     takeoff_angle = 20
+    ref_takeoff_angle = 11
     # Energy bins.
     energies = np.linspace(1, max_simkV, max_simkV)
 
@@ -121,12 +122,12 @@ def gen_datasets_3_voltages():
     fig, axs = plt.subplots(1, 1, figsize=(12, 9), dpi=80)
     print('\nRunning demo script (10 mAs, 100 cm)\n')
     for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=takeoff_angle, dk=1, mas=1, char=True)  # Create the spectrum model
+        s = sp.Spek(kvp=simkV + 1, th=ref_takeoff_angle, dk=1, mas=1, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
         phi_k = phi_k * ((rsize / 10) ** 2)
         ## Plot the x-ray spectrum
         axs.plot(k[::2], phi_k[::2],
-                 label='Char: kvp:%d Anode angle:%d' % (simkV, takeoff_angle))
+                 label='Char: kvp:%d Anode angle:%d' % (simkV, ref_takeoff_angle))
         src_spec = np.zeros((max_simkV))
         src_spec[:simkV] = phi_k[::2]
         src_spec_list.append(src_spec)
@@ -150,7 +151,7 @@ def gen_datasets_3_voltages():
     takeoff_angle_bound = Bound(lower=5.0, upper=45.0)
     # Source is a python structure to store a source's parameters, including
     # energy bins, kV list and corresponding source spectral dictionary, bound of source voltage, and source voltage.
-    Src_config = [Source(energies, simkV_list, takeoff_angle, src_spec_list,
+    Src_config = [Source(energies, simkV_list, ref_takeoff_angle, src_spec_list,
                          src_vol_bound, takeoff_angle_bound, voltage=vv, takeoff_angle=takeoff_angle,
                          optimize_voltage=False, optimize_takeoff_angle=False) for vv in
                   voltage_list]

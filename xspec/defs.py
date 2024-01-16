@@ -354,12 +354,12 @@ def dict_to_sources(source_params, energies):
     reference_anode_angle = source_params.get('reference_anode_angle')
     reference_spectra = source_params.get('reference_spectra')
     anode_angle = source_params.get('anode_angle', None)
-    anode_angle_range = source_params.get('anode_angle_range')
+    anode_angle_range = source_params.get('anode_angle_range', None)
     optimize_voltage = source_params.get('optimize_voltage', True)
     optimize_anode_angle = source_params.get('optimize_anode_angle', True)
 
     # Create Bound object for anode angle range
-    takeoff_angle_bound = Bound(anode_angle_range) if anode_angle_range else Bound(0, 90)
+    takeoff_angle_bound = Bound(anode_angle_range[0],anode_angle_range[1]) if anode_angle_range else Bound(0, 90)
 
     # List to hold created Source objects
     sources = []
@@ -369,10 +369,10 @@ def dict_to_sources(source_params, energies):
         voltage_range_key = f'voltage_{i}_range'
 
         voltage = source_params.get(voltage_key, None)
-        voltage_range = source_params.get(voltage_range_key)
+        voltage_range = source_params.get(voltage_range_key, None)
 
         # Create Bound object for voltage range
-        src_voltage_bound = Bound(voltage_range) if voltage_range else None
+        src_voltage_bound = Bound(voltage_range[0], voltage_range[1]) if voltage_range else Bound(30.0, 200.0)
 
         # Create a Source object and append to the list
         src = Source(energies=energies,
@@ -396,7 +396,7 @@ def dict_to_sources(source_params, energies):
 def dict_to_filters(filter_params):
     num_filters = filter_params.get('num_filter')
     possible_materials = filter_params.get('possible_material')
-    optimize = filter_params.get('optimize')
+    optimize = filter_params.get('optimize',True)
 
     # List to hold created Filter objects
     filters = []
@@ -407,12 +407,12 @@ def dict_to_filters(filter_params):
         thickness_range_key = f'thickness_{i}_range'
 
         # Extracting the material, thickness, and thickness range for each filter
-        material = filter_params.get(material_key)
-        thickness = filter_params.get(thickness_key)
-        thickness_range = filter_params.get(thickness_range_key)
+        material = filter_params.get(material_key, None)
+        thickness = filter_params.get(thickness_key, None)
+        thickness_range = filter_params.get(thickness_range_key, None)
 
         # Create a Bound object for thickness range, if available
-        fltr_th_bound = Bound(thickness_range) if thickness_range else None
+        fltr_th_bound = Bound(thickness_range[0],thickness_range[1]) if thickness_range else Bound(0.0,10.0)
 
         # Create a Filter object and append to the list
         fltr = Filter(possible_mat=possible_materials,
@@ -427,13 +427,13 @@ def dict_to_filters(filter_params):
 
 def dict_to_scintillator(scintillator_params):
     possible_materials = scintillator_params.get('possible_material')
-    material = scintillator_params.get('material')
-    thickness = scintillator_params.get('thickness')
-    thickness_range = scintillator_params.get('thickness_range')
+    material = scintillator_params.get('material', None)
+    thickness = scintillator_params.get('thickness', None)
+    thickness_range = scintillator_params.get('thickness_range', None)
     optimize = scintillator_params.get('optimize', True)
 
     # Create a Bound object for thickness range
-    scint_th_bound = Bound(thickness_range) if thickness_range else None
+    scint_th_bound = Bound(thickness_range[0], thickness_range[1]) if thickness_range else Bound(0.01,0.5)
 
     # Create a Scintillator object
     scintillator = Scintillator(possible_mat=possible_materials,

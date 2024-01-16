@@ -149,7 +149,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         ]
 
         # Gather results from all parallel optimizations
-        print('Number of parallel optimizations:', len(result_objects))
+        print('Number of cases for different discrete parameters:', len(result_objects))
         results = [r.get() for r in result_objects]  # Retrieve results from async calls
 
     # Decide what to return based on 'return_all_result' flag
@@ -794,7 +794,7 @@ def param_based_spec_estimate_cell(energies,
                     small_update = False
                     break
 
-            if small_update or LBFGS_iter > max_iterations - 5000:
+            if small_update: #or LBFGS_iter > max_iterations - 5000
                 print(f"Stopping at epoch {iter} because updates are too small.")
                 print('Cost:', cost.item())
                 # for k, v in model.state_dict().items():
