@@ -1,6 +1,5 @@
 # Basic Packages
 import os
-
 import matplotlib.pyplot as plt
 import numpy as np
 from xspec import estimate
@@ -15,42 +14,39 @@ if __name__ == '__main__':
     os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
     os.makedirs('./output_3_source_voltages/res/', exist_ok=True)
 
-
+    # Generate simulated multi-polychromatic dataset using 3 different source voltages.
     data = gen_datasets_3_voltages()
     num_src_v = len(data)
 
-    signal_train_list = [d['measurement'] for d in data]
-    spec_F_train_list = [d['forward_mat'] for d in data]
+    normalized_rads = [d['measurement'] for d in data]
+    forward_matrices = [d['forward_mat'] for d in data]
 
     # Number of datasets
-    num_dataset = len(signal_train_list)
+    num_dataset = len(normalized_rads)
 
+    # Set source's parameters.
     voltage_list = [80.0, 130.0, 180.0]
     simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
     max_simkV = max(simkV_list)
     reference_anode_angle = 11
 
-    # Pixel size in mm units.
-    rsize = 0.01  # mm
+    # Detector pixel size in mm units.
+    dsize = 0.01  # mm
 
     # Energy bins.
     energies = np.linspace(1, max_simkV, max_simkV)
 
     # Use Spekpy to generate a source spectra dictionary.
     src_spec_list = []
-    print('\nRunning demo script (1 mAs, 100 cm)\n')
     for simkV in simkV_list:
         s = sp.Spek(kvp=simkV + 1, th=reference_anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
         k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
-        phi_k = phi_k * ((rsize / 10) ** 2)
+        phi_k = phi_k * ((dsize / 10) ** 2)
 
         src_spec = np.zeros((max_simkV))
         src_spec[:simkV] = phi_k[::2]
         src_spec_list.append(src_spec)
 
-    print('\nFinished!\n')
-
-    # Set source's parameters.
     # optimize_voltage=False means do not optimize source voltages.
     # Assign values to source_params dictionary
     source_params = {
@@ -115,40 +111,17 @@ if __name__ == '__main__':
 
     os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
 
-    res_params = estimate(energies, signal_train_list, spec_F_train_list, source_params, filter_params, scintillator_params,
-                   weight=None,
-                   weight_type='unweighted',
-                   blank_rads=None,
-                   learning_rate=learning_rate,
-                   max_iterations=5000,
-                   stop_threshold=1e-4,
-                   optimizer_type=optimizer_type,
-                   logpath=None,#'./output_3_source_voltages/log/%s' % savefile_name,
-                   num_processes=1,
-                   return_all_result=False)
-
-
-    # fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-    # for i in range(3):
-    #     axs[i].plot(energies, res.src_spec_list[i](energies).data, '--', label='Estimated %d' % i)
-    #     axs[i].set_ylim((0, 0.2e3))
-    #     axs[i].legend()
-    # plt.savefig('./output_3_source_voltages/res/Est_source.png')
-    #
-    # # Creating a figure with 3 subplots
-    # ll = ['3 mm Al']
-    #
-    # plt.figure(2)
-    # plt.plot(energies, res.fltr_resp_list[0](energies).data, '--', label='Estimate')
-    # plt.ylim((0,1))
-    # plt.title(ll[0])
-    # plt.legend()
-    # plt.savefig('./output_3_source_voltages/res/Est_filter.png')
-    #
-    # plt.figure(3)
-    # plt.plot(energies, res.scint_cvt_list[0](energies).data, '--', label='Estimated')
-    # plt.legend()
-    # plt.savefig('./output_3_source_voltages/res/Est_scintillator.png')
+    res_params = estimate(energies, normalized_rads, forward_matrices, source_params, filter_params, scintillator_params,
+                          weight=None,
+                          weight_type='unweighted',
+                          blank_rads=None,
+                          learning_rate=learning_rate,
+                          max_iterations=5000,
+                          stop_threshold=1e-4,
+                          optimizer_type=optimizer_type,
+                          logpath=None,  #'./output_3_source_voltages/log/%s' % savefile_name,
+                          num_processes=1,
+                          return_all_result=False)
 
     # Define the data for each section
     source_data = [
