@@ -5,7 +5,7 @@ from itertools import product
 
 class Bound:
     def __init__(self, lower:float, upper:float):
-        """
+        """ A class to store continuous parameters range.
 
         Parameters
         ----------
@@ -80,7 +80,7 @@ class Bound:
 
 class Material:
     def __init__(self, formula, density):
-        """
+        """ A class to store chemical formula and density.
 
         Parameters
         ----------

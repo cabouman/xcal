@@ -32,7 +32,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
     anode take-off angle, filter material and thickness, and scintillator and thickness.
 
     Args:
-        energies (numpy.ndarray): Array of interested X-ray photon energies from a poly-energetic source, in keV.
+        energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
             Each radiograph has size, N_views*N_rows*N_cols.
         forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
@@ -90,7 +90,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         return_all_result (bool, optional): [Default=False] Flag to return all discrete cases results.
 
     Returns:
-        The estimated X-ray CT parameters as per the specified configuration.
+        dict: The estimated X-ray CT parameters.
     """
     # Create a tuple of arguments to be used later, excluding 'self', 'num_processes', and 'logpath'
     args = tuple(v for k, v in locals().items() if k != 'self' and k != 'num_processes' and k != 'logpath')
@@ -160,7 +160,20 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         cost_list = [res[1] for res in results]
         optimal_cost_ind = np.argmin(cost_list)
         best_res = results[optimal_cost_ind][2]
-        return best_res
+        res_params = dict()
+        if source_params['optimize_voltage']:
+            for i in range(source_params['num_voltage']):
+                res_params['voltage_%d'%(i+1)] = best_res.src_spec_list[i].get_voltage()
+        if source_params['optimize_anode_angle']:
+            res_params['anode_angle'] = best_res.src_spec_list[0].get_takeoff_angle()
+        if filter_params['optimize']:
+            for i in range(filter_params['num_filter']):
+                res_params['filter_%d_mat'%(i+1)] = best_res.fltr_resp_list[i].get_fltr_mat()
+                res_params['filter_%d_thickness'%(i+1)] = best_res.fltr_resp_list[i].get_fltr_th().data
+        if scintillator_params['optimize']:
+            res_params['scintillator_mat']=best_res.scint_cvt_list[0].get_scint_mat()
+            res_params['scintillator_thickness']=best_res.scint_cvt_list[0].get_scint_th().data
+        return res_params
 
 
 def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector):
@@ -706,8 +719,8 @@ def param_based_spec_estimate_cell(energies,
 
     model.update_optimizer_type(ot)
 
-    print('Initial optimizer:', optimizer)
-    print('Initial optimizer_type:', model.ot)
+    # print('Initial optimizer:', optimizer)
+    # print('Initial optimizer_type:', model.ot)
 
     y = [torch.tensor(np.concatenate([sig.reshape((-1, 1)) for sig in yy]), dtype=torch.float32) for yy in y]
     num_sp_datasets = len(y)

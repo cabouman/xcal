@@ -61,12 +61,12 @@ if __name__ == '__main__':
         'voltage_1': voltage_list[0],
         'voltage_2': voltage_list[1],
         'voltage_3': voltage_list[2],
-        'voltage_1_range': (30.0, 200.0),
-        'voltage_2_range': (30.0, 200.0),
-        'voltage_3_range': (30.0, 200.0),
+        'voltage_1_range': (voltage_list[0]*0.95, voltage_list[0]*1.05),
+        'voltage_2_range': (voltage_list[1]*0.95, voltage_list[1]*1.05),
+        'voltage_3_range': (voltage_list[2]*0.95, voltage_list[2]*1.05),
         'anode_angle': None, # Initial Value
         'anode_angle_range': (5, 45),
-        'optimize_voltage': False,
+        'optimize_voltage': True,
         'optimize_anode_angle': True,
         'source_voltage_indices': [1, 2, 3]  # Indices used source voltage for each radiograph
     }
@@ -108,67 +108,67 @@ if __name__ == '__main__':
     }
 
 
-    learning_rate = 0.001
-    optimizer_type = 'Adam'#'NNAT_LBFGS'
+    learning_rate = 0.02
+    optimizer_type = 'NNAT_LBFGS'
 
     savefile_name = 'case_mv_%s_lr%.0e' % (optimizer_type, learning_rate)
 
     os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
 
-    res = estimate(energies, signal_train_list, spec_F_train_list, source_params, filter_params, scintillator_params,
+    res_params = estimate(energies, signal_train_list, spec_F_train_list, source_params, filter_params, scintillator_params,
                    weight=None,
                    weight_type='unweighted',
                    blank_rads=None,
                    learning_rate=learning_rate,
-                   max_iterations=1000,
+                   max_iterations=5000,
                    stop_threshold=1e-4,
                    optimizer_type=optimizer_type,
-                   logpath='./output_3_source_voltages/log/%s' % savefile_name,
-                   num_processes=2,
+                   logpath=None,#'./output_3_source_voltages/log/%s' % savefile_name,
+                   num_processes=1,
                    return_all_result=False)
 
 
-    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-    for i in range(3):
-        axs[i].plot(energies, res.src_spec_list[i](energies).data, '--', label='Estimated %d' % i)
-        axs[i].set_ylim((0, 0.2e3))
-        axs[i].legend()
-    plt.savefig('./output_3_source_voltages/res/Est_source.png')
-
-    # Creating a figure with 3 subplots
-    ll = ['3 mm Al']
-
-    plt.figure(2)
-    plt.plot(energies, res.fltr_resp_list[0](energies).data, '--', label='Estimate')
-    plt.ylim((0,1))
-    plt.title(ll[0])
-    plt.legend()
-    plt.savefig('./output_3_source_voltages/res/Est_filter.png')
-
-    plt.figure(3)
-    plt.plot(energies, res.scint_cvt_list[0](energies).data, '--', label='Estimated')
-    plt.legend()
-    plt.savefig('./output_3_source_voltages/res/Est_scintillator.png')
+    # fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    # for i in range(3):
+    #     axs[i].plot(energies, res.src_spec_list[i](energies).data, '--', label='Estimated %d' % i)
+    #     axs[i].set_ylim((0, 0.2e3))
+    #     axs[i].legend()
+    # plt.savefig('./output_3_source_voltages/res/Est_source.png')
+    #
+    # # Creating a figure with 3 subplots
+    # ll = ['3 mm Al']
+    #
+    # plt.figure(2)
+    # plt.plot(energies, res.fltr_resp_list[0](energies).data, '--', label='Estimate')
+    # plt.ylim((0,1))
+    # plt.title(ll[0])
+    # plt.legend()
+    # plt.savefig('./output_3_source_voltages/res/Est_filter.png')
+    #
+    # plt.figure(3)
+    # plt.plot(energies, res.scint_cvt_list[0](energies).data, '--', label='Estimated')
+    # plt.legend()
+    # plt.savefig('./output_3_source_voltages/res/Est_scintillator.png')
 
     # Define the data for each section
     source_data = [
         ["Source Parameters", "GT", "Estimated"],
-        ["Voltage 1(kV)", 80, "/"],
-        ["Voltage 2(kV)", 130, "/"],
-        ["Voltage 3(kV)", 180, "/"],
-        ["Takeoff Angle(°)", 20, res.src_spec_list[0].get_takeoff_angle()]
+        ["Voltage 1(kV)", 80, res_params['voltage_1']],
+        ["Voltage 2(kV)", 130, res_params['voltage_2']],
+        ["Voltage 3(kV)", 180, res_params['voltage_3']],
+        ["Takeoff Angle(°)", 20, res_params['anode_angle']]
     ]
 
     filter_data = [
         ["Filter 1 Parameters", "GT", "Estimated"],
-        ["material", "Al", res.fltr_resp_list[0].get_fltr_mat().formula],
-        ["thickness(mm)", 3, res.fltr_resp_list[0].get_fltr_th().data]
+        ["material", "Al",  res_params['filter_1_mat'].formula],
+        ["thickness(mm)", 3, res_params['filter_1_thickness']]
     ]
 
     scintillator_data = [
         ["Scintillator Parameters", "Parameter", "Value"],
-        ["material", "CsI", res.scint_cvt_list[0].get_scint_mat().formula],
-        ["thickness(mm)", 0.33, res.scint_cvt_list[0].get_scint_th().data]
+        ["material", "CsI", res_params['scintillator_mat'].formula],
+        ["thickness(mm)", 0.33, res_params['scintillator_thickness']]
     ]
 
 
@@ -190,6 +190,8 @@ if __name__ == '__main__':
 
 
     # Print the table sections
+    print()
+    print('Final Estimate Result:')
     print_section(source_data)
     print_section(filter_data)
     print_section(scintillator_data)
