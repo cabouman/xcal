@@ -35,7 +35,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
             Each radiograph has size, N_views*N_rows*N_cols.
-        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
+        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads. Each radiograph has size, N_views*N_rows*N_cols*N_energies.
 
         source_params (dict): Parameters defining the source model. Keys include:
 
