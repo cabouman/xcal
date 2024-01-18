@@ -11,5 +11,6 @@ xspec
    .. autosummary::
       estimate
       calc_forward_matrix
+      calc_source_spectrum
       Material
       Bound
