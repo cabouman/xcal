@@ -304,4 +304,5 @@ def gen_datasets_3_voltages():
         }
         datasets.append(d)
     plt.savefig('./output/7.png')
+    plt.close('all')
     return datasets

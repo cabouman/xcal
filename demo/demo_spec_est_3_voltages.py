@@ -2,7 +2,7 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from xspec import estimate
+from xspec import estimate, calc_source_spectrum, calc_filter_response, calc_scintillator_response
 from xspec.defs import *
 from xspec._utils import *
 import spekpy as sp  # Import SpekPy
@@ -126,9 +126,9 @@ if __name__ == '__main__':
     # Define the data for each section
     source_data = [
         ["Source Parameters", "GT", "Estimated"],
-        ["Voltage 1(kV)", 80, res_params['voltage_1']],
-        ["Voltage 2(kV)", 130, res_params['voltage_2']],
-        ["Voltage 3(kV)", 180, res_params['voltage_3']],
+        ["Voltage 1(kVp)", 80, res_params['voltage_1']],
+        ["Voltage 2(kVp)", 130, res_params['voltage_2']],
+        ["Voltage 3(kVp)", 180, res_params['voltage_3']],
         ["Takeoff Angle(°)", 20, res_params['anode_angle']]
     ]
 
@@ -168,3 +168,35 @@ if __name__ == '__main__':
     print_section(source_data)
     print_section(filter_data)
     print_section(scintillator_data)
+
+    fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+    plt.figure(1)
+    for i in range(3):
+        est_src_spectrum = calc_source_spectrum(energies,
+                                                reference_voltages=simkV_list,
+                                                reference_anode_angle=reference_anode_angle,
+                                                reference_spectra=src_spec_list,
+                                                voltage=res_params['voltage_%d'%(i+1)],
+                                                anode_angle=res_params['anode_angle'])
+        axs[i].plot(energies, est_src_spectrum, '--', label='Estimated %d' % (i+1))
+        axs[i].set_ylim((0, 0.2e3))
+        axs[i].set_xlabel('Energy  [keV]')
+        axs[i].legend()
+    plt.title('Estimated Source Spectra for 3 different voltages.')
+
+    plt.figure(2)
+    est_filter_response = calc_filter_response(energies,
+                                               material=res_params['filter_1_mat'],
+                                               thickness=res_params['filter_1_thickness'])
+    plt.plot(energies, est_filter_response, '--', label='Estimate')
+    plt.ylim((0,1))
+    plt.title('Estimated Filter Response')
+
+    plt.figure(3)
+    est_scintillator_response = calc_scintillator_response(energies,
+                                               material=res_params['scintillator_mat'],
+                                               thickness=res_params['scintillator_thickness'])
+    plt.plot(energies, est_scintillator_response, '--', label='Estimate')
+    plt.title('Estimated Scintillator Response')
+
+    plt.show()

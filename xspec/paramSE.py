@@ -40,14 +40,13 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         source_params (dict): Parameters defining the source model. Keys include:
 
             - 'num_voltage' (int): Number of used voltage to collect all normalized radiographs.
-            - 'reference_voltages' (numpy.ndarray):  Sorted array of source voltages for corresponding reference source
-                spectra.
-            - 'reference_anode_angle' (float): Reference anode take-off angle in degree.
-            - 'reference_spectra' (numpy.ndarray):  Reference source spectra.
-            - 'voltage_1' (float): The first used voltage of the X-ray source in kV.
-            - 'voltage_1_range' (tuple): Range of first voltage in kV.
+            - 'reference_voltages' (numpy.ndarray):  This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
+            - 'reference_anode_angle' (float): This value represents the reference anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
+            - 'reference_spectra' (numpy.ndarray):  This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to a specific combination of the reference_anode_angle and one of the source voltages from reference_voltages.
+            - 'voltage_1' (float): X-ray source tube voltage in kVp, defines the maximum energy that these electrons can gain. A voltage of 50 kVp will produce a spectrum of X-ray energies with the theoretical maximum being 50 keV.
+            - 'voltage_1_range' (tuple): Range of first voltage in kVp.
             - ...
-            - 'anode_angle' (float): Anode take-off angle in degrees.
+            - 'anode_angle' (float): Anode take-off angle in degrees. The anode take-off angle is the angle between the surface of the anode in an X-ray tube and the direction in which the majority of the X-rays are emitted.
             - 'anode_angle_range' (tuple): Range of anode angle in degrees.
             - 'optimize_voltage' (bool): Specify if requiring optimization over source voltage.
             - 'optimize_anode_angle' (bool): Specify if requiring optimization over anode_angle.
@@ -163,17 +162,73 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         res_params = dict()
         if source_params['optimize_voltage']:
             for i in range(source_params['num_voltage']):
-                res_params['voltage_%d'%(i+1)] = best_res.src_spec_list[i].get_voltage()
+                res_params['voltage_%d'%(i+1)] = best_res.src_spec_list[i].get_voltage().item()
         if source_params['optimize_anode_angle']:
             res_params['anode_angle'] = best_res.src_spec_list[0].get_takeoff_angle()
         if filter_params['optimize']:
             for i in range(filter_params['num_filter']):
                 res_params['filter_%d_mat'%(i+1)] = best_res.fltr_resp_list[i].get_fltr_mat()
-                res_params['filter_%d_thickness'%(i+1)] = best_res.fltr_resp_list[i].get_fltr_th().data
+                res_params['filter_%d_thickness'%(i+1)] = best_res.fltr_resp_list[i].get_fltr_th().item()
         if scintillator_params['optimize']:
             res_params['scintillator_mat']=best_res.scint_cvt_list[0].get_scint_mat()
-            res_params['scintillator_thickness']=best_res.scint_cvt_list[0].get_scint_th().data
+            res_params['scintillator_thickness']=best_res.scint_cvt_list[0].get_scint_th().item()
         return res_params
+
+
+def calc_source_spectrum(energies, reference_voltages, reference_anode_angle, reference_spectra, voltage, anode_angle):
+    """Calculate source spectrum with given parameters.
+
+    Args:
+        energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
+        reference_voltages (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
+        reference_anode_angle (float): This value represents the reference anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
+        reference_spectra (numpy.ndarray): This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to a specific combination of the reference_anode_angle and one of the source voltages from reference_voltages.
+        voltage (float): X-ray source tube voltage in kVp, defines the maximum energy that these electrons can gain. A voltage of 50 kVp will produce a spectrum of X-ray energies with the theoretical maximum being 50 keV.
+        anode_angle (float): Anode take-off angle in degrees. The anode take-off angle is the angle between the surface of the anode in an X-ray tube and the direction in which the majority of the X-rays are emitted.
+
+    Returns:
+        numpy.ndarray: The calculated source spectrum with given parameters.
+    """
+    source = Source(energies=energies,
+                     src_voltage_list=reference_voltages,
+                     takeoff_angle_cur=reference_anode_angle,
+                     src_spec_list=reference_spectra,
+                     voltage=voltage,
+                     takeoff_angle=anode_angle,
+                     optimize_voltage=False,
+                     optimize_takeoff_angle=False)
+    src_model = Source_Model(source)
+
+    return src_model(energies).data
+
+
+def calc_filter_response(energies, material, thickness):
+    """Calculate filter response with given parameters.
+
+    Args:
+        energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
+        material (object): An instance of Material for the filter.
+        thickness (float): Thickness of the filter in mm.
+    Returns:
+        numpy.ndarray: The calculated filter response with given parameters.
+    """
+    filter = Filter(fltr_mat=material, fltr_th=thickness, optimize=False)
+    fltr_model = Filter_Model(filter)
+    return fltr_model(energies).data
+
+def calc_scintillator_response(energies, material, thickness):
+    """Calculate scintillator response with given parameters.
+
+    Args:
+        energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
+        material (object): An instance of Material for the scintillator.
+        thickness (float): Thickness of the scintillator in mm.
+    Returns:
+        numpy.ndarray: The calculated scintillator response with given parameters.
+    """
+    scintillator = Scintillator(scint_mat=material, scint_th=thickness, optimize=False)
+    scint_model = Scintillator_Model(scintillator)
+    return scint_model(energies).data
 
 
 def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector):

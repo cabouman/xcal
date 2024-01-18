@@ -107,7 +107,7 @@ class Material:
 
 class Source:
     def __init__(self, energies, src_voltage_list, takeoff_angle_cur, src_spec_list,
-                 src_voltage_bound, takeoff_angle_bound=Bound(0,90), voltage=None,
+                 src_voltage_bound=Bound(10,300), takeoff_angle_bound=Bound(0,90), voltage=None,
                  takeoff_angle=None, optimize_voltage=True, optimize_takeoff_angle=True):
         """A data structure to store and check source spectrum parameters.
 
@@ -199,7 +199,7 @@ class Source:
         self.optimize_takeoff_angle = optimize_takeoff_angle
 
 class Filter:
-    def __init__(self, possible_mat, fltr_th_bound, fltr_mat=None, fltr_th=None, optimize=True):
+    def __init__(self, possible_mat=[], fltr_th_bound=Bound(0,20), fltr_mat=None, fltr_th=None, optimize=True):
         """A data structure to store and check filter response parameters.
 
         Parameters
@@ -265,7 +265,7 @@ class Filter:
         self.fltr_mat = fltr_mat
 
 class Scintillator:
-    def __init__(self, possible_mat:[Material], scint_th_bound: Bound, scint_mat=None, scint_th=None, optimize=True):
+    def __init__(self, possible_mat:[Material]=[], scint_th_bound=Bound(0.001, 2), scint_mat=None, scint_th=None, optimize=True):
         """A data structure to store and check scintillator response parameters.
 
         Parameters
@@ -292,7 +292,7 @@ class Scintillator:
             raise ValueError(
                 "Expected an instance of Bound for scint_th_bound, but got {}.".format(
                     type(scint_th_bound).__name__))
-        if scint_th_bound.lower <= 0.001:
+        if scint_th_bound.lower < 0.001:
             raise ValueError(
                 f"Expected lower bound of scint_th is greater than 0.001, but got {scint_th_bound.lower}.")
         self.scint_th_bound = scint_th_bound
