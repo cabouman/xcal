@@ -3,9 +3,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
-import svmbir
 import h5py
-
+import pyltt
 from xspec.chem_consts import get_lin_att_c_vs_E
 from xspec.dictSE import cal_fw_mat
 from xspec._utils import Gen_Circle
@@ -32,9 +31,9 @@ def read_mv_hdf5(file_name):
 
 # Customerize forward projector with a forward function that do forwald projection of a given mask.
 class fw_projector:
-    def __init__(self, angles, num_channels, delta_pixel=1, geometry='parallel'):
+    def __init__(self, N_views, psize, xcenter, geometry='parallel', arange=180):
         """
-
+        
         Parameters
         ----------
         energies
@@ -44,14 +43,15 @@ class fw_projector:
         geometry
         arange
         """
-        self.angles = angles
-        self.num_channels = num_channels
-        self.delta_pixel = delta_pixel
+        self.N_views = N_views
+        self.psize = psize
+        self.xcenter = xcenter
         self.geometry = geometry
+        self.arange = arange
 
     def forward(self, mask):
         """
-
+        
         Parameters
         ----------
         mask : numpy.ndarray
@@ -63,11 +63,15 @@ class fw_projector:
             Linear attenuation integral, of size M measurement * N energy bins.
 
         """
-
-        projections = svmbir.project(mask, self.angles, self.num_channels) * self.delta_pixel
+        
+        ltt_path = '/usr/workspace/prduePCI/LTT/IBM/python'
+        LTT = pyltt.ltt(ltt_path)
+        pyltt.reset(LTT, units='mm') #Use mm units for length
+        projections = pyltt.project(LTT, mask, self.N_views, self.psize, self.xcenter, geometry=self.geometry, arange=self.arange)
 
         return projections
 
+    
 def gen_datasets_3_voltages():
     os.makedirs('./output/', exist_ok=True)
     # Pixel size in mm units.
@@ -247,7 +251,7 @@ def gen_datasets_3_voltages():
             lac_vs_E_list.append(get_lin_att_c_vs_E(den, formula, energies))
 
         # SVMBIR Forward Projector, you can use your customerize forward projector.
-        pfp = fw_projector(angles, num_channels=nchanl, delta_pixel=rsize)
+        pfp = fw_projector(num_views, rsize, 511.5)
         # Forward Matrix F. cal_fw_mat uses given forward projector, LAC value,
         # and masks of homogenous objects to calculate a forward matrix.
         spec_F = cal_fw_mat(mask_list, lac_vs_E_list, energies, pfp)

@@ -1,3 +1,2 @@
-h5py
 git+https://bitbucket.org/spekpy/spekpy_release.git@master#egg=spekpy
-svmbir
+git+ssh://git@czgitlab.llnl.gov:7999/real/pyltt.git@master#egg=pyltt
