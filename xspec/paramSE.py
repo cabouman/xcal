@@ -35,7 +35,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
             Each radiograph has size, N_views*N_rows*N_cols.
-        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads. Each radiograph has size, N_views*N_rows*N_cols*N_energies.
+        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
 
         source_params (dict): Parameters defining the source model. Keys include:
 
@@ -658,7 +658,8 @@ class spec_distrb_energy_resp(torch.nn.Module):
                 if self.src_spec_list[mc.src_ind].source.optimize_takeoff_angle:
                     self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1 - 1e-6)
                 for fii in mc.fltr_ind_list:
-                    self.fltr_resp_list[fii]._parameters['normalized_fltr_th'].data.clamp_(min=1e-6, max=1 - 1e-6)
+                    if self.fltr_resp_list[fii].filter.optimize:
+                        self.fltr_resp_list[fii]._parameters['normalized_fltr_th'].data.clamp_(min=1e-6, max=1 - 1e-6)
                 self.scint_cvt_list[mc.scint_ind]._parameters['normalized_scint_th'].data.clamp_(min=1e-6, max=1 - 1e-6)
 
         src_func = self.src_spec_list[mc.src_ind](self.energies)

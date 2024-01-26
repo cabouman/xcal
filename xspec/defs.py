@@ -199,7 +199,7 @@ class Source:
         self.optimize_takeoff_angle = optimize_takeoff_angle
 
 class Filter:
-    def __init__(self, possible_mat=[], fltr_th_bound=Bound(0,20), fltr_mat=None, fltr_th=None, optimize=True):
+    def __init__(self, possible_mat=[], fltr_th_bound=Bound(0,1000), fltr_mat=None, fltr_th=None, optimize=True):
         """A data structure to store and check filter response parameters.
 
         Parameters
