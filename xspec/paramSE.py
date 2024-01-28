@@ -207,7 +207,7 @@ def calc_filter_response(energies, material, thickness):
 
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
-        material (object): An instance of Material for the filter.
+        material (object): An instance of Material for the filter, containing chemical formula and density.
         thickness (float): Thickness of the filter in mm.
     Returns:
         numpy.ndarray: The calculated filter response with given parameters.
@@ -221,7 +221,7 @@ def calc_scintillator_response(energies, material, thickness):
 
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
-        material (object): An instance of Material for the scintillator.
+        material (object): An instance of Material for the scintillator, containing chemical formula and density.
         thickness (float): Thickness of the scintillator in mm.
     Returns:
         numpy.ndarray: The calculated scintillator response with given parameters.
