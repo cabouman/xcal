@@ -35,7 +35,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
             Each radiograph has size, N_views*N_rows*N_cols.
-        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
+        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads. We provide ``xspec.calc_forward_matrix`` to calculate a forward matrix from a 3D mask for a homogenous object.
 
         source_params (dict): Parameters defining the source model. Keys include:
 
@@ -56,7 +56,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
 
             - 'num_filter' (int): Number of used filters to collect all normalized radiographs.
             - 'possible_material' (list): List of possible filter materials. Each item is an instance of Material.
-            - 'material_1' (object): An instance of Material for the first filter.
+            - 'material_1' (object): An instance of ``xspec.Material`` for the first filter.
             - 'thickness_1' (float): Thickness of the first filter in mm.
             - 'thickness_1_range' (tuple): Range of filter thickness in mm.
             - ...
@@ -66,7 +66,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         scintillator_params (dict): Parameters defining the scintillator properties. Keys include:
 
             - 'possible_material' (list): List of possible scintillator materials. Each item is an instance of Material.
-            - 'material' (object): An instance of Material for the scintillator.
+            - 'material' (object): An instance of ``xspec.Material`` for the scintillator.
             - 'thickness' (float): Thickness of the scintillator in mm.
             - 'thickness_range' (tuple): Range of scintillator thickness in mm.
             - 'optimize' (bool): Specify if requiring optimization over scintillator thickness.
@@ -207,7 +207,7 @@ def calc_filter_response(energies, material, thickness):
 
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
-        material (object): An instance of Material for the filter, containing chemical formula and density.
+        material (object): An instance of ``xspec.Material`` for the filter, containing chemical formula and density.
         thickness (float): Thickness of the filter in mm.
     Returns:
         numpy.ndarray: The calculated filter response with given parameters.
@@ -221,7 +221,7 @@ def calc_scintillator_response(energies, material, thickness):
 
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
-        material (object): An instance of Material for the scintillator, containing chemical formula and density.
+        material (object): An instance of ``xspec.Material`` for the scintillator, containing chemical formula and density.
         thickness (float): Thickness of the scintillator in mm.
     Returns:
         numpy.ndarray: The calculated scintillator response with given parameters.
