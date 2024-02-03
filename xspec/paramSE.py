@@ -32,10 +32,10 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
     anode take-off angle, filter material and thickness, and scintillator and thickness.
 
     Args:
-        energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
+        energies (numpy.ndarray): Array of interested X-ray photon energies in keV with size N_energies_bins.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
-            Each radiograph has size, N_views*N_rows*N_cols.
-        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads. We provide ``xspec.calc_forward_matrix`` to calculate a forward matrix from a 3D mask for a homogenous object.
+            Each radiograph has dimensions [N_views, N_rows, N_cols].
+        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads. We provide ``xspec.calc_forward_matrix`` to calculate a forward matrix from a 3D mask for a homogenous object. Each forward matrix, corresponding to radiograph, has dimensions [N_views, N_rows, N_cols, N_energiy_bins].
 
         source_params (dict): Parameters defining the source model. Keys include:
 
@@ -78,7 +78,8 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
             Option “unweighted” corresponds to unweighted reconstruction;
             Option “transmission” is the correct weighting for transmission CT with constant dose or given blank
             radiograph.
-        blank_rads (list of 2D numpy.ndarray, optional): Measured Radiographs without object.
+        blank_rads (list of numpy.ndarray, optional): A list of blank (object-free) radiograph arrays, where each array corresponds to a specific radiograph and has dimensions [N_views, N_rows, N_cols]. These arrays are used in scenarios where the weight calculation is necessary. Specifically, when 'weight_type' is “transmission”, the weight is determined by the formula: blank radiograph / normalized radiograph. This approach assumes that the variance of the object radiograph is proportional to the object radiograph divided by the square of the blank radiograph.
+
         learning_rate (float, optional): [Default=0.001] Learning rate for the optimization process.
         max_iterations (int, optional): [Default=5000] Maximum number of iterations for the optimization.
         stop_threshold (float, optional): [Default=1e-4] Scalar valued stopping threshold in percent.
