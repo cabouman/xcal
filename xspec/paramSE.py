@@ -32,10 +32,10 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
     anode take-off angle, filter material and thickness, and scintillator and thickness.
 
     Args:
-        energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
+        energies (numpy.ndarray): Array of interested X-ray photon energies in keV with size N_energies_bins.
         normalized_rads (list of numpy.ndarray): Normalized radiographs at different source voltages and filters.
-            Each radiograph has size, N_views*N_rows*N_cols.
-        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads.
+            Each radiograph has dimensions [N_views, N_rows, N_cols].
+        forward_matrices (list of numpy.ndarray): Corresponding forward matrices for normalized_rads. We provide ``xspec.calc_forward_matrix`` to calculate a forward matrix from a 3D mask for a homogenous object. Each forward matrix, corresponding to radiograph, has dimensions [N_views, N_rows, N_cols, N_energiy_bins].
 
         source_params (dict): Parameters defining the source model. Keys include:
 
@@ -46,6 +46,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
             - 'voltage_1' (float): X-ray source tube voltage in kVp, defines the maximum energy that these electrons can gain. A voltage of 50 kVp will produce a spectrum of X-ray energies with the theoretical maximum being 50 keV.
             - 'voltage_1_range' (tuple): Range of first voltage in kVp.
             - ...
+            - 'anode_target_type (str)': 'transmission' or 'reflection'. The angle between the X-ray direction to the center of the detector and the anode target surface.
             - 'anode_angle' (float): Anode take-off angle in degrees. The anode take-off angle is the angle between the surface of the anode in an X-ray tube and the direction in which the majority of the X-rays are emitted.
             - 'anode_angle_range' (tuple): Range of anode angle in degrees.
             - 'optimize_voltage' (bool): Specify if requiring optimization over source voltage.
@@ -56,7 +57,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
 
             - 'num_filter' (int): Number of used filters to collect all normalized radiographs.
             - 'possible_material' (list): List of possible filter materials. Each item is an instance of Material.
-            - 'material_1' (object): An instance of Material for the first filter.
+            - 'material_1' (object): An instance of ``xspec.Material`` for the first filter.
             - 'thickness_1' (float): Thickness of the first filter in mm.
             - 'thickness_1_range' (tuple): Range of filter thickness in mm.
             - ...
@@ -66,7 +67,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         scintillator_params (dict): Parameters defining the scintillator properties. Keys include:
 
             - 'possible_material' (list): List of possible scintillator materials. Each item is an instance of Material.
-            - 'material' (object): An instance of Material for the scintillator.
+            - 'material' (object): An instance of ``xspec.Material`` for the scintillator.
             - 'thickness' (float): Thickness of the scintillator in mm.
             - 'thickness_range' (tuple): Range of scintillator thickness in mm.
             - 'optimize' (bool): Specify if requiring optimization over scintillator thickness.
@@ -77,7 +78,8 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
             Option “unweighted” corresponds to unweighted reconstruction;
             Option “transmission” is the correct weighting for transmission CT with constant dose or given blank
             radiograph.
-        blank_rads (list of 2D numpy.ndarray, optional): Measured Radiographs without object.
+        blank_rads (list of numpy.ndarray, optional): A list of blank (object-free) radiograph arrays, where each array corresponds to a specific radiograph and has dimensions [N_views, N_rows, N_cols]. These arrays are used in scenarios where the weight calculation is necessary. Specifically, when 'weight_type' is “transmission”, the weight is determined by the formula: blank radiograph / normalized radiograph. This approach assumes that the variance of the object radiograph is proportional to the object radiograph divided by the square of the blank radiograph.
+
         learning_rate (float, optional): [Default=0.001] Learning rate for the optimization process.
         max_iterations (int, optional): [Default=5000] Maximum number of iterations for the optimization.
         stop_threshold (float, optional): [Default=1e-4] Scalar valued stopping threshold in percent.
@@ -207,7 +209,7 @@ def calc_filter_response(energies, material, thickness):
 
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
-        material (object): An instance of Material for the filter.
+        material (object): An instance of ``xspec.Material`` for the filter, containing chemical formula and density.
         thickness (float): Thickness of the filter in mm.
     Returns:
         numpy.ndarray: The calculated filter response with given parameters.
@@ -221,7 +223,7 @@ def calc_scintillator_response(energies, material, thickness):
 
     Args:
         energies (numpy.ndarray): Array of interested X-ray photon energies in keV.
-        material (object): An instance of Material for the scintillator.
+        material (object): An instance of ``xspec.Material`` for the scintillator, containing chemical formula and density.
         thickness (float): Thickness of the scintillator in mm.
     Returns:
         numpy.ndarray: The calculated scintillator response with given parameters.
@@ -397,9 +399,6 @@ class Source_Model(torch.nn.Module):
         self.volt_lower = source.src_voltage_bound.lower
         self.volt_scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
         normalized_voltage = (source.voltage - self.volt_lower) / self.volt_scale
-        self.toa_lower = angle_sin(source.takeoff_angle_bound.lower)
-        self.toa_scale = angle_sin(source.takeoff_angle_bound.upper) - angle_sin(source.takeoff_angle_bound.lower)
-        normalized_sin_psi = (angle_sin(source.takeoff_angle) - self.toa_lower) / self.toa_scale
 
         # Instantiate parameters
         if source.optimize_voltage:
@@ -407,10 +406,14 @@ class Source_Model(torch.nn.Module):
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
 
-        if self.source.optimize_takeoff_angle:
-            self.normalized_sin_psi = Parameter(torch.tensor(normalized_sin_psi, **factory_kwargs))
-        else:
-            self.normalized_sin_psi = torch.tensor(normalized_sin_psi, **factory_kwargs)
+        if self.source.anode_target_type == 'reflection':
+            self.toa_lower = angle_sin(source.takeoff_angle_bound.lower)
+            self.toa_scale = angle_sin(source.takeoff_angle_bound.upper) - angle_sin(source.takeoff_angle_bound.lower)
+            normalized_sin_psi = (angle_sin(source.takeoff_angle) - self.toa_lower) / self.toa_scale
+            if self.source.optimize_takeoff_angle:
+                self.normalized_sin_psi = Parameter(torch.tensor(normalized_sin_psi, **factory_kwargs))
+            else:
+                self.normalized_sin_psi = torch.tensor(normalized_sin_psi, **factory_kwargs)
 
     def get_voltage(self):
         """Read voltage.
@@ -431,9 +434,13 @@ class Source_Model(torch.nn.Module):
         voltage: float
             Read takeoff_angle.
         """
+        if self.source.anode_target_type == 'reflection':
+            return np.arcsin(np.clip(self.normalized_sin_psi.detach().numpy(), 0,
+                                     1) * self.toa_scale + self.toa_lower) * 180.0 / np.pi
+        else:
+            # If anode_target_type is not 'reflection', raise an error
+            raise ValueError("anode_target_type must be 'reflection' to run get_takeoff_angle.")
 
-        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0,
-                                         1).detach().numpy() * self.toa_scale + self.toa_lower) * 180.0 / np.pi
 
     def get_sin_psi(self):
         """Read takeoff_angle.
@@ -443,8 +450,11 @@ class Source_Model(torch.nn.Module):
         voltage: float
             Read takeoff_angle.
         """
-
-        return clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower
+        if self.source.anode_target_type == 'reflection':
+            return clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower
+        else:
+            # If anode_target_type is not 'reflection', raise an error
+            raise ValueError("anode_target_type must be 'reflection' to run get_sin_psi.")
 
     def forward(self, energies):
         """Calculate source spectrum.
@@ -456,9 +466,10 @@ class Source_Model(torch.nn.Module):
 
         """
         src_spec = interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
-        sin_psi_cur = angle_sin(self.source.takeoff_angle_cur)
-        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(),
-                                                              energies)
+        if self.source.anode_target_type == 'reflection':
+            sin_psi_cur = angle_sin(self.source.takeoff_angle_cur)
+            src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(),
+                                                                  energies)
         return src_spec
 
 

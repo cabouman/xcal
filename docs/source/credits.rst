@@ -2,8 +2,8 @@ Credits
 =======
 
 
-XSPEC Cone Development Team
----------------------------
+XSPEC Development Team
+----------------------
 
 The XSPEC Development Team is listed below in alphabetical order:
 
