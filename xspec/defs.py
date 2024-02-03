@@ -107,7 +107,8 @@ class Material:
 
 class Source:
     def __init__(self, energies, src_voltage_list, takeoff_angle_cur, src_spec_list,
-                 src_voltage_bound=Bound(10,300), takeoff_angle_bound=Bound(0,90), voltage=None,
+                 src_voltage_bound=Bound(10,300), anode_target_type='reflection',
+                 takeoff_angle_bound=Bound(0,90), voltage=None,
                  takeoff_angle=None, optimize_voltage=True, optimize_takeoff_angle=True):
         """A data structure to store and check source spectrum parameters.
 
@@ -144,6 +145,13 @@ class Source:
 
         self.src_spec_list = src_spec_list
         self.takeoff_angle_cur = takeoff_angle_cur
+
+        # The angle between the X-ray direction to the center of the detector and the anode target surface.
+        # Can be 'transmission' or 'reflection'.
+        if anode_target_type not in ['transmission', 'reflection']:
+            raise ValueError("anode_target_type must be either 'transmission' or 'reflection'")
+        else:
+            self.anode_target_type = anode_target_type
 
         # Check if src_vol_bound is an instance of Bound
         if not isinstance(src_voltage_bound, Bound):
@@ -353,6 +361,7 @@ def dict_to_sources(source_params, energies):
     reference_voltages = source_params.get('reference_voltages')
     reference_anode_angle = source_params.get('reference_anode_angle')
     reference_spectra = source_params.get('reference_spectra')
+    anode_target_type = source_params.get('anode_target_type', 'reflection')
     anode_angle = source_params.get('anode_angle', None)
     anode_angle_range = source_params.get('anode_angle_range', None)
     optimize_voltage = source_params.get('optimize_voltage', True)
