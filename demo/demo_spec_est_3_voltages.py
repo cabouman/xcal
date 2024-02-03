@@ -54,6 +54,7 @@ if __name__ == '__main__':
         'reference_voltages': simkV_list,
         'reference_anode_angle': reference_anode_angle,
         'reference_spectra': src_spec_list,
+        'anode_target_type':'reflection',
         'voltage_1': voltage_list[0],
         'voltage_2': voltage_list[1],
         'voltage_3': voltage_list[2],

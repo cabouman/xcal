@@ -149,7 +149,8 @@ class Source:
         # The angle between the X-ray direction to the center of the detector and the anode target surface.
         # Can be 'transmission' or 'reflection'.
         if anode_target_type not in ['transmission', 'reflection']:
-            raise ValueError("anode_target_type must be either 'transmission' or 'reflection'")
+            raise ValueError(
+                f"anode_target_type must be either 'transmission' or 'reflection'. Current value: '{anode_target_type}'")
         else:
             self.anode_target_type = anode_target_type
 
