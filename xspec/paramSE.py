@@ -46,6 +46,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
             - 'voltage_1' (float): X-ray source tube voltage in kVp, defines the maximum energy that these electrons can gain. A voltage of 50 kVp will produce a spectrum of X-ray energies with the theoretical maximum being 50 keV.
             - 'voltage_1_range' (tuple): Range of first voltage in kVp.
             - ...
+            - 'anode_target_type (str)': 'transmission' or 'reflection'. The angle between the X-ray direction to the center of the detector and the anode target surface.
             - 'anode_angle' (float): Anode take-off angle in degrees. The anode take-off angle is the angle between the surface of the anode in an X-ray tube and the direction in which the majority of the X-rays are emitted.
             - 'anode_angle_range' (tuple): Range of anode angle in degrees.
             - 'optimize_voltage' (bool): Specify if requiring optimization over source voltage.
@@ -397,9 +398,6 @@ class Source_Model(torch.nn.Module):
         self.volt_lower = source.src_voltage_bound.lower
         self.volt_scale = source.src_voltage_bound.upper - source.src_voltage_bound.lower
         normalized_voltage = (source.voltage - self.volt_lower) / self.volt_scale
-        self.toa_lower = angle_sin(source.takeoff_angle_bound.lower)
-        self.toa_scale = angle_sin(source.takeoff_angle_bound.upper) - angle_sin(source.takeoff_angle_bound.lower)
-        normalized_sin_psi = (angle_sin(source.takeoff_angle) - self.toa_lower) / self.toa_scale
 
         # Instantiate parameters
         if source.optimize_voltage:
@@ -407,10 +405,14 @@ class Source_Model(torch.nn.Module):
         else:
             self.normalized_voltage = torch.tensor(normalized_voltage, **factory_kwargs)
 
-        if self.source.optimize_takeoff_angle:
-            self.normalized_sin_psi = Parameter(torch.tensor(normalized_sin_psi, **factory_kwargs))
-        else:
-            self.normalized_sin_psi = torch.tensor(normalized_sin_psi, **factory_kwargs)
+        if self.source.anode_target_type == 'reflection':
+            self.toa_lower = angle_sin(source.takeoff_angle_bound.lower)
+            self.toa_scale = angle_sin(source.takeoff_angle_bound.upper) - angle_sin(source.takeoff_angle_bound.lower)
+            normalized_sin_psi = (angle_sin(source.takeoff_angle) - self.toa_lower) / self.toa_scale
+            if self.source.optimize_takeoff_angle:
+                self.normalized_sin_psi = Parameter(torch.tensor(normalized_sin_psi, **factory_kwargs))
+            else:
+                self.normalized_sin_psi = torch.tensor(normalized_sin_psi, **factory_kwargs)
 
     def get_voltage(self):
         """Read voltage.
@@ -431,9 +433,13 @@ class Source_Model(torch.nn.Module):
         voltage: float
             Read takeoff_angle.
         """
+        if self.source.anode_target_type == 'reflection':
+            return np.arcsin(np.clip(self.normalized_sin_psi.detach().numpy(), 0,
+                                     1) * self.toa_scale + self.toa_lower) * 180.0 / np.pi
+        else:
+            # If anode_target_type is not 'reflection', raise an error
+            raise ValueError("anode_target_type must be 'reflection' to run get_takeoff_angle.")
 
-        return np.arcsin(clamp_with_grad(self.normalized_sin_psi, 0,
-                                         1).detach().numpy() * self.toa_scale + self.toa_lower) * 180.0 / np.pi
 
     def get_sin_psi(self):
         """Read takeoff_angle.
@@ -443,8 +449,11 @@ class Source_Model(torch.nn.Module):
         voltage: float
             Read takeoff_angle.
         """
-
-        return clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower
+        if self.source.anode_target_type == 'reflection':
+            return clamp_with_grad(self.normalized_sin_psi, 0, 1) * self.toa_scale + self.toa_lower
+        else:
+            # If anode_target_type is not 'reflection', raise an error
+            raise ValueError("anode_target_type must be 'reflection' to run get_sin_psi.")
 
     def forward(self, energies):
         """Calculate source spectrum.
@@ -456,9 +465,10 @@ class Source_Model(torch.nn.Module):
 
         """
         src_spec = interp_src_spectra(self.source.src_voltage_list, self.source.src_spec_list, self.get_voltage())
-        sin_psi_cur = angle_sin(self.source.takeoff_angle_cur)
-        src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(),
-                                                              energies)
+        if self.source.anode_target_type == 'reflection':
+            sin_psi_cur = angle_sin(self.source.takeoff_angle_cur)
+            src_spec = src_spec * takeoff_angle_conversion_factor(self.get_voltage(), sin_psi_cur, self.get_sin_psi(),
+                                                                  energies)
         return src_spec
 
 

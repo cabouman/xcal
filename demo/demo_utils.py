@@ -152,7 +152,7 @@ def gen_datasets_3_voltages():
     # Source is a python structure to store a source's parameters, including
     # energy bins, kV list and corresponding source spectral dictionary, bound of source voltage, and source voltage.
     Src_config = [Source(energies, simkV_list, ref_takeoff_angle, src_spec_list,
-                         src_vol_bound, takeoff_angle_bound, voltage=vv, takeoff_angle=takeoff_angle,
+                         src_vol_bound, 'reflection', takeoff_angle_bound, voltage=vv, takeoff_angle=takeoff_angle,
                          optimize_voltage=False, optimize_takeoff_angle=False) for vv in
                   voltage_list]
     ref_src_spec_list = []
