@@ -390,6 +390,7 @@ def dict_to_sources(source_params, energies):
                      takeoff_angle_cur=reference_anode_angle,
                      src_spec_list=reference_spectra,
                      src_voltage_bound=src_voltage_bound,
+                     anode_target_type=anode_target_type,
                      takeoff_angle_bound=takeoff_angle_bound,
                      voltage=voltage,
                      takeoff_angle=anode_angle,
