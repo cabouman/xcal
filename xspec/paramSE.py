@@ -668,7 +668,7 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         if self.ot == 'Adam':
             with torch.no_grad():
-                if self.src_spec_list[mc.src_ind].anode_target_type == 'reflection':
+                if self.src_spec_list[mc.src_ind].source.anode_target_type == 'reflection':
                     if self.src_spec_list[mc.src_ind].source.optimize_takeoff_angle:
                         self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1 - 1e-6)
                 for fii in mc.fltr_ind_list:
