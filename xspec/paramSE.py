@@ -165,8 +165,9 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
         if source_params['optimize_voltage']:
             for i in range(source_params['num_voltage']):
                 res_params['voltage_%d'%(i+1)] = best_res.src_spec_list[i].get_voltage().item()
-        if source_params['optimize_anode_angle']:
-            res_params['anode_angle'] = best_res.src_spec_list[0].get_takeoff_angle()
+        if source_params['anode_target_type']=='reflection':
+            if source_params['optimize_anode_angle']:
+                res_params['anode_angle'] = best_res.src_spec_list[0].get_takeoff_angle()
         if filter_params['optimize']:
             for i in range(filter_params['num_filter']):
                 res_params['filter_%d_mat'%(i+1)] = best_res.fltr_resp_list[i].get_fltr_mat()
