@@ -632,9 +632,11 @@ class spec_distrb_energy_resp(torch.nn.Module):
         self.energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
         self.src_spec_list = torch.nn.ModuleList(
             [Source_Model(source, **factory_kwargs) for source in sources])
-        if sources[0].optimize_takeoff_angle:
-            for smm in self.src_spec_list[1:]:
-                smm._parameters['normalized_sin_psi'] = self.src_spec_list[0]._parameters['normalized_sin_psi']
+
+        if sources[0].anode_target_type == 'reflection':
+            if sources[0].optimize_takeoff_angle:
+                for smm in self.src_spec_list[1:]:
+                    smm._parameters['normalized_sin_psi'] = self.src_spec_list[0]._parameters['normalized_sin_psi']
         self.fltr_resp_list = torch.nn.ModuleList(
             [Filter_Model(filter, **factory_kwargs) for filter in filters])
         self.scint_cvt_list = torch.nn.ModuleList(
@@ -666,8 +668,9 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         if self.ot == 'Adam':
             with torch.no_grad():
-                if self.src_spec_list[mc.src_ind].source.optimize_takeoff_angle:
-                    self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1 - 1e-6)
+                if self.src_spec_list[mc.src_ind].anode_target_type == 'reflection':
+                    if self.src_spec_list[mc.src_ind].source.optimize_takeoff_angle:
+                        self.src_spec_list[mc.src_ind]._parameters['normalized_sin_psi'].data.clamp_(min=1e-6, max=1 - 1e-6)
                 for fii in mc.fltr_ind_list:
                     if self.fltr_resp_list[fii].filter.optimize:
                         self.fltr_resp_list[fii]._parameters['normalized_fltr_th'].data.clamp_(min=1e-6, max=1 - 1e-6)
@@ -700,9 +703,12 @@ class spec_distrb_energy_resp(torch.nn.Module):
         """
         if self.print_method is not None:
             print = self.print_method
+
         for src_i, src_spec in enumerate(self.src_spec_list):
-            print('Source %d: Voltage: %.2f; Take-off Angle: %.2f' % (
-            src_i, src_spec.get_voltage().item(), src_spec.get_takeoff_angle().item()))
+            print('Source %d: Voltage: %.2f;' % (src_i, src_spec.get_voltage().item()))
+
+        if self.src_spec_list[0].source.anode_target_type == 'reflection':
+            print('Take-off Angle: %.2f' % (src_spec.get_takeoff_angle().item()))
 
         for fltr_i, fltr_resp in enumerate(self.fltr_resp_list):
             print(
