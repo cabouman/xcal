@@ -25,7 +25,7 @@ from itertools import product
 
 def estimate(energies, normalized_rads, forward_matrices, source_params, filter_params, scintillator_params,
              weight=None, weight_type='unweighted', blank_rads=None,
-             learning_rate=0.001, max_iterations=5000, stop_threshold=1e-4, optimizer_type='Adam', logpath=None,
+             learning_rate=0.001, max_iterations=5000, stop_threshold=1e-4, optimizer_type='Adam', loss_type='wmse', logpath=None,
              num_processes=1, return_all_result=False):
     """
     Estimate the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage,
@@ -144,7 +144,7 @@ def estimate(energies, normalized_rads, forward_matrices, source_params, filter_
                 sources, possible_filters, possible_scintillators, model_combination,
                 weight, learning_rate,
                 max_iterations, stop_threshold,
-                optimizer_type, 'wmse', False)
+                optimizer_type, loss_type, False)
             )
             for possible_filters, possible_scintillators in model_params_list
         ]
