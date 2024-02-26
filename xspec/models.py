@@ -133,8 +133,7 @@ def get_concatenated_params_list(lists):
 class Base_Spec_Model(Module):
 
     def __init__(self, params_list):
-        """
-        Initialize the Base_Spec_Model.
+        """Base class for all spectral components in xspec.
 
         Args:
             params_list (list): List of dictionaries containing parameters.
@@ -377,7 +376,7 @@ def angle_sin(psi, torch_mode=False):
         return np.sin(psi * np.pi / 180.0)
 
 class Reflection_Source(Base_Spec_Model):
-    def __init__(self, voltage, takeoff_angle, single_takeoff_angle=False):
+    def __init__(self, voltage, takeoff_angle, single_takeoff_angle=True):
         """
         A template source model designed specifically for reflection sources, including all necessary methods.
 
@@ -386,6 +385,9 @@ class Reflection_Source(Base_Spec_Model):
                 These three values cannot be all None. It will not be optimized when lower == upper.
             takeoff_angle (tuple): (initial value, lower bound, upper bound) for the takeoff angle, in degrees.
                 These three values cannot be all None. It will not be optimized when lower == upper.
+            single_takeoff_angle (bool, optional): Determines whether the takeoff angle is same for all instances.
+                If set to True (default), the same takeoff angle is applied to all instances of Reflection_Source.
+                If set to False, each instance may have a distinct takeoff angle, with different prefix.
         """
         params_list = [{'voltage': voltage, 'takeoff_angle': takeoff_angle}]
         super().__init__(params_list)

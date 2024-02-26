@@ -11,4 +11,4 @@ xspec
    .. autosummary::
       Estimate
       Material
-
+	  calc_forward_matrix

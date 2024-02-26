@@ -20,7 +20,33 @@ from xspec.models import get_merged_params_list, get_concatenated_params_list, d
 def weighted_mse_loss(input, target, weight):
     return 0.5 * torch.mean(weight * (input - target) ** 2)
 
+def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector):
+    """
+    Calculate the forward matrix for a combination of multiple solid objects using a given forward projector.
 
+    Args:
+        homogenous_vol_masks (list of numpy.ndarray): Each 3D array in the list represents a mask for a homogenous,
+            pure object.
+        lac_vs_energies (list of numpy.ndarray): Each 1D array contains the linear attenuation coefficient (LAC)
+            curve and the corresponding energies for the materials represented in `homogenous_vol_masks`.
+        forward_projector (object): An instance of a class that implements a forward projection method. This
+            instance should have a method, forward(mask), takes a 3D volume mask as input and computes the photon's line
+            path length.
+
+    Returns:
+        numpy.ndarray: The calculated forward matrix for spectral estimation.
+    """
+
+    linear_att_intg_list = []
+    for mask, lac_vs_energies in zip(homogenous_vol_masks, lac_vs_energies):
+        linear_intg = forward_projector.forward(mask)
+        linear_att_intg_list.append(
+            linear_intg[np.newaxis, :, :, :] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis])
+
+    tot_lai = np.sum(np.array(linear_att_intg_list), axis=0)
+    forward_matrix = np.exp(- tot_lai.transpose((1, 2, 3, 0)))
+
+    return forward_matrix
 
 def fit_cell(energies,
              nrads,
@@ -33,23 +59,8 @@ def fit_cell(energies,
              stop_threshold=1e-3,
              optimizer_type='NNAT_LBFGS',
              loss_type='transmission'):
-    """Other arguments are same as param_based_spec_estimate.
+    """Arguments are same as param_based_spec_estimate.
 
-    Parameters
-    ----------
-    filters : list of Filter
-        Each Filter.fltr_mat should be specified to a Material instead of None.
-    scintillators
-        Each Scintillator.scint_mat should be specified to a Material instead of None.
-
-    Returns
-    -------
-    stop_iter : int
-        Stop iteration.
-    final_cost_value : float
-        Final cost value
-    final_model : spec_distrb_energy_resp
-        An instance of spec_distrb_energy_resp after optimization, containing
     """
 
     logger = logging.getLogger(str(mp.current_process().pid))
@@ -194,17 +205,16 @@ def close_logging(logger):
 
 class Estimate():
     def __init__(self, energies):
-        """
+        """The Estimate class provides a structured approach for parameter estimation by separating input arguments into data and optimization domains, thereby reducing duplicate input. The Estimate class provides estimation of both discrete and continuous parameters within a unified framework.
 
         Args:
-            energies (numpy.ndarray): Array of interested X-ray photon energies in keV with size N_energies_bins.
+            energies (numpy.ndarray): X-ray energies of a poly-energetic source in units of keV.
         """
         self.energies = torch.tensor(energies, dtype=torch.float32)
         self.nrads = []
         self.forward_matrices = []
         self.spec_models = []
         self.weights = []
-
 
 
     def add_data(self, nrad, forward_matrix, component_models, weight=None):
@@ -215,7 +225,7 @@ class Estimate():
             nrad (numpy.ndarray): Normalized radiograph with dimensions [N_views, N_rows, N_cols].
             forward_matrix (numpy.ndarray): Forward matricx corresponds to nrad with dimensions [N_views, N_rows, N_cols, N_energiy_bins]. We provide ``xspec.calc_forward_matrix`` to calculate a forward matrix from a 3D mask for a homogenous object.
             component_models (object): An instance of Base_Spec_Model.
-            weight (numpy.ndarray): weight crresponds to nrad.
+            weight (numpy.ndarray): Weight corresponds to the normalized radiograph.
 
         Returns:
 
@@ -244,7 +254,8 @@ class Estimate():
             optimizer_type (str, optional): [Default='Adam'] Type of optimizer to use. If we do not have
                 accurate initial guess use 'Adam', otherwise, 'NNAT_LBFGS' can provide a faster convergence.
             loss_type (str, optional): [Default='transmission'] Calculate loss function in 'transmission' or 'attenuation' space.
-
+            logpath (optional): [Default=None] Path for logging, if required.
+            num_processes (int, optional): [Default=1] Number of processes to use for parallel computation.
         Returns:
 
         """
