@@ -168,10 +168,10 @@ class Base_Spec_Model(Module):
         Placeholder forward method.
 
         Args:
-            energies (torch.Tensor): Input energies.
+            energies (torch.Tensor): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
 
         Returns:
-            torch.Tensor: Output energies.
+            torch.Tensor: Output response.
         """
         # Placeholder forward method of self.estimates, replace with actual implementation.
         return torch.ones(len(energies))
@@ -188,7 +188,7 @@ class Base_Spec_Model(Module):
             else:
                 setattr(self, key, value)
 
-    def set_estimates(self, params):
+    def set_params(self, params):
         """
         Set estimates from a dictionary of parameters.
 
@@ -204,12 +204,12 @@ class Base_Spec_Model(Module):
                 self.estimates[key] = value
 
 
-    def get_estimates(self):
+    def get_params(self):
         """
-        Get estimates as a dictionary.
+        Read estimated parameters as a dictionary.
 
         Returns:
-            dict: Dictionary containing estimates.
+            dict: Dictionary containing estimated parameters.
         """
         display_estimates = {}
         for key, value in self.estimates.items():
@@ -352,9 +352,6 @@ class Reflection_Source(Base_Spec_Model):
             src_spec_list (numpy.ndarray): This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to a specific combination of the ref_takeoff_angle and one of the source voltages from src_voltage_list.
             src_voltage_list (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
             ref_takeoff_angle (float): This value represents the anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
-
-        Returns:
-
         """
         self.src_spec_list = src_spec_list
         self.src_voltage_list = src_voltage_list
@@ -371,13 +368,13 @@ class Reflection_Source(Base_Spec_Model):
             torch.Tensor: The source response.
         """
 
-        voltage = self.get_estimates()[f"{self.name}_voltage"]
+        voltage = self.get_params()[f"{self.name}_voltage"]
         src_spec = interp_src_spectra(voltage, self.src_voltage_list, self.src_spec_list)
 
         if self.single_takeoff_angle:
-            takeoff_angle = self.get_estimates()[f"{self.__class__.__name__}_takeoff_angle"]
+            takeoff_angle = self.get_params()[f"{self.__class__.__name__}_takeoff_angle"]
         else:
-            takeoff_angle = self.get_estimates()[f"{self.name}_takeoff_angle"]
+            takeoff_angle = self.get_params()[f"{self.name}_takeoff_angle"]
         # print('ID takeoff_angle:', id(takeoff_angle))
         sin_psi_cur = angle_sin(self.ref_takeoff_angle, torch_mode=False)
         sin_psi_new = angle_sin(takeoff_angle, torch_mode=True)
@@ -411,8 +408,8 @@ class Filter(Base_Spec_Model):
         Returns:
             torch.Tensor: The filter response as a function of input energies, selected material, and its thickness.
         """
-        mat = self.get_estimates()[f"{self.name}_material"]
-        th = self.get_estimates()[f"{self.name}_thickness"]
+        mat = self.get_params()[f"{self.name}_material"]
+        th = self.get_params()[f"{self.name}_thickness"]
         # print('ID filter th:', id(th))
         return gen_fltr_res(energies, mat, th)
 
@@ -441,7 +438,7 @@ class Scintillator(Base_Spec_Model):
         Returns:
             torch.Tensor: The scintillator conversion function as a function of input energies, selected material, and its thickness.
         """
-        mat = self.get_estimates()[f"{self.name}_material"]
-        th = self.get_estimates()[f"{self.name}_thickness"]
+        mat = self.get_params()[f"{self.name}_material"]
+        th = self.get_params()[f"{self.name}_thickness"]
         # print('ID scintillator th:', id(th))
         return gen_scint_cvt_func(energies, mat, th)

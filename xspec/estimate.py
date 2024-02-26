@@ -16,7 +16,7 @@ mp.set_sharing_strategy('file_system')
 import logging
 from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
 from xspec._utils import *
-from xspec.models import get_merged_params_list, get_concatenated_params_list, denormalize_parameter_as_tuple
+from xspec.models import get_merged_params_list, get_concatenated_params_list, denormalize_parameter_as_tuple, clamp_with_grad
 def weighted_mse_loss(input, target, weight):
     return 0.5 * torch.mean(weight * (input - target) ** 2)
 
@@ -72,7 +72,9 @@ def fit_cell(energies,
     def print_params(params):
         for key, value in sorted(params.items()):
             if isinstance(value, tuple):
-                print(f"{key}: {denormalize_parameter_as_tuple(value)[0].numpy()}")
+                dv = denormalize_parameter_as_tuple(value)
+                dd = torch.clamp(dv[0], dv[1], dv[2])
+                print(f"{key}: {dd.numpy()}")
             else:
                 print(f"{key}: {value}")
         print()
@@ -83,7 +85,7 @@ def fit_cell(energies,
     parameters = []
     for component_models in spec_models:
         for cm in component_models:
-            cm.set_estimates(params)
+            cm.set_params(params)
             parameters += list(cm.parameters())
     parameters = list(set(parameters))
     loss = torch.nn.MSELoss()
@@ -133,7 +135,7 @@ def fit_cell(energies,
         if torch.isnan(cost):
             for component_models in spec_models:
                 for cm in component_models:
-                    print(cm.get_estimates())
+                    print(cm.get_params())
             return iter, closure().item(), params
 
         if ot == 'NNAT_LBFGS':
@@ -287,7 +289,7 @@ class Estimate():
         self.params = best_params
         for component_models in self.spec_models:
             for cm in component_models:
-                cm.set_estimates(best_params)
+                cm.set_params(best_params)
     def get_spec_models(self):
         """ Obtain optimized spectral models.
 
