@@ -150,7 +150,7 @@ def gen_datasets_3_voltages():
     sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(20, None, None), single_takeoff_angle=True) for
         voltage in voltage_list]
     for src_i, source in enumerate(sources):
-        source.set_src_spec_list(simkV_list, src_spec_list, ref_takeoff_angle)
+        source.set_src_spec_list(src_spec_list, simkV_list, ref_takeoff_angle)
         plt.plot(energies, source(energies), label='%d kV'%voltage_list[src_i])
     plt.title('Spectrally distributed photon flux')
     plt.xlabel('Energy  [keV]')

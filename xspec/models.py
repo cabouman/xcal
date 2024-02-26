@@ -136,7 +136,10 @@ class Base_Spec_Model(Module):
         """Base class for all spectral components in xspec.
 
         Args:
-            params_list (list): List of dictionaries containing parameters.
+            params_list (list): List of dictionaries containing possible discrete and continuous parameters combinations.
+                All dictionaries share the same keywords. Each dictionary contains both discrete and continuous parameters.
+                Continuous parameters should be specified as tuples with the format (initial value, lower bound, upper bound),
+                while discrete parameters can be directly specified.
         """
         super().__init__()
         if not hasattr(self.__class__, '_count'):
@@ -144,8 +147,7 @@ class Base_Spec_Model(Module):
         self.__class__._count += 1
         self.name = f"{self.__class__.__name__}_{self.__class__._count}"
 
-
-        # params_list contains all possible discrete parameters combinations and related continous parameters.
+        # params_list contains all possible discrete parameters combinations and related continuous parameters.
         self._params_list = []
         for params in params_list:
             new_params = {}
@@ -217,61 +219,6 @@ class Base_Spec_Model(Module):
             else:
                 display_estimates[key] = value
         return display_estimates
-
-    # def _pair_params_list(self, other):
-    #     """
-    #     Pair parameters lists with other instance of Base_Spec_Model or its child model.
-    #
-    #     Args:
-    #         other (Base_Spec_Model): Another instance of Base_Spec_Model.
-    #
-    #     Returns:
-    #         list: List of paired parameters lists.
-    #     """
-    #     paired_params_list = []
-    #     for params1 in self._params_list:
-    #         for params2 in other._params_list:
-    #             # Merge dictionaries and add instance names as prefixes to keys
-    #             merged_params_dict = {}
-    #             for key, value in list(params1.items())+list(params2.items()):
-    #                 if isinstance(value, tuple):
-    #                     vv = denormalize_parameter_as_tuple(value)
-    #                     merged_params_dict[key] = (vv[0].item(), vv[1], vv[2])
-    #                 else:
-    #                     merged_params_dict[key] = value
-    #             paired_params_list.append(merged_params_dict)
-    #     return paired_params_list
-    #
-    # def new_forward(self, energies):
-    #     # Calculate forward pass by multiplying outputs of forward passes of input models
-    #     output1 = self.forward(energies)
-    #     output2 = self.other.forward(energies)
-    #     return output1 * output2
-    #
-    # def __mul__(self, other):
-    #     """
-    #     Concatenate with other instance of Base_Spec_Model or its child model.
-    #     Update _params_list for discrete parameters combination.
-    #     Update forward function for elementwise multiplication over energies.
-    #
-    #     Args:
-    #         other (Base_Spec_Model): Another instance of Base_Spec_Model.
-    #
-    #     Returns:
-    #         Base_Spec_Model: New instance resulting from the multiplication.
-    #     """
-    #     if isinstance(other, Base_Spec_Model):
-    #         self.other = other
-    #         paired_params_list = self._pair_params_list(other)
-    #         # Return a new instance of the class
-    #         new_model = Base_Spec_Model(paired_params_list)
-    #
-    #         # Define forward method for the new model
-    #
-    #         new_model.forward = self.new_forward
-    #         return new_model
-    #     else:
-    #         raise TypeError("Unsupported operand type for *: Base_Spec_Model and {}".format(type(other)))
 
 
 def philibert_absorption_correction_factor(voltage, sin_psi, energies):
@@ -375,6 +322,7 @@ def angle_sin(psi, torch_mode=False):
     else:
         return np.sin(psi * np.pi / 180.0)
 
+
 class Reflection_Source(Base_Spec_Model):
     def __init__(self, voltage, takeoff_angle, single_takeoff_angle=True):
         """
@@ -408,8 +356,8 @@ class Reflection_Source(Base_Spec_Model):
         Returns:
 
         """
-        self.src_voltage_list = src_voltage_list
         self.src_spec_list = src_spec_list
+        self.src_voltage_list = src_voltage_list
         self.ref_takeoff_angle = ref_takeoff_angle
 
     def forward(self, energies):
