@@ -10,9 +10,9 @@ from xspec.chem_consts import get_lin_att_c_vs_E
 from xspec.dictSE import cal_fw_mat
 from xspec._utils import Gen_Circle
 import spekpy as sp  # Import SpekPy
-from xspec.defs import *
-from xspec import paramSE
+from xspec.defs import Material
 from xspec.chem_consts._periodictabledata import density
+from xspec.models import *
 
 import torch
 
@@ -99,7 +99,9 @@ def gen_datasets_3_voltages():
         mask_list.append(circle.generate_mask(Radius[mat_id], centers[mat_id])[np.newaxis])
 
     plt.figure(1)
-    plt.imshow(np.sum(np.array([ml*get_lin_att_c_vs_E(mat_density[i], materials[i], 60.0) for i, ml in enumerate(mask_list)]), axis=(0,1)), vmin=0, vmax=0.5)
+    plt.imshow(np.sum(
+        np.array([ml * get_lin_att_c_vs_E(mat_density[i], materials[i], 60.0) for i, ml in enumerate(mask_list)]),
+        axis=(0, 1)), vmin=0, vmax=0.5)
 
     # Adding a colorbar
     cbar = plt.colorbar()
@@ -118,8 +120,8 @@ def gen_datasets_3_voltages():
 
     # Use Spekpy to generate a source spectra dictionary.
     src_spec_list = []
-    plt.figure(2)
     fig, axs = plt.subplots(1, 1, figsize=(12, 9), dpi=80)
+    plt.figure(2)
     print('\nRunning demo script (10 mAs, 100 cm)\n')
     for simkV in simkV_list:
         s = sp.Spek(kvp=simkV + 1, th=ref_takeoff_angle, dk=1, mas=1, char=True)  # Create the spectrum model
@@ -144,96 +146,57 @@ def gen_datasets_3_voltages():
     plt.savefig('./output/2.png')
 
     plt.figure(3)
-    num_src_v = 3
-    voltage_list = [80.0, 130.0, 180.0] # kV
-    # Bound is a python structure to store the possible range for a continuous variable.
-    src_vol_bound = Bound(lower=30.0, upper=200.0)
-    takeoff_angle_bound = Bound(lower=5.0, upper=45.0)
-    # Source is a python structure to store a source's parameters, including
-    # energy bins, kV list and corresponding source spectral dictionary, bound of source voltage, and source voltage.
-    Src_config = [Source(energies, simkV_list, ref_takeoff_angle, src_spec_list,
-                         src_vol_bound, 'reflection', takeoff_angle_bound, voltage=vv, takeoff_angle=takeoff_angle,
-                         optimize_voltage=False, optimize_takeoff_angle=False) for vv in
-                  voltage_list]
-    ref_src_spec_list = []
-    for sc in Src_config:
-        # Pass a source's parameters to Source_Model.
-        src_model = paramSE.Source_Model(sc)
-        with (torch.no_grad()):
-            # Forward function of the Source_Model is the source spectrum/spectrally distributed photon flux.
-            ref_src_spec_list.append(src_model(energies).data.numpy())
-            plt.plot(energies, src_model(energies).data, label = '%d kV'%sc.voltage)
+    voltage_list = [80.0, 130.0, 180.0]  # kV
+    sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(20, None, None), single_takeoff_angle=True) for
+        voltage in voltage_list]
+    for src_i, source in enumerate(sources):
+        source.set_src_spec_list(src_spec_list, simkV_list, ref_takeoff_angle)
+        plt.plot(energies, source(energies), label='%d kV'%voltage_list[src_i])
     plt.title('Spectrally distributed photon flux')
     plt.xlabel('Energy  [keV]')
     plt.legend()
     plt.savefig('./output/3.png')
 
     plt.figure(4)
-    fltr_th_bound = Bound(lower=0.0, upper=10.0)  # 0.0 ~ 10.0 mm
-
-    fltr_th = 3.0  # mm
-
-    # Filter is a python structure to store a filter's parameters.
-    Fltr_config = [Filter([], fltr_th_bound, fltr_mat=Material(formula='Al', density=2.702), fltr_th=fltr_th),
-                   ]
-
-    ref_fltr_resp_list = []
-    for fci, fr in enumerate(Fltr_config):
-        # Forward function of the Filter_Model is the filter response.
-        fltr_model = paramSE.Filter_Model(fr)
-        with (torch.no_grad()):
-            ref_fltr_resp_list.append(fltr_model(energies).data.numpy())
-            plt.plot(energies, fltr_model(energies).data, label='%d mm %s' % (fr.fltr_th, fr.fltr_mat.formula))
+    psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
+    filter_1 = Filter(psb_fltr_mat[0:1], thickness=(3, None, None))
+    plt.plot(energies, filter_1(energies), label='3mm Al')
     plt.title('Filter Responses')
     plt.legend()
     plt.xlabel('Energy  [keV]')
     plt.savefig('./output/4.png')
 
     plt.figure(5)
-    scint_th_bound = Bound(lower=0.01, upper=0.5)
-    # Use Lu3Al5O12, the third scintillator, as ground truth scintillator.
-    # Scintillator is a python structure to store a scintillator's parameters.
-    Scint_config = [Scintillator([], scint_th_bound, scint_mat=Material(formula='CsI', density=4.51), scint_th = 0.33)]
-    ref_scint_cvt_list = []
-    for st in Scint_config:
-        # Forward function of the Scintillator_Model is the scintillator response.
-        scint_model = paramSE.Scintillator_Model(st)
-        with (torch.no_grad()):
-            ref_scint_cvt_list.append(scint_model(energies).data.numpy())
-            plt.plot(energies, scint_model(energies).data, label='%.2f mm %s'%(st.scint_th, st.scint_mat.formula))
+    scint_params_list = [
+        {'formula': 'CsI', 'density': 4.51},
+        {'formula': 'Gd3Al2Ga3O12', 'density': 6.63},
+        {'formula': 'Lu3Al5O12', 'density': 6.73},
+        {'formula': 'CdWO4', 'density': 7.9},
+        {'formula': 'Y3Al5O12', 'density': 4.56},
+        {'formula': 'Bi4Ge3O12', 'density': 7.13},
+        {'formula': 'Gd2O2S', 'density': 7.32}
+    ]
+    psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params_list]
+    scintillator_1 = Scintillator(materials=psb_scint_mat[0:1], thickness=(0.33, None, None))
+    plt.plot(energies, scintillator_1(energies), label='0.33 mm CsI')
     plt.title('Scintillator Response.')
     plt.legend()
     plt.xlabel('Energy  [keV]')
     plt.savefig('./output/5.png')
 
     plt.figure(6)
-    model_combination = [Model_combination(src_ind=0, fltr_ind_list=[0], scint_ind=0),
-                         Model_combination(src_ind=1, fltr_ind_list=[0], scint_ind=0),
-                         Model_combination(src_ind=2, fltr_ind_list=[0], scint_ind=0),
-                        ]
-
-    gt_spec_list= []
-    ll = [ '80 kV', '130 kV', '180 kV']
-    i = 0
-    for mc in model_combination:
-        src_s = ref_src_spec_list[mc.src_ind]
-        fltr_s = ref_fltr_resp_list[mc.fltr_ind_list[0]]
-        for fii in mc.fltr_ind_list[1:]:
-            fltr_s=fltr_s*ref_fltr_resp_list[fii]
-        scint_s  = ref_scint_cvt_list[mc.scint_ind]
-        gt_spec = src_s*fltr_s*scint_s
-        gt_spec /= np.trapz(gt_spec, energies, axis=-1)
-        gt_spec_list.append(gt_spec)
-        plt.plot(energies, gt_spec, label=ll[i])
-        i+=1
+    gt_spec_list = [(source(energies) * filter_1(energies)  * scintillator_1(energies)).numpy() for source in sources]
+    for spec_i, gt_spec in enumerate(gt_spec_list):
+        plt.plot(energies, gt_spec / np.trapz(gt_spec, energies), label='%d kV'%voltage_list[spec_i])
     plt.legend()
     plt.title('X-ray spectral energy response')
     plt.xlabel('Energy  [keV]')
     plt.savefig('./output/6.png')
 
-    datasets=[]
     plt.figure(7)
-    for case_i, gt_spec, mc in zip(np.arange(len(gt_spec_list)), gt_spec_list, model_combination):
+    datasets = []
+    label_list = ['80 kV', '130 kV', '180 kV']
+    for case_i, gt_spec in zip(np.arange(len(gt_spec_list)), gt_spec_list):
 
         spec_F_train_list = []
         trans_list = []
@@ -252,19 +215,11 @@ def gen_datasets_3_voltages():
         # and masks of homogenous objects to calculate a forward matrix.
         spec_F = cal_fw_mat(mask_list, lac_vs_E_list, energies, pfp)
 
-        # Decomposed Source-Filter-Scintillator Model
-        src_s = ref_src_spec_list[mc.src_ind]
-        fltr_s = ref_fltr_resp_list[mc.fltr_ind_list[0]]
-        for fii in mc.fltr_ind_list[1:]:
-            fltr_s = fltr_s * ref_fltr_resp_list[fii]
-        scint_s = ref_scint_cvt_list[mc.scint_ind]
-
         # Add poisson noise before reaching detector/scintillator.
-        trans = np.trapz(spec_F * src_s * fltr_s* scint_s, energies, axis=-1)
-        trans_0 = np.trapz(src_s * fltr_s* scint_s, energies, axis=-1)
+        trans = np.trapz(spec_F * gt_spec, energies, axis=-1)
+        trans_0 = np.trapz(gt_spec, energies, axis=-1)
         trans_noise = np.random.poisson(trans).astype(np.float64)
         trans_noise /= trans_0
-
 
         # Store noiseless transmission data and forward matrix.
         trans_list.append(trans_noise)
@@ -273,34 +228,14 @@ def gen_datasets_3_voltages():
         spec_F_train_list = np.array(spec_F_train_list)
         trans_list = np.array(trans_list)
 
-        plt.plot(trans_list[0][16, 0], label=ll[case_i])
-
-        # Save simulated dataset to h5py file.
-        src_dict_h5 = {
-            'energies': energies,
-            'src_spec': ref_src_spec_list[mc.src_ind],
-            'voltage': float(Src_config[mc.src_ind].voltage)
-        }
-
-        fltr_dict_h5 = {}
-
-        for i in mc.fltr_ind_list:
-            fltr_dict_h5['fltr_mat_0_formula'] = Fltr_config[i].fltr_mat.formula
-            fltr_dict_h5['fltr_mat_0_density'] = Fltr_config[i].fltr_mat.density
-            fltr_dict_h5['fltr_mat_0_th'] = Fltr_config[i].fltr_th
-
-        scint_dict_h5 = {
-            'scint_th': Scint_config[mc.scint_ind].scint_th,
-            'scint_mat_formula': Scint_config[mc.scint_ind].scint_mat.formula,
-            'scint_mat_density': Scint_config[mc.scint_ind].scint_mat.density
-        }
+        plt.plot(trans_list[0][16, 0], label=label_list[case_i])
 
         d = {
             'measurement': trans_list,
             'forward_mat': spec_F_train_list,
-            'src_config': src_dict_h5,
-            'fltr_config': fltr_dict_h5,
-            'scint_config': scint_dict_h5,
+            'source': sources[case_i],
+            'filter': filter_1,
+            'scintillator': scintillator_1,
         }
         datasets.append(d)
     plt.savefig('./output/7.png')
