@@ -218,7 +218,7 @@ class Estimate():
 
 
     def add_data(self, nrad, forward_matrix, component_models, weight=None):
-        """
+        """Add data for parameter estimation, which allows adding multiple datasets scanned with different X-ray system setting.
 
         Args:
 
@@ -244,7 +244,7 @@ class Estimate():
     def fit(self, learning_rate=0.001, max_iterations=5000, stop_threshold=1e-4,
             optimizer_type='Adam', loss_type='transmission', logpath=None,
              num_processes=1):
-        """
+        """Estimate both discrete and continuous parameters.
 
         Args:
             learning_rate (float, optional): [Default=0.001] Learning rate for the optimization process.

@@ -397,10 +397,20 @@ class Reflection_Source(Base_Spec_Model):
                 params[f"{self.__class__.__name__}_takeoff_angle"] = params.pop(f"{self.name}_takeoff_angle")
             self._init_estimates()
 
-    def set_src_spec_list(self, src_voltage_list, src_spec_list, cur_takeoff_angle):
+    def set_src_spec_list(self, src_spec_list, src_voltage_list, ref_takeoff_angle):
+        """Set source spectra for interpolation, which will be used only by forward function.
+
+        Args:
+            src_spec_list (numpy.ndarray): This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to a specific combination of the ref_takeoff_angle and one of the source voltages from src_voltage_list.
+            src_voltage_list (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
+            ref_takeoff_angle (float): This value represents the anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
+
+        Returns:
+
+        """
         self.src_voltage_list = src_voltage_list
         self.src_spec_list = src_spec_list
-        self.cur_takeoff_angle = cur_takeoff_angle
+        self.ref_takeoff_angle = ref_takeoff_angle
 
     def forward(self, energies):
         """
@@ -421,7 +431,7 @@ class Reflection_Source(Base_Spec_Model):
         else:
             takeoff_angle = self.get_estimates()[f"{self.name}_takeoff_angle"]
         # print('ID takeoff_angle:', id(takeoff_angle))
-        sin_psi_cur = angle_sin(self.cur_takeoff_angle, torch_mode=False)
+        sin_psi_cur = angle_sin(self.ref_takeoff_angle, torch_mode=False)
         sin_psi_new = angle_sin(takeoff_angle, torch_mode=True)
         src_spec = src_spec * takeoff_angle_conversion_factor(voltage, sin_psi_cur, sin_psi_new, energies)
 

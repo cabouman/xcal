@@ -58,7 +58,7 @@ if __name__ == '__main__':
                for
                voltage in voltage_list]
     for src_i, source in enumerate(sources):
-        source.set_src_spec_list(simkV_list, src_spec_list, reference_anode_angle)
+        source.set_src_spec_list(src_spec_list, simkV_list, reference_anode_angle)
 
     psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
     filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
