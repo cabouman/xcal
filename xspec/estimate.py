@@ -243,7 +243,7 @@ class Estimate():
                 If stop_threshold=0.0, then run max iterations.
             optimizer_type (str, optional): [Default='Adam'] Type of optimizer to use. If we do not have
                 accurate initial guess use 'Adam', otherwise, 'NNAT_LBFGS' can provide a faster convergence.
-            loss_type ():
+            loss_type (str, optional): [Default='transmission'] Calculate loss function in 'transmission' or 'attenuation' space.
 
         Returns:
 
@@ -278,7 +278,16 @@ class Estimate():
             for cm in component_models:
                 cm.set_estimates(best_params)
     def get_spec_models(self):
+        """ Obtain optimized spectral models.
+
+        Returns:
+            list: A list of compenent lists. Each compenent list contains all used components to scan the corresponding radiograph.
+        """
         return self.spec_models
     def get_params(self):
+        """ Obtain optimized parameters.
+
+        Returns:
+            dict: A dictionary contains all parameters.
+        """
         return self.params
-    # Return spec_model_list

@@ -1,4 +1,3 @@
-import types
 import numpy as np
 import torch
 from torch.nn import Module
@@ -7,7 +6,7 @@ from torch.nn.parameter import Parameter
 import spekpy as sp  # Import SpekPy
 
 from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
-from xspec.chem_consts._periodictabledata import atom_weights, density, ptableinverse
+from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 
 class ClampFunction(torch.autograd.Function):
