@@ -3,11 +3,50 @@ import torch
 from torch.nn import Module
 from torch.nn.parameter import Parameter
 
-import spekpy as sp  # Import SpekPy
-
 from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
 from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
+
+class Interp1d:
+    def __init__(self, x, y):
+        """
+        Initialize the Interp1d class.
+
+        Args:
+            x (torch.Tensor): 1-D tensor of x-coordinates.
+            y (torch.Tensor): tensor of y-coordinates corresponding to x.
+        """
+        self.x = x
+        self.y = y
+
+    def __call__(self, new_x):
+        """
+        Perform linear interpolation to find y-values at new_x.
+
+        Args:
+            new_x (torch.Tensor): 1-D tensor of new x-coordinates.
+
+        Returns:
+            torch.Tensor: tensor of interpolated y-values at new_x.
+        """
+        if not torch.all(torch.logical_and(new_x >= self.x.min(), new_x <= self.x.max())):
+            raise ValueError("Some values in new_x are outside the range of x.")
+
+        # Find the indices of the nearest x-values in the original data
+        indices = torch.searchsorted(self.x, new_x)
+        indices = torch.clamp(indices, 1, len(self.x) - 1)  # Ensure indices are within range
+
+        # Calculate the weights for interpolation
+        x0 = self.x[indices - 1]
+        x1 = self.x[indices]
+        y0 = self.y[indices - 1]
+        y1 = self.y[indices]
+        alpha = (new_x - x0) / (x1 - x0)
+
+        # Perform linear interpolation
+        interpolated_y = y0 + alpha * (y1 - y0)
+        interpolated_y = torch.clamp(interpolated_y, min=0)  # Ensure non-negativity
+        return interpolated_y
 
 class ClampFunction(torch.autograd.Function):
     @staticmethod
@@ -221,6 +260,30 @@ class Base_Spec_Model(Module):
         return display_estimates
 
 
+def prepare_for_interpolation(src_spec_list, simkV_list):
+    """
+    Prepare the source spectral list for interpolation over voltage.
+
+    Args:
+        src_spec_list (list): List of source spectral responses for each voltage.
+        simkV_list (list): List of simulated voltages.
+
+    Returns:
+        list: Modified source spectral list ready for interpolation.
+    """
+    modified_src_spec_list = src_spec_list.copy()
+    for sid, m_src_spec in enumerate(modified_src_spec_list[:-1]):
+        v0 = simkV_list[sid]
+        v1 = simkV_list[sid+1]
+        f1 = modified_src_spec_list[sid+1]
+        for v in range(v0, v1):
+            if v == simkV_list[sid+1]:
+                m_src_spec[v] = 0
+            else:
+                r = (v - float(v0)) / (v1 - float(v0))
+                m_src_spec[v] = -r / (1 - r) * f1[v]
+    return modified_src_spec_list
+
 def philibert_absorption_correction_factor(voltage, sin_psi, energies):
     Z = 74  # Tungsten
     target_material = ptableinverse[Z]
@@ -251,69 +314,6 @@ def takeoff_angle_conversion_factor(voltage, sin_psi_cur, sin_psi_new, energies)
                                                   energies) / philibert_absorption_correction_factor(voltage,
                                                                                                      sin_psi_cur,
                                                                                                      energies)
-
-
-def interp_src_spectra(voltage, voltage_list, src_spec_list, torch_mode=True):
-    """
-    Interpolate the source spectral response based on a given source voltage.
-
-    Parameters
-    ----------
-    voltage : float or int
-        The source voltage at which the interpolation is desired.
-
-    voltage_list : list
-        List of source voltages representing the maximum X-ray energy for each source spectrum.
-
-    src_spec_list : list
-        List of corresponding source spectral responses for each voltage in `voltage_list`.
-
-    torch_mode : bool, optional
-        Determines the computation method. If set to True, PyTorch is used for optimization.
-        If set to False, the function calculates the cost function without optimization.
-        Default is True.
-
-    Returns
-    -------
-    numpy.ndarray or torch.Tensor
-        Interpolated source spectral response at the specified `interp_voltage`.
-    """
-
-    # Find corresponding voltage bin.
-    if torch_mode:
-        voltage_list = torch.tensor(voltage_list, dtype=torch.int32)
-        src_spec_list = [torch.tensor(src_spec, dtype=torch.float32) for src_spec in src_spec_list]
-        index = np.searchsorted(voltage_list.detach().clone().numpy(), voltage.detach().clone().numpy())
-    else:
-        index = np.searchsorted(voltage_list, voltage)
-    v0 = voltage_list[index - 1]
-    f0 = src_spec_list[index - 1]
-    if index >= len(voltage_list):
-        if torch_mode:
-            return torch.clamp(f0, min=0)
-        else:
-            return np.clip(f0, 0, None)
-
-    v1 = voltage_list[index]
-    f1 = src_spec_list[index]
-
-    # Extend 𝑓0 (v) to be negative for v>v0.
-    f0_modified = f0.clone()  # Clone to avoid in-place modifications
-    for v in range(v0, v1):
-        if v == v1:
-            f0_modified[v] = 0
-        else:
-            r = (v - float(v0)) / (v1 - float(v0))
-            f0_modified[v] = -r / (1 - r) * f1[v]
-
-    # Interpolation
-    rr = (voltage - float(v0)) / (v1 - float(v0))
-    interpolated_values = rr * f1 + (1 - rr) * f0_modified
-
-    if torch_mode:
-        return torch.clamp(interpolated_values, min=0)
-    else:
-        return np.clip(interpolated_values, 0, None)
 
 
 def angle_sin(psi, torch_mode=False):
@@ -353,8 +353,12 @@ class Reflection_Source(Base_Spec_Model):
             src_voltage_list (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
             ref_takeoff_angle (float): This value represents the anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
         """
-        self.src_spec_list = src_spec_list
-        self.src_voltage_list = src_voltage_list
+        self.src_spec_list = np.array(src_spec_list)
+        self.src_voltage_list = np.array(src_voltage_list)
+        modified_src_spec_list = prepare_for_interpolation(self.src_spec_list, self.src_voltage_list)
+        self.src_spec_interp_func_over_v = Interp1d(torch.tensor(self.src_voltage_list, dtype=torch.float32),
+                                                    torch.tensor(modified_src_spec_list, dtype=torch.float32))
+
         self.ref_takeoff_angle = ref_takeoff_angle
 
     def forward(self, energies):
@@ -369,7 +373,7 @@ class Reflection_Source(Base_Spec_Model):
         """
 
         voltage = self.get_params()[f"{self.name}_voltage"]
-        src_spec = interp_src_spectra(voltage, self.src_voltage_list, self.src_spec_list)
+        src_spec = self.src_spec_interp_func_over_v(voltage)
 
         if self.single_takeoff_angle:
             takeoff_angle = self.get_params()[f"{self.__class__.__name__}_takeoff_angle"]
