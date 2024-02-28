@@ -2,9 +2,10 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from xspec import estimate, calc_source_spectrum, calc_filter_response, calc_scintillator_response
-from xspec.defs import *
+from xspec.estimate import Estimate
+from xspec.defs import Material
 from xspec._utils import *
+from xspec.models import *
 import spekpy as sp  # Import SpekPy
 from demo_utils import gen_datasets_3_voltages
 
@@ -20,7 +21,12 @@ if __name__ == '__main__':
 
     normalized_rads = [d['measurement'] for d in data]
     forward_matrices = [d['forward_mat'] for d in data]
-
+    gt_sources = [d['source'] for d in data]
+    gt_filter = data[0]['filter']
+    gt_scint = data[0]['scintillator']
+    gt_params = get_merged_params_list(
+        [get_concatenated_params_list([gt_sources[i]._params_list, gt_filter._params_list, gt_scint._params_list]) for i
+         in range(3)])[0]
     # Number of datasets
     num_dataset = len(normalized_rads)
 
@@ -47,44 +53,17 @@ if __name__ == '__main__':
         src_spec[:simkV] = phi_k[::2]
         src_spec_list.append(src_spec)
 
-    # optimize_voltage=False means do not optimize source voltages.
-    # Assign values to source_params dictionary
-    source_params = {
-        'num_voltage': len(voltage_list),
-        'reference_voltages': simkV_list,
-        'reference_anode_angle': reference_anode_angle,
-        'reference_spectra': src_spec_list,
-        'anode_target_type':'reflection',
-        'voltage_1': voltage_list[0],
-        'voltage_2': voltage_list[1],
-        'voltage_3': voltage_list[2],
-        'voltage_1_range': (voltage_list[0]*0.95, voltage_list[0]*1.05),
-        'voltage_2_range': (voltage_list[1]*0.95, voltage_list[1]*1.05),
-        'voltage_3_range': (voltage_list[2]*0.95, voltage_list[2]*1.05),
-        'anode_angle': None, # Initial Value
-        'anode_angle_range': (5, 45),
-        'optimize_voltage': True,
-        'optimize_anode_angle': True,
-        'source_voltage_indices': [1, 2, 3]  # Indices used source voltage for each radiograph
-    }
+    voltage_list = [80.0, 130.0, 180.0]  # kV
+    sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
+               for
+               voltage in voltage_list]
+    for src_i, source in enumerate(sources):
+        source.set_src_spec_list(src_spec_list, simkV_list, reference_anode_angle)
 
-    # Set filter parameters
-    # There is 1 filter with 2 possible materials.
-    psb_fltr_mat_comb = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    # Assign values to filter_params dictionary
-    filter_params = {
-        'num_filter': 1,
-        'possible_material': psb_fltr_mat_comb,
-        'material_1': None,
-        'thickness_1': 0.1,
-        'thickness_1_range': (0.0, 10.0),
-        'optimize': True,
-        'filter_indices': [[1], [1], [1]]
-    }
+    psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
+    filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
 
-    # Set scintillator parameters
-    # 7 possible scintillators
-    scint_params = [
+    scint_params_list = [
         {'formula': 'CsI', 'density': 4.51},
         {'formula': 'Gd3Al2Ga3O12', 'density': 6.63},
         {'formula': 'Lu3Al5O12', 'density': 6.73},
@@ -93,111 +72,73 @@ if __name__ == '__main__':
         {'formula': 'Bi4Ge3O12', 'density': 7.13},
         {'formula': 'Gd2O2S', 'density': 7.32}
     ]
+    psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params_list]
+    scintillator_1 = Scintillator(materials=psb_scint_mat, thickness=(0.25, 0.01, 0.5))
 
-    psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params]
-    # Assign values to scintillator_params dictionary
-    scintillator_params = {
-        'possible_material': psb_scint_mat,
-        'material': None,
-        'thickness': None,
-        'thickness_range': (0.01, 0.5),
-        'optimize': True
-    }
-
+    spec_models = [[source, filter_1, scintillator_1] for source in sources]
 
     learning_rate = 0.02
+    max_iterations = 5000
+    stop_threshold = 1e-5
     optimizer_type = 'NNAT_LBFGS'
 
     savefile_name = 'case_mv_%s_lr%.0e' % (optimizer_type, learning_rate)
 
     os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
 
-    res_params = estimate(energies, normalized_rads, forward_matrices, source_params, filter_params, scintillator_params,
-                          weight=None,
-                          weight_type='unweighted',
-                          blank_rads=None,
-                          learning_rate=learning_rate,
-                          max_iterations=5000,
-                          stop_threshold=1e-4,
-                          optimizer_type=optimizer_type,
-                          logpath=None,  #'./output_3_source_voltages/log/%s' % savefile_name,
-                          num_processes=1,
-                          return_all_result=False)
+    Estimator = Estimate(energies)
+    for nrad, forward_matrix, concatenate_models in zip(normalized_rads, forward_matrices, spec_models):
+        Estimator.add_data(nrad, forward_matrix, concatenate_models, weight=None)
 
-    # Define the data for each section
-    source_data = [
-        ["Source Parameters", "GT", "Estimated"],
-        ["Voltage 1(kVp)", 80, res_params['voltage_1']],
-        ["Voltage 2(kVp)", 130, res_params['voltage_2']],
-        ["Voltage 3(kVp)", 180, res_params['voltage_3']],
-        ["Takeoff Angle(°)", 20, res_params['anode_angle']]
-    ]
-
-    filter_data = [
-        ["Filter 1 Parameters", "GT", "Estimated"],
-        ["material", "Al",  res_params['filter_1_mat'].formula],
-        ["thickness(mm)", 3, res_params['filter_1_thickness']]
-    ]
-
-    scintillator_data = [
-        ["Scintillator Parameters", "Parameter", "Value"],
-        ["material", "CsI", res_params['scintillator_mat'].formula],
-        ["thickness(mm)", 0.33, res_params['scintillator_thickness']]
-    ]
-
+    # Fit data
+    Estimator.fit(learning_rate=learning_rate,
+                  max_iterations=max_iterations,
+                  stop_threshold=stop_threshold,
+                  optimizer_type=optimizer_type,
+                  loss_type='transmission',
+                  logpath=None,
+                  num_processes=1)
+    res_spec_models = Estimator.get_spec_models()
+    res_params = Estimator.get_params()
 
     # Function to print a section of the table
-    def print_section(data):
-        # Determine the maximum width for each column
-        col_widths = [max(len(str(row[i])) for row in data) for i in range(len(data[0]))]
-        # Create a format string for each row
-        row_format = " | ".join(["{:<" + str(width) + "}" for width in col_widths])
-
-        # Print the header row
-        print(row_format.format(*data[0]))
-        print('-' * sum(col_widths))  # Separator
-
-        # Print each data row
-        for row in data[1:]:
-            print(row_format.format(*row))
-        print()  # Add a blank line after the section
+    def print_params(params):
+        with (torch.no_grad()):
+            for key, value in sorted(params.items()):
+                if isinstance(value, tuple):
+                    print(f"{key}: {denormalize_parameter_as_tuple(value)[0].numpy()}")
+                else:
+                    print(f"{key}: {value}")
+            print()
 
 
     # Print the table sections
-    print()
-    print('Final Estimate Result:')
-    print_section(source_data)
-    print_section(filter_data)
-    print_section(scintillator_data)
+    print('Ground Truth Parameters:')
+    print_params(gt_params)
+    print('Estimated Parameters:')
+    print_params(res_params)
 
+    # Create a figure and axes objects for the subplot
     fig, axs = plt.subplots(1, 3, figsize=(15, 5))
-    plt.figure(1)
+
+    # Plot each subplot
     for i in range(3):
-        est_src_spectrum = calc_source_spectrum(energies,
-                                                reference_voltages=simkV_list,
-                                                reference_anode_angle=reference_anode_angle,
-                                                reference_spectra=src_spec_list,
-                                                voltage=res_params['voltage_%d'%(i+1)],
-                                                anode_angle=res_params['anode_angle'])
-        axs[i].plot(energies, est_src_spectrum, '--', label='Estimated %d' % (i+1))
-        axs[i].set_ylim((0, 0.2e3))
-        axs[i].set_xlabel('Energy  [keV]')
-        axs[i].legend()
-    plt.title('Estimated Source Spectra for 3 different voltages.')
+        ax = axs[i]
+        with torch.no_grad():
+            ax.plot(energies, (gt_sources[i](energies) * gt_filter(energies) * gt_scint(energies)).numpy(),
+                    label='Ground Truth')
+            ax.plot(energies, (
+                        res_spec_models[i][0](energies) * res_spec_models[i][1](energies) * res_spec_models[i][2](
+                    energies)).numpy(), '--', label='Estimate')
 
-    plt.figure(2)
-    est_filter_response = calc_filter_response(energies,
-                                               material=res_params['filter_1_mat'],
-                                               thickness=res_params['filter_1_thickness'])
-    plt.plot(energies, est_filter_response, '--', label='Estimate')
-    plt.ylim((0,1))
-    plt.title('Estimated Filter Response')
+        # Add legend
+        ax.legend()
 
-    plt.figure(3)
-    est_scintillator_response = calc_scintillator_response(energies,
-                                               material=res_params['scintillator_mat'],
-                                               thickness=res_params['scintillator_thickness'])
-    plt.plot(energies, est_scintillator_response, '--', label='Estimate')
-    plt.title('Estimated Scintillator Response')
+        # Add subplot title
+        ax.set_title(f'{[80, 130, 180][i]} kV Spectral Response')
 
+    # Add common title
+    fig.suptitle('Comparison of Ground Truth and Estimate')
+
+    # Show the plot
     plt.show()
