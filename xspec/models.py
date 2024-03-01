@@ -270,10 +270,11 @@ class Base_Spec_Model(Module):
                 while discrete parameters can be directly specified.
         """
         super().__init__()
-        if not hasattr(self.__class__, '_count'):
-            self.__class__._count = 0
-        self.__class__._count += 1
-        self.name = f"{self.__class__.__name__}_{self.__class__._count}"
+        if self.__class__.__name__ != 'Base_Spec_Model':
+            if not hasattr(self.__class__, '_count'):
+                self.__class__._count = 0
+            self.__class__._count += 1
+            self.prefix = f"{self.__class__.__name__}_{self.__class__._count}"
 
         # params_list contains all possible discrete parameters combinations and related continuous parameters.
         self._params_list = []
@@ -281,7 +282,7 @@ class Base_Spec_Model(Module):
             new_params = {}
             for key, value in params.items():
                 if self.__class__.__name__ != 'Base_Spec_Model':
-                    modified_key = f"{self.name}_{key}"
+                    modified_key = f"{self.prefix}_{key}"
                 else:
                     modified_key =f"{key}"
                 if isinstance(value, tuple):
@@ -436,7 +437,7 @@ class Reflection_Source(Base_Spec_Model):
         self.single_takeoff_angle = single_takeoff_angle
         if self.single_takeoff_angle:
             for params in self._params_list:
-                params[f"{self.__class__.__name__}_takeoff_angle"] = params.pop(f"{self.name}_takeoff_angle")
+                params[f"{self.__class__.__name__}_takeoff_angle"] = params.pop(f"{self.prefix}_takeoff_angle")
             self._init_estimates()
 
     def set_src_spec_list(self, src_spec_list, src_voltage_list, ref_takeoff_angle):
@@ -466,13 +467,13 @@ class Reflection_Source(Base_Spec_Model):
             torch.Tensor: The source response.
         """
 
-        voltage = self.get_params()[f"{self.name}_voltage"]
+        voltage = self.get_params()[f"{self.prefix}_voltage"]
         src_spec = self.src_spec_interp_func_over_v(voltage)
 
         if self.single_takeoff_angle:
             takeoff_angle = self.get_params()[f"{self.__class__.__name__}_takeoff_angle"]
         else:
-            takeoff_angle = self.get_params()[f"{self.name}_takeoff_angle"]
+            takeoff_angle = self.get_params()[f"{self.prefix}_takeoff_angle"]
         # print('ID takeoff_angle:', id(takeoff_angle))
         sin_psi_cur = angle_sin(self.ref_takeoff_angle, torch_mode=False)
         sin_psi_new = angle_sin(takeoff_angle, torch_mode=True)
@@ -523,8 +524,8 @@ class Transmission_Source(Base_Spec_Model):
             torch.Tensor: The source response.
         """
 
-        voltage = self.get_params()[f"{self.name}_voltage"]
-        target_thickness = self.get_params()[f"{self.name}_target_thickness"]
+        voltage = self.get_params()[f"{self.prefix}_voltage"]
+        target_thickness = self.get_params()[f"{self.prefix}_target_thickness"]
         src_spec = self.src_spec_interp_func(voltage, target_thickness)
 
         return src_spec
@@ -554,8 +555,8 @@ class Filter(Base_Spec_Model):
         Returns:
             torch.Tensor: The filter response as a function of input energies, selected material, and its thickness.
         """
-        mat = self.get_params()[f"{self.name}_material"]
-        th = self.get_params()[f"{self.name}_thickness"]
+        mat = self.get_params()[f"{self.prefix}_material"]
+        th = self.get_params()[f"{self.prefix}_thickness"]
         # print('ID filter th:', id(th))
         return gen_fltr_res(energies, mat, th)
 
@@ -584,7 +585,7 @@ class Scintillator(Base_Spec_Model):
         Returns:
             torch.Tensor: The scintillator conversion function as a function of input energies, selected material, and its thickness.
         """
-        mat = self.get_params()[f"{self.name}_material"]
-        th = self.get_params()[f"{self.name}_thickness"]
+        mat = self.get_params()[f"{self.prefix}_material"]
+        th = self.get_params()[f"{self.prefix}_thickness"]
         # print('ID scintillator th:', id(th))
         return gen_scint_cvt_func(energies, mat, th)
