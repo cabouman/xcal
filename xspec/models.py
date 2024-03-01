@@ -326,11 +326,16 @@ class Base_Spec_Model(Module):
         for key, value in params.items():
             if key in self.estimates.keys():
                 if isinstance(value, tuple):
-                    setattr(self, key, value[0])
+                    if not isinstance(value[0], torch.Tensor):
+                        normalized_value = normalize_tuple_as_parameter(value)
+                        setattr(self, key, normalized_value[0])
+                        self.estimates[key] = normalized_value
+                    else:
+                        setattr(self, key, value[0])
+                        self.estimates[key] = value
                 else:
                     setattr(self, key, value)
-                self.estimates[key] = value
-
+                    self.estimates[key] = value
 
     def get_params(self):
         """
