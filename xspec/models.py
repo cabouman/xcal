@@ -475,6 +475,54 @@ class Reflection_Source(Base_Spec_Model):
 
         return src_spec
 
+class Transmission_Source(Base_Spec_Model):
+    def __init__(self, voltage, target_thickness):
+        """
+        A template source model designed specifically for reflection sources, including all necessary methods.
+
+        Args:
+            voltage (tuple): (initial value, lower bound, upper bound) for the source voltage.
+                These three values cannot be all None. It will not be optimized when lower == upper.
+
+        """
+        params_list = [{'voltage': voltage, 'target_thickness': target_thickness}]
+        super().__init__(params_list)
+
+    def set_src_spec_list(self, src_spec_list, voltages, target_thicknesses):
+        """Set source spectra for interpolation, which will be used only by forward function.
+
+        Args:
+            src_spec_list (numpy.ndarray): This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to a specific combination of the ref_takeoff_angle and one of the source voltages from src_voltage_list.
+            src_voltage_list (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
+            ref_takeoff_angle (float): This value represents the anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
+        """
+        self.src_spec_list = np.array(src_spec_list)
+        self.voltages = np.array(voltages)
+        self.target_thicknesses = np.array(target_thicknesses)
+        modified_src_spec_list = src_spec_list.copy()
+        for tti, tt in enumerate(target_thicknesses):
+            modified_src_spec_list[:, tti] = prepare_for_interpolation(modified_src_spec_list[:, tti], self.voltages)
+
+        # Generate 2D grids for x and y coordinates
+        V, T = torch.meshgrid(torch.tensor(self.voltages, dtype=torch.float32), torch.tensor(self.target_thicknesses, dtype=torch.float32), indexing='ij')
+        self.src_spec_interp_func = Interp2D(V, T, torch.tensor(modified_src_spec_list, dtype=torch.float32))
+
+    def forward(self, energies):
+        """
+        Takes X-ray energies and returns the source spectrum.
+
+        Args:
+            energies (torch.Tensor): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
+
+        Returns:
+            torch.Tensor: The source response.
+        """
+
+        voltage = self.get_params()[f"{self.name}_voltage"]
+        target_thickness = self.get_params()[f"{self.name}_target_thickness"]
+        src_spec = self.src_spec_interp_func(voltage, target_thickness)
+
+        return src_spec
 
 class Filter(Base_Spec_Model):
 
