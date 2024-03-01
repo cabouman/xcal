@@ -7,27 +7,116 @@ from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
 from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 
+
+class Interp2D:
+    def __init__(self, x, y, z):
+        """
+        Initialize the Interp2D class for performing bilinear interpolation on a 2D grid.
+
+        Args:
+            x (torch.Tensor): A 2-D tensor representing the x-coordinates of the grid points,
+                              with shape (M, N), where M is the number of rows and N is the number
+                              of columns. Assumes uniform x-coordinates across each row.
+            y (torch.Tensor): A 2-D tensor representing the y-coordinates of the grid points,
+                              with shape (M, N), where M is the number of rows and N is the number
+                              of columns. Assumes uniform y-coordinates across each column.
+            z (torch.Tensor): An N-D tensor of z-values corresponding to the grid points
+                              defined by x and y coordinates, with the first two dimensions
+                              matching the shape of x and y (M, N), and any additional dimensions
+                              representing different variables or measurements at each grid point.
+        """
+        self.x = x
+        self.y = y
+        self.z = z
+
+    def __call__(self, new_x, new_y):
+        """
+        Perform bilinear interpolation to find z-values at a single new (x, y) coordinate.
+
+        Args:
+            new_x (torch.Tensor): A scalar tensor representing the new x-coordinate where
+                                  the z-value is to be interpolated.
+            new_y (torch.Tensor): A scalar tensor representing the new y-coordinate where
+                                  the z-value is to be interpolated.
+
+        Returns:
+            torch.Tensor: A tensor of the interpolated z-value at the specified new_x and new_y
+                          coordinate. If z is an N-D tensor, the returned tensor will maintain
+                          the additional dimensions of z beyond the first two.
+
+        Raises:
+            ValueError: If the new_x or new_y values are outside the range of the original
+                        x or y grid coordinates.
+        """
+        if not (self.x.min() <= new_x <= self.x.max()) or not (self.y.min() <= new_y <= self.y.max()):
+            raise ValueError("The new_x or new_y values are outside the range of x or y.")
+
+        # Find indices for the closest points in x and y
+        x_indices = torch.searchsorted(self.x[0, :], new_x) - 1
+        y_indices = torch.searchsorted(self.y[:, 0], new_y) - 1
+
+        # Ensure indices are within the bounds of the x and y arrays
+        x_indices = torch.clamp(x_indices, 0, self.x.size(1) - 2)
+        y_indices = torch.clamp(y_indices, 0, self.y.size(0) - 2)
+
+        # Calculate the four corner points for bilinear interpolation
+        x0 = self.x[0, x_indices]
+        x1 = self.x[0, x_indices + 1]
+        y0 = self.y[y_indices, 0]
+        y1 = self.y[y_indices + 1, 0]
+
+        # Extract the z-values at the corner points
+        z00 = self.z[y_indices, x_indices]
+        z01 = self.z[y_indices, x_indices + 1]
+        z10 = self.z[y_indices + 1, x_indices]
+        z11 = self.z[y_indices + 1, x_indices + 1]
+
+        # Compute the weights for bilinear interpolation
+        w00 = (x1 - new_x) * (y1 - new_y)
+        w01 = (x1 - new_x) * (new_y - y0)
+        w10 = (new_x - x0) * (y1 - new_y)
+        w11 = (new_x - x0) * (new_y - y0)
+
+        # Perform bilinear interpolation
+        interpolated_z = (w00 * z00 + w01 * z01 + w10 * z10 + w11 * z11) / ((x1 - x0) * (y1 - y0))
+
+        return interpolated_z
+
+
 class Interp1d:
     def __init__(self, x, y):
         """
-        Initialize the Interp1d class.
+        Initialize the Interp1d class for performing linear interpolation.
 
         Args:
-            x (torch.Tensor): 1-D tensor of x-coordinates.
-            y (torch.Tensor): tensor of y-coordinates corresponding to x.
+            x (torch.Tensor): A 1-D tensor of x-coordinates, representing the positions
+                              at which the y-values are known.
+            y (torch.Tensor): An N-D tensor of y-coordinates corresponding to x. The first
+                              dimension of y must match the length of x, and any additional
+                              dimensions represent different sets of values to interpolate.
         """
         self.x = x
         self.y = y
 
     def __call__(self, new_x):
         """
-        Perform linear interpolation to find y-values at new_x.
+        Perform linear interpolation to find y-values at new_x, a scalar or 1-D tensor
+        of new x-coordinates.
 
         Args:
-            new_x (torch.Tensor): 1-D tensor of new x-coordinates.
+            new_x (torch.Tensor): A scalar or 1-D tensor of new x-coordinates where y-values
+                                  are to be interpolated. This allows for interpolation at
+                                  multiple points in a single call.
 
         Returns:
-            torch.Tensor: tensor of interpolated y-values at new_x.
+            torch.Tensor: An N-D tensor of interpolated y-values at new_x. The shape of the
+                          output tensor maintains the additional dimensions of the input y,
+                          with the first dimension size equal to the number of elements in new_x.
+
+        Raises:
+            ValueError: If any of the new_x values are outside the range of the original x
+                        coordinates, indicating that interpolation cannot be performed at
+                        those points.
         """
         if not torch.all(torch.logical_and(new_x >= self.x.min(), new_x <= self.x.max())):
             raise ValueError("Some values in new_x are outside the range of x.")
