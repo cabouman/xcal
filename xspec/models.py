@@ -530,7 +530,10 @@ class Transmission_Source(Base_Spec_Model):
         """
 
         voltage = self.get_params()[f"{self.prefix}_voltage"]
-        target_thickness = self.get_params()[f"{self.prefix}_target_thickness"]
+        if self.single_target_thickness:
+            target_thickness = self.get_params()[f"{self.__class__.__name__}_target_thickness"]
+        else:
+            target_thickness = self.get_params()[f"{self.prefix}_target_thickness"]
         src_spec = self.src_spec_interp_func(voltage, target_thickness)
 
         return src_spec
