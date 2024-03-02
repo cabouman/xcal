@@ -482,7 +482,7 @@ class Reflection_Source(Base_Spec_Model):
         return src_spec
 
 class Transmission_Source(Base_Spec_Model):
-    def __init__(self, voltage, target_thickness):
+    def __init__(self, voltage, target_thickness, single_target_thickness):
         """
         A template source model designed specifically for reflection sources, including all necessary methods.
 
@@ -493,6 +493,11 @@ class Transmission_Source(Base_Spec_Model):
         """
         params_list = [{'voltage': voltage, 'target_thickness': target_thickness}]
         super().__init__(params_list)
+        self.single_target_thickness = single_target_thickness
+        if self.single_target_thickness:
+            for params in self._params_list:
+                params[f"{self.__class__.__name__}_target_thickness"] = params.pop(f"{self.prefix}_target_thickness")
+            self._init_estimates()
 
     def set_src_spec_list(self, src_spec_list, voltages, target_thicknesses):
         """Set source spectra for interpolation, which will be used only by forward function.
