@@ -79,7 +79,7 @@ class Interp2D:
 
         # Perform bilinear interpolation
         interpolated_z = (w00 * z00 + w01 * z01 + w10 * z10 + w11 * z11) / ((x1 - x0) * (y1 - y0))
-
+        interpolated_z = torch.clamp(interpolated_z, min=0)  # Ensure non-negativity
         return interpolated_z
 
 
