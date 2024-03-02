@@ -52,24 +52,24 @@ class Interp2D:
             raise ValueError("The new_x or new_y values are outside the range of x or y.")
 
         # Find indices for the closest points in x and y
-        x_indices = torch.searchsorted(self.x[0, :], new_x) - 1
-        y_indices = torch.searchsorted(self.y[:, 0], new_y) - 1
+        x_indices = torch.searchsorted(self.x[:, 0], new_x) - 1
+        y_indices = torch.searchsorted(self.y[0, :], new_y) - 1
 
         # Ensure indices are within the bounds of the x and y arrays
         x_indices = torch.clamp(x_indices, 0, self.x.size(1) - 2)
         y_indices = torch.clamp(y_indices, 0, self.y.size(0) - 2)
 
         # Calculate the four corner points for bilinear interpolation
-        x0 = self.x[0, x_indices]
-        x1 = self.x[0, x_indices + 1]
-        y0 = self.y[y_indices, 0]
-        y1 = self.y[y_indices + 1, 0]
+        x0 = self.x[x_indices, 0]
+        x1 = self.x[x_indices + 1, 0]
+        y0 = self.y[0, y_indices]
+        y1 = self.y[0, y_indices + 1]
 
         # Extract the z-values at the corner points
-        z00 = self.z[y_indices, x_indices]
-        z01 = self.z[y_indices, x_indices + 1]
-        z10 = self.z[y_indices + 1, x_indices]
-        z11 = self.z[y_indices + 1, x_indices + 1]
+        z00 = self.z[x_indices, y_indices]
+        z01 = self.z[x_indices, y_indices + 1]
+        z10 = self.z[x_indices + 1, y_indices]
+        z11 = self.z[x_indices + 1, y_indices + 1]
 
         # Compute the weights for bilinear interpolation
         w00 = (x1 - new_x) * (y1 - new_y)
