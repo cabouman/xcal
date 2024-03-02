@@ -106,7 +106,7 @@ if __name__ == '__main__':
         with (torch.no_grad()):
             for key, value in sorted(params.items()):
                 if isinstance(value, tuple):
-                    print(f"{key}: {denormalize_parameter_as_tuple(value)[0].numpy()}")
+                    print(f"{key}: {value[0].numpy()}")
                 else:
                     print(f"{key}: {value}")
             print()

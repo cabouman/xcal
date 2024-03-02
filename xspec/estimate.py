@@ -298,9 +298,17 @@ class Estimate():
         """
         return self.spec_models
     def get_params(self):
-        """ Obtain optimized parameters.
+        """
+        Read estimated parameters as a dictionary.
 
         Returns:
-            dict: A dictionary contains all parameters.
+            dict: Dictionary containing estimated parameters.
         """
-        return self.params
+        display_estimates = {}
+        for key, value in self.params.items():
+            if isinstance(value, tuple):
+                dv = denormalize_parameter_as_tuple(value)
+                display_estimates[key] =  clamp_with_grad(dv[0], dv[1], dv[2])
+            else:
+                display_estimates[key] = value
+        return display_estimates
