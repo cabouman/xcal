@@ -1,7 +1,13 @@
 Total X-ray Spectral Response Configuration
 ===========================================
 
-This tutorial outlines the process for configuring the total X-ray spectral response, :math:`S(E)`, in an imaging system. The response is the product of the source spectrum, :math:`S^{sr}(E)`, the filter response, :math:`S^{fl}(E)`, and the scintillator response, :math:`S^{sc}(E)`.
+This tutorial outlines the process for configuring the total X-ray spectral response, :math:`S(E)`, in an imaging
+system. The response is the product of the source spectrum, :math:`S^{sr}(E)`, the filter response, :math:`S^{fl}(E)
+`, and the scintillator response, :math:`S^{sc}(E)`.
+
+XSPEC offers object-oriented models for sources, filters, and scintillators utilizing the ``Base_Spec_Model`` class.
+For instructions on crafting your own model, please see :doc:`Developing xspec Spectral Models <custmspec>`.
+
 
 Prerequisites
 -------------
@@ -10,8 +16,8 @@ Ensure you have the following before starting:
 
 - Python 3.x
 - Numpy
-- Spekpy (for source spectra generation)
-- Basic understanding of X-ray physics
+- torch
+- Spekpy (Reflection source spectra generation, can be replaced by your own source spectra generator)
 
 Source Configuration
 --------------------
@@ -29,9 +35,10 @@ Begin by defining the source parameters, including the list of voltages and the 
     reference_anode_angle = 11
 
 Generating Source Spectra
--------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Generate the source spectra for each simulation voltage using Spekpy. Adjust the spectra based on the detector pixel size.
+Generate the source spectra for each simulation voltage using Spekpy. Adjust the detected number of photons based on
+the detector pixel size.
 
 .. code-block:: python
 
@@ -49,7 +56,7 @@ Generate the source spectra for each simulation voltage using Spekpy. Adjust the
         src_spec_list.append(src_spec)
 
 Setting Up X-ray Sources
-------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 With the source spectra generated, configure the X-ray sources by defining their voltages and other parameters.
 
@@ -99,4 +106,5 @@ Implement this by integrating the configured sources, filters, and scintillators
 Conclusion
 ----------
 
-This tutorial provides a comprehensive guide for configuring the total X-ray spectral response, including the setup of X-ray sources, generation of source spectra, and configuration of filters and scintillators.
+This tutorial provides a comprehensive guide for configuring the total X-ray spectral response, including the setup
+of X-ray sources, generation of source spectra, and configuration of filters and scintillators.
