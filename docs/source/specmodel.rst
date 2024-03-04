@@ -59,10 +59,22 @@ Setting Up X-ray Sources
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 With the source spectra generated, configure the X-ray sources by defining their voltages and other parameters.
+The process involves two principal steps:
+
+1. Configure source model with Reflection_Source by pass two continuous parameters, voltages and takeoff_angle, which
+should be a tuple (init value, min, max). Note that min and max set to None means that we do not need to optimize
+this paramter.
+
+2. Reflection source are an interpolation-based model, use set_src_spec_list to set up a list of simulation source
+spectra with corresponding source voltages.
+
+Notice that, reflection source always have a single takeoff angle but many different source voltage, by setting
+single_takeoff_angle to True can make sure all takeoff angle would are the same for different instance of
+Reflection_Source.
 
 .. code-block:: python
 
-    from some_module import Reflection_Source  # Replace with the actual import statement
+    from xspec.models import Reflection_Source  # Replace with the actual import statement
 
     sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
                for voltage in voltage_list]
@@ -76,6 +88,9 @@ Filter and Scintillator Configuration
 Specify the filters and scintillators by defining their materials, densities, and thicknesses.
 
 .. code-block:: python
+
+    from xspec import Material
+    from xspec.models import Filter, Scintillator
 
     # Example configurations for filters and scintillators
     psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
@@ -97,11 +112,11 @@ The total spectral response, :math:`S(E)`, combines the source spectrum, filter 
 
    S(E) = S^{sr}(E) \cdot S^{fl}(E) \cdot S^{sc}(E).
 
-Implement this by integrating the configured sources, filters, and scintillators.
+Implement this by integrating the configured sources, filters, and scintillators to a list.
 
 .. code-block:: python
 
-    spec_models = [[source, filter_1, scintillator_1] for source in sources]
+    total_spec_model_1 = [sources[0], filter_1, scintillator_1]
 
 Conclusion
 ----------

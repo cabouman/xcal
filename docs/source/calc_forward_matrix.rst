@@ -27,6 +27,7 @@ The custom forward projector is encapsulated within the ``fw_projector`` class. 
 In the ensuing example, we encapsulate the ``svmbir.project`` function within our ``fw_projector`` class. The process involves two principal steps:
 
 1. Initializing the class with essential geometric parameters through the ``__init__()`` method.
+
 2. Crafting a ``forward(self, mask)`` method that computes and returns the projection (:math:`N_{\text{views}}
 \times N_{\text{rows}} \times N_{\text{cols}}`) of a 3D mask.
 
