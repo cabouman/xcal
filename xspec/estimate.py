@@ -225,7 +225,7 @@ class Estimate():
         Args:
 
             nrad (numpy.ndarray): Normalized radiograph with dimensions [N_views, N_rows, N_cols].
-            forward_matrix (numpy.ndarray): Forward matricx corresponds to nrad with dimensions [N_views, N_rows, N_cols, N_energiy_bins]. We provide ``xspec.calc_forward_matrix`` to calculate a forward matrix from a 3D mask for a homogenous object.
+            forward_matrix (numpy.ndarray): Forward matricx corresponds to nrad with dimensions [N_views, N_rows, N_cols, N_energiy_bins]. We provide ``xspec.calc_forward_matrix.rst`` to calculate a forward matrix from a 3D mask for a homogenous object.
             component_models (object): An instance of Base_Spec_Model.
             weight (numpy.ndarray): Weight corresponds to the normalized radiograph.
 

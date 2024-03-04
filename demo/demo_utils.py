@@ -7,7 +7,7 @@ import svmbir
 import h5py
 
 from xspec.chem_consts import get_lin_att_c_vs_E
-from xspec.dictSE import cal_fw_mat
+from xspec import calc_forward_matrix
 from xspec._utils import Gen_Circle
 import spekpy as sp  # Import SpekPy
 from xspec.defs import Material
@@ -210,10 +210,10 @@ def gen_datasets_3_voltages():
             lac_vs_E_list.append(get_lin_att_c_vs_E(den, formula, energies))
 
         # SVMBIR Forward Projector, you can use your customerize forward projector.
-        pfp = fw_projector(angles, num_channels=nchanl, delta_pixel=rsize)
-        # Forward Matrix F. cal_fw_mat uses given forward projector, LAC value,
+        projector = fw_projector(angles, num_channels=nchanl, delta_pixel=rsize)
+        # Forward Matrix F. calc_forward_matrix.rst uses given forward projector, LAC value,
         # and masks of homogenous objects to calculate a forward matrix.
-        spec_F = cal_fw_mat(mask_list, lac_vs_E_list, energies, pfp)
+        spec_F = calc_forward_matrix(mask_list, lac_vs_E_list, projector)
 
         # Add poisson noise before reaching detector/scintillator.
         trans = np.trapz(spec_F * gt_spec, energies, axis=-1)

@@ -42,6 +42,7 @@ Indices and tables
    :caption: User Guide
 
    install
+   tutorials
    api
    demo
 
