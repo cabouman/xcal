@@ -5,19 +5,28 @@
 
 Welcome to xspec's documentation!
 =================================
-**xspec** is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, anode take-off angle, filter material and thickness, and scintillator and thickness. The package takes as input views of serval known material targets at different energies.
+This software provides a comprehensive solution for X-ray system response estimation, leveraging calibration data
+with known materials and dimensions. Key features and benefits include:
 
+- **Parametric-Based Method**: Utilizes a parametric approach to accurately estimate X-ray system responses.
 
-Features
---------
-* Supports X-ray system parameters estimation using numerical optimization from normalized radiographs of serval known material targets such as Titanium (Ti), Vanadium (V), and Aluminum (Al) at different energies.
-* Supports spectral energy response calculation with estimated system paramters.
-* Supports the computation of ideal normalized radiographs using any customized forward projection method.
+- **Flexibility Across X-Ray Systems**: Designed to be adaptable, the software can be employed with a wide range of
+X-ray systems, accommodating different parameters and constraints.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+- **Built on PyTorch**: Incorporates PyTorch for automatic differentiation, facilitating the use of standard
+optimization algorithms for more efficient and accurate estimations.
 
+- **Ease of Use**: While focusing on technical robustness, xspec also aims to provide a user-friendly
+interface and comprehensive documentation, making it accessible to a broad audience.
+
+Target Audience
+----------------
+
+The software is intended for:
+
+- Medical imaging and radiology professionals seeking precise calibration and response estimation of X-ray systems.
+- Industrial users who rely on X-ray technology for material analysis and quality control.
+- Researchers and developers in the field of computational imaging looking for a versatile and efficient tool for X-ray system analysis.
 
 
 Indices and tables

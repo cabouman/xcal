@@ -1,5 +1,5 @@
-Developing xspec Spectral Models
-================================
+Developing your own xspec Spectral Models
+=========================================
 
 Whether you are proposing a new spectral model for inclusion in XSPEC, developing a separate package that extends XSPEC's capabilities, or implementing custom models for your own astrophysical research projects, this guide details how to develop components that integrate seamlessly with XSPEC's analysis tools and frameworks.
 
