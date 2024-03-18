@@ -24,9 +24,7 @@ if __name__ == '__main__':
     gt_sources = [d['source'] for d in data]
     gt_filter = data[0]['filter']
     gt_scint = data[0]['scintillator']
-    gt_params = get_merged_params_list(
-        [get_concatenated_params_list([gt_sources[i]._params_list, gt_filter._params_list, gt_scint._params_list]) for i
-         in range(3)])[0]
+
     # Number of datasets
     num_dataset = len(normalized_rads)
 
@@ -114,7 +112,11 @@ if __name__ == '__main__':
 
     # Print the table sections
     print('Ground Truth Parameters:')
-    print_params(gt_params)
+    for gt_source in gt_sources:
+        print(gt_source.get_params())
+    print(gt_filter.get_params())
+    print(gt_scint.get_params())
+
     print('Estimated Parameters:')
     print_params(res_params)
 
