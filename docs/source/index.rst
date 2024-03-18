@@ -3,21 +3,25 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to xspec's documentation!
-=================================
-**xspec** is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, anode take-off angle, filter material and thickness, and scintillator and thickness. The package takes as input views of serval known material targets at different energies.
+XSPEC -- Calibrate X-ray System Spectrum
+========================================
+XSPEC provides a comprehensive solution for X-ray system spectral estimation, leveraging calibration data with known materials and dimensions. Key features and benefits include:
 
+- **Parametric-Based Method**: Utilizes a parametric approach to accurately estimate X-ray system spectrum.
 
-Features
---------
-* Supports X-ray system parameters estimation using numerical optimization from normalized radiographs of serval known material targets such as Titanium (Ti), Vanadium (V), and Aluminum (Al) at different energies.
-* Supports spectral energy response calculation with estimated system paramters.
-* Supports the computation of ideal normalized radiographs using any customized forward projection method.
+- **Flexibility Across X-Ray Systems**: Designed to be adaptable, the software can be employed with a wide range of X-ray systems, accommodating different parameters and constraints.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+- **Built on PyTorch**: Incorporates PyTorch for automatic differentiation, facilitating the use of standard optimization algorithms for more efficient and accurate estimations.
 
+- **Ease of Use**: While focusing on technical robustness, XSPEC also aims to provide a user-friendly interface and comprehensive documentation, making it accessible to a broad audience.
+
+Target Audience
+----------------
+
+The software is intended for:
+
+- Medical imaging and radiology professionals seeking precise spectral estimation of X-ray systems.
+- Industrial users who rely on X-ray technology for material analysis and quality control.
 
 
 Indices and tables
@@ -30,20 +34,14 @@ Indices and tables
 .. toctree::
    :hidden:
    :maxdepth: 4
-   :caption: Background
-
-   overview
-   theory
-   credits
-
-.. toctree::
-   :hidden:
-   :maxdepth: 4
    :caption: User Guide
 
+   overview
    install
+   tutorials
    api
-   demo
+   examples
+   credits
 
 .. toctree::
    :hidden:

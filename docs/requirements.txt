@@ -3,4 +3,4 @@ nbsphinx
 sphinx-rtd-theme
 sphinxcontrib-bibtex
 ruamel.yaml
-h5py
+

@@ -1,17 +1,44 @@
-========
-Overview
-========
+Overview and Introduction
+=========================
 
-**xspec** is a cutting-edge Python package, powered by the PyTorch framework, focused on the automatic estimation of X-ray CT parameters which are vital for determining the X-ray spectral energy response. These parameters include source voltage, anode take-off angle, filter material and thickness, along with the scintillator type and thickness.
+Xspec is a Python package designed to accurately determine the spectral response of X-ray systems. It addresses complex challenges by solving the inverse problem using measurements from homogeneous samples with known composition and dimensions. Xspec stands out by leveraging advanced modeling techniques and providing a flexible, user-friendly approach to analyzing X-ray systems across various applications.
 
-Leveraging the robust computational capabilities of PyTorch, **xspec** adeptly models the X-ray system spectral response by breaking it down into three integral components: the source spectrum, the filter response, and the scintillator response. Each of these components is represented through analytical parametric models.
+User Inputs
+-----------
 
-**xspec** can precisely estimate the parameters of each individual component. This is achieved through its capacity
-to analyze normalized radiographs captured under a variety of X-ray system spectral conditions. Each spectrum
-processed may involve different source voltages or filters, consistently utilizing one anode take-off angle and one
-scintillator.
+- **Normalized Radiograph**: Users are required to provide a normalized radiograph for analysis.
+- **Component Information**: Basic knowledge of the source, filter, and scintillator components used in the setup is necessary. This includes:
 
-**xspec** handles both discrete and continuous parameters. For discrete parameters, like filter types and scintillator
-types, it employs comprehensive exhaustive search techniques, whereas for continuous parameters, it harnesses the power of PyTorch for gradient descent optimization.
+  - Source Types: Options include Transmission, Reflection, or Synchrotron, among others.
+  - Possible Filter Materials
+  - Possible Scintillator Materials
+  - The specific component used in each measurement.
 
-Additionally, **xspec** supports the calculation of spectral energy responses using the estimated system parameters , making it a highly versatile tool for X-ray spectral analysis.
+- **Homogeneous Samples** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
+
+Key Features and Strengths
+--------------------------
+
+Based on a Parametric Model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- **Robust to Ill-Conditioned Problems**: Solves problems effectively with a limited number of parameters.
+- **Physically Realistic**: Ensures that solutions are not only mathematically sound but also align with physical reality.
+
+Separable Model: Source, Filter, and Scintillator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+- **Versatile Data Use**: Eliminates the need to acquire new data for every configuration change. Users can easily substitute components in the model.
+
+Enables Joint Parameter Estimation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Given the ill-conditioned nature of the inverse problem, accurately estimating scintillator parameters can be challenging. Xspec enhances the precision of spectral estimation through joint parameter estimation, leveraging:
+
+- **Multi-Voltage Datasets**
+- **Multi-Filter Datasets**
+
+Modular Design
+~~~~~~~~~~~~~~
+
+- **Customizable Components**: Users can integrate their own models of sources, filters, and scintillators based on specific application needs. This modularity ensures that Xspec can be tailored to a wide range of X-ray analysis scenarios, accommodating the complexity and diversity of real-world applications.
