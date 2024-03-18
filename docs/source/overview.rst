@@ -14,7 +14,7 @@ User Inputs
   - Possible Scintillator Materials
   - The specific component used in each measurement.
 
-- **Homogeneous Samples** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
+- **Homogeneous Samples with known composition and dimensions** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
 
 Key Features and Strengths
 --------------------------

@@ -33,7 +33,7 @@ Indices and tables
 
 .. toctree::
    :hidden:
-   :maxdepth: 4
+   :maxdepth: 5
    :caption: User Guide
 
    overview
@@ -45,7 +45,7 @@ Indices and tables
 
 .. toctree::
    :hidden:
-   :maxdepth: 4
+   :maxdepth: 5
    :caption: Developer Guide
 
    docs
