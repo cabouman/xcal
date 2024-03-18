@@ -225,33 +225,28 @@ the list of masks, LAC, and projector using :func:`xspec.calc_forward_matrix`:
 Estimate System Parameters by Solving Inverse Problem
 =====================================================
 
-This section guides you through the process of spectral estimation using datasets scanned with three different source voltages, utilizing the `xspec.Estimate` module. We'll cover setting up the estimation environment, adding data for estimation, fitting the model, and retrieving the estimated spectral models and parameters.
+We define the MAP cost function for the multi-polychromatic dataset. This is accomplished by summing over all :math:`k`, as shown below:
+
+.. math::
+  L(\Theta) = \sum_{k=1}^{K} l\left(\theta_{a_k}^{sr}, \left\{\theta_{p}^{fl} \mid p \in B_k\right\}, \theta^{sc} \right) = \sum_{k=1}^{K}  \frac{1}{2}\left\|\boldsymbol{y}^{(k)}- \boldsymbol{A} \boldsymbol{x}^{(k)} \right\|_{\Lambda^{(k)}}^2,
+
+where
+
+- :math:`\Theta` denotes the aggregate set of parameters across all datasets, with :math:`K` representing the total number of single-polychromatic datasets.
+- The parameter set :math:`\Theta` is composed of the source parameters :math:`\left\{\theta_{a}^{sr} \mid a = 1, \ldots, N_a\right\}`, the filter parameters :math:`\left\{\theta_{b}^{fl} \mid b = 1, \ldots, N_b\right\}`, and the scintillator parameter :math:`\theta^{sc}`.
+- :math:`\Lambda^{(k)}` can be identity matrix or diagonal matrix with :math:`\Lambda_{i, i}^{(k)}=\frac{1}{y_i}`.
+
+The optimal parameter set :math:`\Theta^*` is determined by minimizing :math:`L(\Theta)` using gradient descent:
+
+.. math::
+  \Theta^* = \arg \min_{\Theta \in \mathcal{U}} L(\Theta),
+
+where :math:`\mathcal{U}` represents the constrained solution space.
 
 
-Setting Up
-----------
 
-Start by defining the initial conditions for the estimation process, including the learning rate, maximum iterations, stop threshold, and optimizer type.
+This section guides you through the process of spectral estimation using datasets scanned with three different source voltages, utilizing the :func:`xspec.Estimate` module.
 
-.. code-block:: python
-
-    import os
-    from xspec import Estimate
-
-    learning_rate = 0.02
-    max_iterations = 5000
-    stop_threshold = 1e-5
-    optimizer_type = 'NNAT_LBFGS'
-
-Preparing the Output Directory
--------------------------------
-
-Prepare the output directory where the log files will be saved during the estimation process.
-
-.. code-block:: python
-
-    savefile_name = 'case_mv_%s_lr%.0e' % (optimizer_type, learning_rate)
-    os.makedirs('./output_3_source_voltages/log/', exist_ok=True)
 
 Initializing the Estimator
 --------------------------
@@ -260,19 +255,31 @@ Initialize the `Estimate` object with the energy bins for the spectral data.
 
 .. code-block:: python
 
-    energies = [Your energy bins here]  # Define your energy bins
+    import os
+    from xspec import Estimate
+
     Estimator = Estimate(energies)
 
-Adding Data for Estimation
---------------------------
+Load Data for Estimation
+------------------------
 
-Add your normalized radiographs, forward matrices, and spectral models for each source voltage to the estimator.
+Add your normalized radiographs :math:`[y_1, y_2, y_3]`, forward matrices :math:`[A_1, A_2, A_3]`, and spectral models :math:`x_1, x_2, x_3` for each source voltage to the estimator.
+
+- :math:`y_k` should have dimension :math:`Nviews, Nrows, Ncols`
+- :math:`A_k` should have dimension :math:`Nviews, Nrows, Ncols, Nenergies`.
+- :math:`x_k` should have dimension :math:`Nenergies`.
+
+Assume you have all normalized radiographs and corresponding forward matrices already configured 3 different sources, 1 filter and 1 scintillator, we can load data and spectral models to the estimator.
 
 .. code-block:: python
 
-    normalized_rads = [Your normalized radiographs here]  # Define your normalized radiographs
-    forward_matrices = [Your forward matrices here]  # Define your forward matrices
-    spec_models = [Your spectral models here]  # Define your spectral models
+    normalized_rads = [Your normalized radiographs here]
+    forward_matrices = [Your forward matrices here]
+    spec_models = [
+    [source_1, filter, scintillator],
+    [source_2, filter, scintillator],
+    [source_3, filter, scintillator],
+    ]
 
     for nrad, forward_matrix, concatenate_models in zip(normalized_rads, forward_matrices, spec_models):
         Estimator.add_data(nrad, forward_matrix, concatenate_models, weight=None)
@@ -284,12 +291,18 @@ Fit the model with the specified learning rate, maximum iterations, stop thresho
 
 .. code-block:: python
 
+    learning_rate = 0.02
+    max_iterations = 5000
+    stop_threshold = 1e-5
+    optimizer_type = 'NNAT_LBFGS'
+    loss_type = 'transmission'
+
     Estimator.fit(learning_rate=learning_rate,
                   max_iterations=max_iterations,
                   stop_threshold=stop_threshold,
                   optimizer_type=optimizer_type,
-                  loss_type='transmission',
-                  logpath='./output_3_source_voltages/log/',
+                  loss_type=loss_type,
+                  logpath=None,
                   num_processes=1)
 
 Retrieving the Results
