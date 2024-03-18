@@ -3,30 +3,25 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to xspec's documentation!
-=================================
-This software provides a comprehensive solution for X-ray system response estimation, leveraging calibration data
-with known materials and dimensions. Key features and benefits include:
+XSPEC -- Calibrate X-ray System Spectrum
+========================================
+XSPEC provides a comprehensive solution for X-ray system spectral estimation, leveraging calibration data with known materials and dimensions. Key features and benefits include:
 
-- **Parametric-Based Method**: Utilizes a parametric approach to accurately estimate X-ray system responses.
+- **Parametric-Based Method**: Utilizes a parametric approach to accurately estimate X-ray system spectrum.
 
-- **Flexibility Across X-Ray Systems**: Designed to be adaptable, the software can be employed with a wide range of
-X-ray systems, accommodating different parameters and constraints.
+- **Flexibility Across X-Ray Systems**: Designed to be adaptable, the software can be employed with a wide range of X-ray systems, accommodating different parameters and constraints.
 
-- **Built on PyTorch**: Incorporates PyTorch for automatic differentiation, facilitating the use of standard
-optimization algorithms for more efficient and accurate estimations.
+- **Built on PyTorch**: Incorporates PyTorch for automatic differentiation, facilitating the use of standard optimization algorithms for more efficient and accurate estimations.
 
-- **Ease of Use**: While focusing on technical robustness, xspec also aims to provide a user-friendly
-interface and comprehensive documentation, making it accessible to a broad audience.
+- **Ease of Use**: While focusing on technical robustness, XSPEC also aims to provide a user-friendly interface and comprehensive documentation, making it accessible to a broad audience.
 
 Target Audience
 ----------------
 
 The software is intended for:
 
-- Medical imaging and radiology professionals seeking precise calibration and response estimation of X-ray systems.
+- Medical imaging and radiology professionals seeking precise spectral estimation of X-ray systems.
 - Industrial users who rely on X-ray technology for material analysis and quality control.
-- Researchers and developers in the field of computational imaging looking for a versatile and efficient tool for X-ray system analysis.
 
 
 Indices and tables
@@ -39,21 +34,14 @@ Indices and tables
 .. toctree::
    :hidden:
    :maxdepth: 4
-   :caption: Background
-
-   overview
-   theory
-   credits
-
-.. toctree::
-   :hidden:
-   :maxdepth: 4
    :caption: User Guide
 
+   overview
    install
    tutorials
    api
-   demo
+   examples
+   credits
 
 .. toctree::
    :hidden:

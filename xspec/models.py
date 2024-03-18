@@ -118,6 +118,11 @@ class Interp1d:
                         coordinates, indicating that interpolation cannot be performed at
                         those points.
         """
+        # Handle the special case of a single data point
+        if len(self.x) == 1:
+            # Return y directly since there's no interpolation needed
+            return self.y.repeat(len(new_x), *([1] * (self.y.dim() - 1)))
+
         if not torch.all(torch.logical_and(new_x >= self.x.min(), new_x <= self.x.max())):
             raise ValueError("Some values in new_x are outside the range of x.")
 
