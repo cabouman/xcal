@@ -1,7 +1,7 @@
 xspec.models
 ------------
 .. automodule:: xspec.models
-   :members: Base_Spec_Model, Reflection_Source, Filter, Scintillator
+   :members: Base_Spec_Model, Reflection_Source, Transmission_Source, Filter, Scintillator
    :undoc-members:
    :show-inheritance:
    :member-order: bysource
@@ -11,5 +11,6 @@ xspec.models
    .. autosummary::
       Base_Spec_Model
       Reflection_Source
+      Transmission_Source
       Filter
       Scintillator
