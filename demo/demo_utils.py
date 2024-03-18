@@ -215,7 +215,7 @@ def gen_datasets_3_voltages():
 
         # SVMBIR Forward Projector, you can use your customerize forward projector.
 
-        pfp = fw_projector(num_views, rsize, 511.5)
+        projector = fw_projector(num_views, rsize, 511.5)
         # Forward Matrix F. cal_fw_mat uses given forward projector, LAC value,
 
         # and masks of homogenous objects to calculate a forward matrix.
