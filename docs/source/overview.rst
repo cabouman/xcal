@@ -1,7 +1,7 @@
 Overview and Introduction
 =========================
 
-Xspec is a Python package designed to accurately determine the spectral response of X-ray systems. It addresses complex challenges by solving the inverse problem using measurements from homogeneous samples with known composition and dimensions. Xspec stands out by leveraging advanced modeling techniques and providing a flexible, user-friendly approach to analyzing X-ray systems across various applications.
+Xspec is a Python package designed to accurately determine the spectral response of X-ray systems by solving the inverse problem using measurements from homogeneous samples with known composition and dimensions. Xspec stands out by leveraging advanced modeling techniques and providing a flexible, user-friendly approach to analyzing X-ray systems across various applications.
 
 User Inputs
 -----------
@@ -14,7 +14,7 @@ User Inputs
   - Possible Scintillator Materials
   - The specific component used in each measurement.
 
-- **Homogeneous Samples** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
+- **Homogeneous Samples with known composition and dimensions** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
 
 Key Features and Strengths
 --------------------------
