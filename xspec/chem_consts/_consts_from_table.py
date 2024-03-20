@@ -2,7 +2,7 @@ import numpy as np
 import os
 import h5py
 import chemparse
-from ._periodictabledata import atom_weights
+from ._periodictabledata import atom_weights, ptable
 
 def calculate_molecular_mass(formula):
     """
@@ -15,6 +15,18 @@ def calculate_molecular_mass(formula):
         M += v * atom_weights[k]
 
     return M
+
+def calculate_Z(formula):
+    """
+    interpret the formula as either a dictionary
+    or a chemical formula
+    """
+    formula_dict = interpret_formula(formula)
+    Z = 0.
+    for k,v in formula_dict.items():
+        Z += v * ptable[k]
+
+    return Z
 
 def interpret_formula(formula):
     """
@@ -207,3 +219,9 @@ def get_lin_absp_c_vs_E(density, formula, energy_vector):
 
     return mu
 
+
+def convert_electron_den_2_mass_den(rhoe, formula):
+    formula_dict = interpret_formula(formula)
+    Z = calculate_Z(formula_dict)
+    A = calculate_molecular_mass(formula_dict)
+    return rhoe*A/Z
