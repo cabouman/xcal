@@ -8,6 +8,28 @@ from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 
 
+def linear_interp(x, xp, fp):
+    """
+    Performs linear interpolation.
+
+    Args:
+        x (torch.Tensor): The x-coordinates at which to evaluate the interpolated values.
+        xp (torch.Tensor): The x-coordinates of the data points.
+        fp (torch.Tensor): The y-coordinates of the data points (same shape as xp).
+
+    Returns:
+        torch.Tensor: The interpolated values.
+    """
+    # Find the indices of the rightmost value less than or equal to x
+    idx = torch.searchsorted(xp, x) - 1
+    idx = idx.clamp(0, len(xp) - 2)  # Clamp values to range to avoid out of bounds
+
+    # Compute the slope of the segments
+    slope = (fp[idx + 1] - fp[idx]) / (xp[idx + 1] - xp[idx])
+
+    # Evaluate the line segment at x
+    return fp[idx] + slope * (x - xp[idx])
+
 class Interp2D:
     def __init__(self, x, y, z):
         """
@@ -297,6 +319,19 @@ class Base_Spec_Model(Module):
             self._params_list.append(new_params)
         self._init_estimates()
 
+    def set_spectrum(self, energies, sp):
+        """
+
+        Args:
+            energies ():
+            sp ():
+
+        Returns:
+
+        """
+        self.ref_sp_energies = energies
+        self.ref_sp = sp
+
     def forward(self, energies):
         """
         Placeholder forward method.
@@ -307,8 +342,14 @@ class Base_Spec_Model(Module):
         Returns:
             torch.Tensor: Output response.
         """
-        # Placeholder forward method of self.estimates, replace with actual implementation.
-        return torch.ones(len(energies))
+        # Check if ref_sp_energies and ref_sp attributes are set
+        if hasattr(self, 'ref_sp_energies') and hasattr(self, 'ref_sp'):
+            return linear_interp(energies, self.ref_sp_energies, self.ref_sp)
+        else:
+            # Handle the case where ref_sp is not set, e.g., return a placeholder or raise an error
+            print("ref_sp_energies or ref_sp is not set.")
+            return torch.ones(len(energies))  # or any other appropriate default action
+
 
     def _init_estimates(self):
         """
