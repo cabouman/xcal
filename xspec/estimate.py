@@ -287,6 +287,7 @@ class Estimate():
         optimal_cost_ind = np.argmin(cost_list)
         best_params = results[optimal_cost_ind][2]
         self.params = best_params
+        self.results = results
         for component_models in self.spec_models:
             for cm in component_models:
                 cm.set_params(best_params)
@@ -297,6 +298,7 @@ class Estimate():
             list: A list of compenent lists. Each compenent list contains all used components to scan the corresponding radiograph.
         """
         return self.spec_models
+
     def get_params(self):
         """
         Read estimated parameters as a dictionary.
@@ -312,3 +314,21 @@ class Estimate():
             else:
                 display_estimates[key] = value
         return display_estimates
+
+    def get_all_estimates(self):
+        """
+        Generates a list of tuples, each containing a combination of discrete
+        and continuous parameters. This function explores all possible combinations
+        of given parameters to facilitate comprehensive analysis or optimization tasks.
+
+        Each tuple in the list comprises three elements:
+        1. Stopped iterations: The number of iterations after which the evaluation stopped.
+        2. Cost value: The cost or objective function value associated with the parameter combination.
+        3. A dictionary of estimated parameters: Keys are parameter names, and values are the
+           corresponding discrete or continuous values for that combination.
+
+        Returns:
+            List[Tuple[int, float, Dict[str, Union[int, float]]]]: A list of tuples, each representing
+            a unique combination of parameters and their evaluation metrics.
+        """
+        return self.results
