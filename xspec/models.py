@@ -329,15 +329,15 @@ class Base_Spec_Model(Module):
         Returns:
 
         """
-        self.ref_sp_energies = energies
-        self.ref_sp = sp
+        self.ref_sp_energies = torch.tensor(energies)
+        self.ref_sp = torch.tensor(sp)
 
     def forward(self, energies):
         """
         Placeholder forward method.
 
         Args:
-            energies (torch.Tensor): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
+            energies (numpy.array): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
 
         Returns:
             torch.Tensor: Output response.
