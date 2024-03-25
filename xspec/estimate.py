@@ -324,8 +324,7 @@ class Estimate():
         Each tuple in the list comprises three elements:
         1. Stopped iterations: The number of iterations after which the evaluation stopped.
         2. Cost value: The cost or objective function value associated with the parameter combination.
-        3. A dictionary of estimated parameters: Keys are parameter names, and values are the
-           corresponding discrete or continuous values for that combination.
+        3. A dictionary of estimated parameters: Keys are parameter names, and values are the corresponding discrete or continuous values for that combination.
 
         Returns:
             List[Tuple[int, float, Dict[str, Union[int, float]]]]: A list of tuples, each representing

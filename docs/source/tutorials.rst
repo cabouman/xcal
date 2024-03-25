@@ -43,6 +43,19 @@ The normalized X-ray spectral response :math:`\mathbf{x}` is one of essential kn
 -------------------------
 XSPEC provides the :func:`xspec.models.Reflection_Source` and :func:`xspec.models.Transmission_Source` classes in order to provide a interpolation function over multiple source spectra simulations. User can write their own source classes by subclassing :func:`xspec.models.Base_Spec_Model`. Details can be found in `Developing your own xspec Spectral Models <custmspec.html>`_.
 
+The reflection source spectrum as a function of source voltage and anode angles can be written as:
+
+.. math::
+
+   S^{sr}(E, v, \psi) = S^{sr}(E, v, \psi_0) \frac{Ph(E, v, \psi)}{Ph\left(E, v, \psi_0\right)}.
+
+where:
+
+- :math:`S^{sr}(E, v, \psi_0)` is the interpolation function over a given list of spectra with different source voltages. It represents the source spectrum as a function of energy (:math:`E`), source voltage (:math:`v`), and a fixed anode angle (:math:`\psi_0`), which serves as a reference.
+
+- :math:`Ph(E, v, \psi)` is the Philibert absorption correction factor, applied in an analytical model that considers the anode angle. This factor corrects for the absorption effects that are dependent on the anode angle (:math:`\psi`).
+
+
 Here is an example to configure the provided reflection source class. With the source spectra provided, configure the X-ray source by defining two continuous variable, voltages and takeoff angle. The process involves two principal steps:
 
 1. Configure the source model with `Reflection_Source` by passing two continuous parameters, voltages, and takeoff angle, which should be a tuple (init value, min, max). Note that setting min and max to `None` indicates that we do not need to optimize this parameter.
