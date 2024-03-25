@@ -287,7 +287,7 @@ def get_concatenated_params_list(lists):
 
 class Base_Spec_Model(Module):
 
-    def __init__(self, params_list):
+    def __init__(self, params_list=[]):
         """Base class for all spectral components in xspec.
 
         Args:
@@ -356,6 +356,8 @@ class Base_Spec_Model(Module):
         Initialize estimates from the first dictionary in params_list.
         """
         self.estimates = {}
+        if len(self._params_list) == 0:
+            return
         for key, value in self._params_list[0].items():
             self.estimates[key] = value
             if isinstance(value, tuple):
