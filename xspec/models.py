@@ -297,11 +297,11 @@ class Base_Spec_Model(Module):
                 while discrete parameters can be directly specified.
         """
         super().__init__()
-        if self.__class__.__name__ != 'Base_Spec_Model':
-            if not hasattr(self.__class__, '_count'):
-                self.__class__._count = 0
-            self.__class__._count += 1
-            self.prefix = f"{self.__class__.__name__}_{self.__class__._count}"
+
+        if not hasattr(self.__class__, '_count'):
+            self.__class__._count = 0
+        self.__class__._count += 1
+        self.prefix = f"{self.__class__.__name__}_{self.__class__._count}"
 
         # params_list contains all possible discrete parameters combinations and related continuous parameters.
         self._params_list = []
@@ -342,6 +342,7 @@ class Base_Spec_Model(Module):
         Returns:
             torch.Tensor: Output response.
         """
+        energies = torch.tensor(energies)
         # Check if ref_sp_energies and ref_sp attributes are set
         if hasattr(self, 'ref_sp_energies') and hasattr(self, 'ref_sp'):
             return linear_interp(energies, self.ref_sp_energies, self.ref_sp)
