@@ -120,16 +120,21 @@ Here is an example to configure the provided reflection source class. With the s
 
 2. Configure Filter Model
 -------------------------
-The filter response is fundamentally influenced by the filter material composition and thickness. X-ray filters, made of materials like aluminum (Al) or copper (Cu), absorb low-energy photons from the X-ray beam. The filter response is represented as:
+
+In X-ray systems, filters are always used to protect the detector and enhance image quality by selectively absorbing low-energy X-rays that contribute to image noise without improving image contrast.
+According to beer's law, the response of a single filter is
 
 .. math::
 
-   S^{fl}(E) = \prod_{p=1}^{N^{fl}} s^{fl}\left(E; M_p^{fl}, T_p^{fl}\right) = \mathrm{e}^{-\sum_p \mu(E, M_p^{fl}) T_p^{fl}},
+	s^{fl}\left(E; M^{fl}, T^{fl}\right) = \mathrm{e}^{-\mu(E, M^{fl}) T^{fl}}
 
-where :math:`\mu(E, M_p^{fl})` is the Linear Attenuation Coefficient (LAC) of the :math:`p^{th}` filter made of material :math:`M_p^{fl}` at energy :math:`E`, and :math:`T_p^{fl}` denotes its thickness.
+where :
 
+- :math:`M^{fl}` denotes the filter material, which is a discrete parameter with only a limited set of choices. Let's assume :math:`M^{fl} \in \{Al, Cu\}`, indicating that the filter material can either be Aluminum (Al) or Copper (Cu).
+- :math:`\mu(E, M^{fl})` is the Linear Attenuation Coefficient (LAC) of material :math:`M^{fl}` at energy :math:`E`.
+- :math:`T^{fl}` denotes filter thickness, which is a continuous parameter within a continuous range.
 
-We provide the :func:`xspec.models.Filter` class in order to provide a analytical filter model for gradient descent. Here is an example to configure a single filter :math:`s^{fl}\left(E; M_p^{fl}, T_p^{fl}\right)`.
+We provide the :func:`xspec.models.Filter` class in order to provide a analytical filter model for gradient descent. Here is an example to configure a single filter :math:`s^{fl}\left(E; M^{fl}, T^{fl}\right)`.
 
 .. code-block:: python
 
@@ -139,11 +144,46 @@ We provide the :func:`xspec.models.Filter` class in order to provide a analytica
     # Example configurations for a filter
     # Material takes chemical composition formula and density g/cm^3
     psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    filter = Filter(psb_fltr_mat, thickness=(5, 0, 10))
+    # Continuous parameter is initialized with 5 mm and should be estiamted within [0, 10] mm
+    filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
+
+    # Plot the filter response with the first possible material and initial thickness.
+    # filter_1(energies) return single filter response with respect to energies.
+    with torch.no_grad():
+        plt.plot(energies, filter_1(energies))
+
+
+The filter response of an X-ray scan, composed of multiple filters. The overall filter response is defined as the product of the responses from multiple different filters. Mathematically, the filter response is represented as:
+
+.. math::
+
+   S^{fl}(E) = \prod_{p=1}^{N^{fl}} s^{fl}\left(E; M_p^{fl}, T_p^{fl}\right),
+
+where,
+
+- :math:`M_p^{fl}` denotes the :math:`p^th` filter material.
+- :math:`\mu(E, M_p^{fl})` is the Linear Attenuation Coefficient (LAC) of the :math:`p^{th}` filter made of material :math:`M_p^{fl}` at energy :math:`E`,
+- and :math:`T_p^{fl}` denotes its thickness.
+
+.. code-block:: python
+
+    from xspec import Material
+    from xspec.models import Filter
+
+    # Example configurations for a filter
+    # Material takes chemical composition formula and density g/cm^3
+    psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
+    # Filter 1 thickness is initialized with 5 mm and should be estiamted within [0, 10] mm
+    filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
+
+    # Filter 2's material can be only silicon.
+    # Filter 2 thickness is initialized with 1 mm and should be estiamted within [0, 2] mm
+    filter_2 = Filter([Material(formula='Si', density=2.33)], thickness=(1, 0, 2))
 
     # Plot the filter response with the first possible material and initial thickness.
     with torch.no_grad():
-        plt.plot(energies, filter(energies))
+        plt.plot(energies, filter_1(energies)*filter_2(energies))
+
 
 .. note::
    When configuring the filter model, ensure to provide the following inputs:
@@ -159,7 +199,10 @@ A scintillator converts absorbed X-ray photon energies into visible light photon
 
    S^{sc}\left(E ; M^{sc}, T^{sc}\right) = \frac{\mu^{en}(E;  M^{sc})}{\mu(E;  M^{sc})}\left(1 - e^{-\mu(E;  M^{sc}) T^{sc}}\right) E,
 
-where :math:`\mu^{en}(E;  M^{sc})` is the linear energy-absorption coefficient of the scintillator made of :math:`M^{sc}` and :math:`\mu` represents the LAC of the scintillator made of :math:`M^{sc}`.
+where
+
+- :math:`\mu^{en}(E;  M^{sc})` is the linear energy-absorption coefficient of the scintillator made of :math:`M^{sc}` and
+- :math:`\mu` represents the LAC of the scintillator made of :math:`M^{sc}`.
 
 We provide the :func:`xspec.models.Scintillator` class in order to provide a analytical scintillator model for gradient descent. Here is an example to configure a scintillator :math:`S^{sc}\left(E ; M^{sc}, T^{sc}\right)`.
 
@@ -172,8 +215,8 @@ We provide the :func:`xspec.models.Scintillator` class in order to provide a ana
 	# Material takes chemical composition formula and density g/cm^3
 	scint_params_list = [
 		{'formula': 'CsI', 'density': 4.51},
-        {'formula': 'Lu3Al5O12', 'density': 6.73},
-        {'formula': 'CdWO4', 'density': 7.9},
+        	{'formula': 'Lu3Al5O12', 'density': 6.73},
+        	{'formula': 'CdWO4', 'density': 7.9},
 		# Add additional materials as required
 	]
 	psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params_list]
@@ -282,16 +325,19 @@ Add your normalized radiographs :math:`[y_1, y_2, y_3]`, forward matrices :math:
 - :math:`A_k` should have dimension :math:`Nviews, Nrows, Ncols, Nenergies`.
 - :math:`x_k` should have dimension :math:`Nenergies`.
 
-Assume you have all normalized radiographs and corresponding forward matrices already configured 3 different sources, 1 filter and 1 scintillator, we can load data and spectral models to the estimator.
+Assume you have all normalized radiographs and corresponding forward matrices. Also, already configured sources, filters, and scintillator, we then load data and spectral models to the estimator.
 
 .. code-block:: python
 
-    normalized_rads = [Your normalized radiographs here]
-    forward_matrices = [Your forward matrices here]
+    normalized_rads = [y_1, y_2, y_3]
+    forward_matrices = [A_1, A_2, A_3]
+
+    # x_1 is a product of source_1(energies)., filter_1(energies)., and scintillator(energies).
+    # x_2 and x_3 have different sources and filter combinations.
     spec_models = [
-    [source_1, filter, scintillator],
-    [source_2, filter, scintillator],
-    [source_3, filter, scintillator],
+    [source_1, filter_1, scintillator],
+    [source_2, filter_2, scintillator],
+    [source_3, filter_1, filter_2, scintillator],
     ]
 
     for nrad, forward_matrix, concatenate_models in zip(normalized_rads, forward_matrices, spec_models):
