@@ -201,8 +201,11 @@ A scintillator converts absorbed X-ray photon energies into visible light photon
 
 where
 
+- :math:`M^{sc}` denotes the scintillator material, which is a discrete parameter with only a limited set of choices. Let's assume :math:`M^{sc} \in \{CsI, Lu3Al5O12, CdWO4\}`.
 - :math:`\mu^{en}(E;  M^{sc})` is the linear energy-absorption coefficient of the scintillator made of :math:`M^{sc}` and
-- :math:`\mu` represents the LAC of the scintillator made of :math:`M^{sc}`.
+- :math:`\mu^{en}(E;  M^{sc})` represents the LAC of the scintillator made of :math:`M^{sc}`.
+- :math:`T^{sc}` denotes scintillator thickness, which is a continuous parameter within a continuous range.
+
 
 We provide the :func:`xspec.models.Scintillator` class in order to provide a analytical scintillator model for gradient descent. Here is an example to configure a scintillator :math:`S^{sc}\left(E ; M^{sc}, T^{sc}\right)`.
 
