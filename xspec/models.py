@@ -342,6 +342,7 @@ class Base_Spec_Model(Module):
         Returns:
             torch.Tensor: Output response.
         """
+        energies = torch.tensor(energies)
         # Check if ref_sp_energies and ref_sp attributes are set
         if hasattr(self, 'ref_sp_energies') and hasattr(self, 'ref_sp'):
             return linear_interp(energies, self.ref_sp_energies, self.ref_sp)
