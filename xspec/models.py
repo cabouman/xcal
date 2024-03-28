@@ -323,8 +323,8 @@ class Base_Spec_Model(Module):
         """
 
         Args:
-            energies ():
-            sp ():
+            energies (numpy.array): A numpy array containing the X-ray energies of a poly-energetic source in units of keV.
+            sp (numpy.array): Spectrum.
 
         Returns:
 
@@ -337,7 +337,7 @@ class Base_Spec_Model(Module):
         Placeholder forward method.
 
         Args:
-            energies (numpy.array): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
+            energies (numpy.array): A numpy array containing the X-ray energies of a poly-energetic source in units of keV.
 
         Returns:
             torch.Tensor: Output response.
