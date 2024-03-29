@@ -5,7 +5,7 @@ from torch.nn.parameter import Parameter
 
 from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
 from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
-from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
+from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func, gen_scint_cvt_func_2
 
 
 def linear_interp(x, xp, fp):
@@ -619,7 +619,7 @@ class Filter(Base_Spec_Model):
 
 
 class Scintillator(Base_Spec_Model):
-    def __init__(self, thickness, materials, device=None, dtype=None):
+    def __init__(self, thickness, materials, method=1, device=None, dtype=None):
         """
         A template scintillator model based on Beer's Law, NIST mass attenuation coefficients, and mass energy-absorption coefficients, including all necessary methods.
 
@@ -631,6 +631,7 @@ class Scintillator(Base_Spec_Model):
         """
         params_list = [{'material': mat, 'thickness': thickness} for mat in materials]
         super().__init__(params_list)
+        self.method = method
 
     def forward(self, energies):
         """
@@ -645,4 +646,9 @@ class Scintillator(Base_Spec_Model):
         mat = self.get_params()[f"{self.prefix}_material"]
         th = self.get_params()[f"{self.prefix}_thickness"]
         # print('ID scintillator th:', id(th))
-        return gen_scint_cvt_func(energies, mat, th)
+        if self.method == 1:
+            return gen_scint_cvt_func(energies, mat, th)
+        elif self.method == 2:
+            return gen_scint_cvt_func_2(energies, mat, th)
+        else:
+            print(f"method should be 1 or 2, given {self.method}.")
