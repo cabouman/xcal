@@ -21,7 +21,7 @@ To do a clean install, use the command:
 
 ```bash
 cd dev_scripts
-source ./install_all.sh
+source ./clean_install_all.sh
 cd ..
 ```
 
