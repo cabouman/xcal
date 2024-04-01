@@ -25,9 +25,6 @@ if __name__ == '__main__':
     gt_filter = data[0]['filter']
     gt_scint = data[0]['scintillator']
 
-    # Number of datasets
-    num_dataset = len(normalized_rads)
-
     # Set source's parameters.
     voltage_list = [80.0, 130.0, 180.0]
     simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')

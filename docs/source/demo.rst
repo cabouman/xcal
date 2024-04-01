@@ -1,12 +1,12 @@
-==================
-Demos and Examples
-==================
+=====
+Demos
+=====
 
 Running Included Demo Scripts
 -----------------------------
 
 The 
-`[source package] <https://github.com/cabouman/xspec>`__
+`[xspec] <https://github.com/cabouman/xspec>`__
 contains a number of sample Python scripts in the 
 `[demo] <https://github.com/cabouman/xspec/tree/main/demo>`__
 folder.
