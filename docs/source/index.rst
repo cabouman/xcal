@@ -39,8 +39,9 @@ Indices and tables
    overview
    install
    tutorials
+   advanced_tutorials
    api
-   examples
+   demo
    credits
 
 .. toctree::

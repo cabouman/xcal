@@ -253,7 +253,7 @@ How to get A?
 
 Start from a single data point :math:`y`, which might pass through multiple homogenous samples.
 
-Assuming that each LAC value of sample :math:`m`, :math:`\mu_m (E)`, is constant within each bin :math:`E \in [E_j, E_{j+1}]`, the total attenuation of one scanning at the :math:`j^{th}` energy bin is given by
+Assuming that each LAC value of sample :math:`m`, :math:`\mu_m (E)`, is constant within each bin :math:`E \in [E_j, E_{j+1}]`, the total transmission of one scanning at the :math:`j^{th}` energy bin is given by
 
 .. math::
   A_{j}=\exp \left\{-\sum_{m \in \Phi} \mu_m\left(E_j\right) L_{m}\right\}.
