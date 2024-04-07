@@ -50,6 +50,7 @@ CT Foward Projector
 .. toctree::
    :maxdepth: 1
 
+   examples/notebook/obj_detection
    examples/notebook/user_forward_projector
 
 Simulated datasets

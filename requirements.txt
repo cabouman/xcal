@@ -6,3 +6,6 @@ torchvision
 torchaudio
 matplotlib
 h5py
+scikit-image
+scipy
+opencv-python
