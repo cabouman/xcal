@@ -21,12 +21,46 @@ Before reading the tutorial please prepare required information listed below
 
 - **Homogeneous Samples with known composition and dimensions** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
 
-The remainder of this section outlines the steps involved in spectral estimation, and shows how each concept maps to a component of XSPEC.
+Jupyter Notebooks Tutorials
+===========================
+The remainder of this tutorial outlines the steps involved in XSPEC's spectral estimation with multiple jupyter notebook tutorials.
 
-Total X-ray Spectral Response
-=============================
+The
+`[xspec] <https://github.com/cabouman/xspec>`__
+contains a number of example Python notebooks in the
+`[examples] <https://github.com/cabouman/xspec/tree/main/examples>`__
+folder.
 
-The total X-ray spectral response, :math:`S(E)`, describes the sensitivity across different energy bins, remaining constant when scanning various samples. This sensitivity is determined by the energy-wise product of three components: the source spectrum :math:`S^{sr}(E)`, the filter response :math:`S^{fl}(E)`, and the scintillator response :math:`S^{sc}(E)`:
+To run jupyter notebook:
+
+1. If you install anaconda, in terminal, run
+
+::
+
+	jupyter notebook
+
+
+2. Access Kernel Menu: In the notebook toolbar, click on the "Kernel" menu to see a list of options.
+
+3. Change Kernel: Select "Change kernel" from the dropdown. A list of available kernels will appear, including Python versions and any other kernels you have installed (like R, Julia, etc.).
+
+4. Select Desired Kernel (xspec): Click on the kernel you wish to switch to. The notebook will refresh, and the new kernel will be activated.
+
+
+
+Example Dependencies
+--------------------
+Some examples use additional dependencies, which are listed in `requirements.txt <https://github.com/cabouman/xspec/blob/main/demo/requirements.txt>`_.
+
+::
+
+   pip install -r demo/requirements.txt  # Installs other example requirements
+
+
+Total X-ray System Response
+===========================
+
+The total X-ray system response, :math:`S(E)`, describes the sensitivity across different energy bins, remaining constant when scanning various samples. This sensitivity is determined by the energy-wise product of three components: the source spectrum :math:`S^{sr}(E)`, the filter response :math:`S^{fl}(E)`, and the scintillator response :math:`S^{sc}(E)`:
 
 .. math::
 
@@ -37,210 +71,24 @@ We discretize the continuous functions :math:`S(E)` by dividing them into :math:
 .. math::
   x_j = \frac{\int_{E_j}^{E_{j+1}} S(E) \, dE}{\int_{0}^{E_{max}} S(E) \, dE}
 
-The normalized X-ray spectral response :math:`\mathbf{x}` is one of essential knowledge we want to determine for further X-ray analysis.
+The normalized X-ray System Response :math:`\mathbf{x}` is one of essential knowledge we want to determine for further X-ray analysis.
 
-1. Configure Source Model
+Examples: Spectral Models
 -------------------------
-XSPEC provides the :func:`xspec.models.Reflection_Source` and :func:`xspec.models.Transmission_Source` classes in order to provide a interpolation function over multiple source spectra simulations. User can write their own source classes by subclassing :func:`xspec.models.Base_Spec_Model`. Details can be found in `Developing your own xspec Spectral Models <custmspec.html>`_.
-
-The reflection source spectrum as a function of source voltage and anode angles can be written as:
-
-.. math::
-
-   S^{sr}(E, v, \psi) = S^{sr}(E, v, \psi_0) \frac{Ph(E, v, \psi)}{Ph\left(E, v, \psi_0\right)}.
-
-where:
-
-- :math:`S^{sr}(E, v, \psi_0)` is the interpolation function over a given list of spectra with different source voltages. It represents the source spectrum as a function of energy (:math:`E`), source voltage (:math:`v`), and a fixed anode angle (:math:`\psi_0`), which serves as a reference.
-
-- :math:`Ph(E, v, \psi)` is the Philibert absorption correction factor, applied in an analytical model that considers the anode angle. This factor corrects for the absorption effects that are dependent on the anode angle (:math:`\psi`).
-
-
-Here is an example to configure the provided reflection source class. With the source spectra provided, configure the X-ray source by defining two continuous variable, voltages and takeoff angle. The process involves two principal steps:
-
-1. Configure the source model with `Reflection_Source` by passing two continuous parameters, voltages, and takeoff angle, which should be a tuple (init value, min, max). Note that setting min and max to `None` indicates that we do not need to optimize this parameter.
-
-2. Reflection sources are an interpolation-based model. Use `set_src_spec_list` to set up a list of simulation source spectra with corresponding source voltages.
-
-.. note::
-
-   In practice, the reflection source always has a fixed takeoff angle but the source voltage is adjustable. By setting `single_takeoff_angle` to True, you can ensure all takeoff angles are the same for different instances of `Reflection_Source`.
-
-
-.. code-block:: python
-
-	import numpy as np
-	from xspec.models import Reflection_Source
-	import matplotlib.pyplot as plt
-	import spekpy as sp
-	import torch
-
-	# Use Spekpy to generate source spectra with source voltages from 30 to 200 kV and takeoff angle = 11.
-	min_simkV = 30
-	max_simkV = 200
-	dsize = 0.01 # mm
-	simkV_list = np.linspace(min_simkV, max_simkV, 18, endpoint=True).astype('int')
-	reference_anode_angle = 11
-	energies = np.linspace(1, max_simkV, max_simkV)
-
-	src_spec_list = []
-	for simkV in simkV_list:
-		s = sp.Spek(kvp=simkV + 1, th=reference_anode_angle, dk=1, mas=1, char=True)
-		k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
-		phi_k = phi_k * ((dsize / 10) ** 2)
-
-		src_spec = np.zeros((max_simkV))
-		src_spec[:simkV] = phi_k[::2]
-		src_spec_list.append(src_spec)
-
-	# Initial reflection source model.
-	# source voltage is initialized as 80 kV with a range [30, 200] kV.
-	# takeoff angle is initialized as 25 degree with a range [5, 45].
-	source = Reflection_Source(voltage=(80, 30, 200), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
-	# set source spectral list for interpolation over source voltage.
-	source.set_src_spec_list(src_spec_list, simkV_list, reference_anode_angle)
-
-	# Plot the source spectrum with given initial value.
-	with torch.no_grad():
-		plt.plot(energies, source(energies))
-
-.. note::
-
-   When configuring the reflection source model, ensure to provide the following inputs:
-
-   - **`simkV_list`**: Array of source voltages, defined using `np.linspace(30, 200, 18, endpoint=True)`, to specify the voltage range and intervals.
-   - **`reference_anode_angle`**: The takeoff angle for all spectra, set as a fixed value (e.g., 11 degrees).
-   - **`src_spec_list`**: A list that will contain the spectral data for each source voltage. This list is populated through a loop that generates spectra for each voltage in `simkV_list` using Spekpy.
-   - **Reflection_Source Configuration**:
-     - **`voltage`**: A tuple indicating the initial source voltage (e.g., 80 kV) and its allowable range ([30, 200] kV).
-     - **`takeoff_angle`**: A tuple for the initial takeoff angle (e.g., 25 degrees) and its range ([5, 45] degrees).
-     - **`single_takeoff_angle`**: A boolean value (`True`) to maintain the same takeoff angle across different instances of `Reflection_Source`.
-
-
-
-2. Configure Filter Model
--------------------------
-
-In X-ray systems, filters are always used to protect the detector and enhance image quality by selectively absorbing low-energy X-rays that contribute to image noise without improving image contrast.
-According to beer's law, the response of a single filter is
-
-.. math::
-
-	s^{fl}\left(E; M^{fl}, T^{fl}\right) = \mathrm{e}^{-\mu(E, M^{fl}) T^{fl}}
-
-where :
-
-- :math:`M^{fl}` denotes the filter material, which is a discrete parameter with only a limited set of choices. Let's assume :math:`M^{fl} \in \{Al, Cu\}`, indicating that the filter material can either be Aluminum (Al) or Copper (Cu).
-- :math:`\mu(E, M^{fl})` is the Linear Attenuation Coefficient (LAC) of material :math:`M^{fl}` at energy :math:`E`.
-- :math:`T^{fl}` denotes filter thickness, which is a continuous parameter within a continuous range.
-
-We provide the :func:`xspec.models.Filter` class in order to provide a analytical filter model for gradient descent. Here is an example to configure a single filter :math:`s^{fl}\left(E; M^{fl}, T^{fl}\right)`.
-
-.. code-block:: python
-
-    from xspec import Material
-    from xspec.models import Filter
-
-    # Example configurations for a filter
-    # Material takes chemical composition formula and density g/cm^3
-    psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    # Continuous parameter is initialized with 5 mm and should be estiamted within [0, 10] mm
-    filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
-
-    # Plot the filter response with the first possible material and initial thickness.
-    # filter_1(energies) return single filter response with respect to energies.
-    with torch.no_grad():
-        plt.plot(energies, filter_1(energies))
-
-
-The filter response of an X-ray scan, composed of multiple filters. The overall filter response is defined as the product of the responses from multiple different filters. Mathematically, the filter response is represented as:
-
-.. math::
-
-   S^{fl}(E) = \prod_{p=1}^{N^{fl}} s^{fl}\left(E; M_p^{fl}, T_p^{fl}\right),
-
-where,
-
-- :math:`M_p^{fl}` denotes the :math:`p^th` filter material.
-- :math:`\mu(E, M_p^{fl})` is the Linear Attenuation Coefficient (LAC) of the :math:`p^{th}` filter made of material :math:`M_p^{fl}` at energy :math:`E`,
-- and :math:`T_p^{fl}` denotes its thickness.
-
-.. code-block:: python
-
-    from xspec import Material
-    from xspec.models import Filter
-
-    # Example configurations for a filter
-    # Material takes chemical composition formula and density g/cm^3
-    psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
-    # Filter 1 thickness is initialized with 5 mm and should be estiamted within [0, 10] mm
-    filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
-
-    # Filter 2's material can be only silicon.
-    # Filter 2 thickness is initialized with 1 mm and should be estiamted within [0, 2] mm
-    filter_2 = Filter([Material(formula='Si', density=2.33)], thickness=(1, 0, 2))
-
-    # Plot the filter response with the first possible material and initial thickness.
-    with torch.no_grad():
-        plt.plot(energies, filter_1(energies)*filter_2(energies))
-
-
-.. note::
-   When configuring the filter model, ensure to provide the following inputs:
-
-   - **Possible Materials**
-   - **Thickness Range**
-
-3. Configure Scintillator Model
--------------------------------
-A scintillator converts absorbed X-ray photon energies into visible light photons. The response of various scintillators, often modeled using MCNP simulations, can be represented as:
-
-.. math::
-
-   S^{sc}\left(E ; M^{sc}, T^{sc}\right) = \frac{\mu^{en}(E;  M^{sc})}{\mu(E;  M^{sc})}\left(1 - e^{-\mu(E;  M^{sc}) T^{sc}}\right) E,
-
-where
-
-- :math:`M^{sc}` denotes the scintillator material, which is a discrete parameter with only a limited set of choices. Let's assume :math:`M^{sc} \in \{CsI, Lu3Al5O12, CdWO4\}`.
-- :math:`\mu^{en}(E;  M^{sc})` is the linear energy-absorption coefficient of the scintillator made of :math:`M^{sc}` and
-- :math:`\mu^{en}(E;  M^{sc})` represents the LAC of the scintillator made of :math:`M^{sc}`.
-- :math:`T^{sc}` denotes scintillator thickness, which is a continuous parameter within a continuous range.
-
-
-We provide the :func:`xspec.models.Scintillator` class in order to provide a analytical scintillator model for gradient descent. Here is an example to configure a scintillator :math:`S^{sc}\left(E ; M^{sc}, T^{sc}\right)`.
-
-.. code-block:: python
-
-	from xspec import Material
-	from xspec.models import Scintillator
-
-	# Example configurations for scintillators
-	# Material takes chemical composition formula and density g/cm^3
-	scint_params_list = [
-		{'formula': 'CsI', 'density': 4.51},
-        	{'formula': 'Lu3Al5O12', 'density': 6.73},
-        	{'formula': 'CdWO4', 'density': 7.9},
-		# Add additional materials as required
-	]
-	psb_scint_mat = [Material(formula=scint_p['formula'], density=scint_p['density']) for scint_p in scint_params_list]
-	scintillator = Scintillator(materials=psb_scint_mat, thickness=(0.25, 0.01, 0.5))
-
-	# Plot the scintillator response with the first possible material and initial thickness.
-	with torch.no_grad():
-		plt.plot(energies, scintillator(energies))
-
-
-.. note::
-   When configuring a scintillator model, ensure to provide the following inputs:
-
-   - **Possible Materials**
-   - **Thickness Range**
-
+The following Python notebooks teach you
+	- How to utilize provided spectral classes to configure X-ray system components (source, filter, scintillator)?
+	- How to customize your own spectral class to adapt to different scenarios?
+
+.. toctree::
+   :maxdepth: 1
+
+   examples/notebook/configure_spectral_models
+   examples/notebook/user_spectral_models
 
 Forward Modeling
 ================
 
-In order to determine the spectral response of X-ray systems, we must link The normalized X-ray spectral response :math:`x`, to the measurable data, :math:`y`. This connection is established through a model of the measurement process:
+In order to determine the spectral response of X-ray systems, we must link The normalized X-ray System Response :math:`x`, to the measurable data, :math:`y`. This connection is established through a model of the measurement process:
 
 .. math::
 
@@ -265,21 +113,20 @@ where:
 - :math:`\mu_m(E)` as the LAC of the material :math:`m` at energy :math:`E`.
 
 
-Extend to 3 dimensional case, calculate the forward matrix(:math:`N_{\text{views}} \times N_{\text{rows}} \times N_{\text{cols}} \times N_E`) using
+For 3 dimensional case, calculate the forward matrix(:math:`N_{\text{views}} \times N_{\text{rows}} \times N_{\text{cols}} \times N_E`) using
 the list of masks, LAC, and projector using :func:`xspec.calc_forward_matrix`:
 
-.. code-block:: python
+Examples: Forward Matrix
+------------------------
+The following Python notebooks teach you
+	- How to obtain a list of masks from reconstructions?
+	- How to configure your own forward projector (parallel beam, conebeam, fanbeam, etc.) to calculate the forward matrix?
 
-    from xspec import calc_forward_matrix
-    spec_F = calc_forward_matrix(mask_list, lac_vs_E_list, projector)
+.. toctree::
+   :maxdepth: 1
 
-.. note::
-   Ensure to prepare for the following inputs:
-
-   - **Composition of the sample**: Material set :math:`\Phi`
-   - **Dimension of the samples**: List of masks corresponding to samples to calculate :math:`L_{m}`.
-   - **CT Forward Projector**: Parallel beam or cone beam forward projector to calculate length path with each sample mask. User can develop own forward projector wrapper as  `Forward Matrix Calculation with Custom Forward Projector <calc_forward_matrix.html>`_.
-
+   examples/notebook/obj_detection
+   examples/notebook/user_forward_projector
 
 Estimate System Parameters by Solving Inverse Problem
 =====================================================
@@ -303,78 +150,15 @@ The optimal parameter set :math:`\Theta^*` is determined by minimizing :math:`L(
 where :math:`\mathcal{U}` represents the constrained solution space.
 
 
+Examples: Spectral Estimation
+-----------------------------
+The following Python notebooks teach you
+	- How to generate a simulated dataset?
+	- How to do spectral estimation with prepared spectral models and forward matrices?
 
-This section guides you through the process of spectral estimation using datasets scanned with three different source voltages, utilizing the :func:`xspec.Estimate` module.
 
+.. toctree::
+   :maxdepth: 1
 
-Initializing the Estimator
---------------------------
-
-Initialize the `Estimate` object with the energy bins for the spectral data.
-
-.. code-block:: python
-
-    import os
-    from xspec import Estimate
-
-    Estimator = Estimate(energies)
-
-Load Data for Estimation
-------------------------
-
-Add your normalized radiographs :math:`[y_1, y_2, y_3]`, forward matrices :math:`[A_1, A_2, A_3]`, and spectral models :math:`x_1, x_2, x_3` for each source voltage to the estimator.
-
-- :math:`y_k` should have dimension :math:`Nviews, Nrows, Ncols`
-- :math:`A_k` should have dimension :math:`Nviews, Nrows, Ncols, Nenergies`.
-- :math:`x_k` should have dimension :math:`Nenergies`.
-
-Assume you have all normalized radiographs and corresponding forward matrices. Also, already configured sources, filters, and scintillator, we then load data and spectral models to the estimator.
-
-.. code-block:: python
-
-    normalized_rads = [y_1, y_2, y_3]
-    forward_matrices = [A_1, A_2, A_3]
-
-    # x_1 is a product of source_1(energies)., filter_1(energies)., and scintillator(energies).
-    # x_2 and x_3 have different sources and filter combinations.
-    spec_models = [
-    [source_1, filter_1, scintillator],
-    [source_2, filter_2, scintillator],
-    [source_3, filter_1, filter_2, scintillator],
-    ]
-
-    for nrad, forward_matrix, concatenate_models in zip(normalized_rads, forward_matrices, spec_models):
-        Estimator.add_data(nrad, forward_matrix, concatenate_models, weight=None)
-
-Fitting the Model
------------------
-
-Fit the model with the specified learning rate, maximum iterations, stop threshold, optimizer type, and loss type. Optionally, specify the logpath and number of processes.
-
-.. code-block:: python
-
-    learning_rate = 0.02
-    max_iterations = 5000
-    stop_threshold = 1e-5
-    optimizer_type = 'NNAT_LBFGS'
-    loss_type = 'transmission'
-
-    Estimator.fit(learning_rate=learning_rate,
-                  max_iterations=max_iterations,
-                  stop_threshold=stop_threshold,
-                  optimizer_type=optimizer_type,
-                  loss_type=loss_type,
-                  logpath=None,
-                  num_processes=1)
-
-Retrieving the Results
-----------------------
-
-After fitting the model, retrieve the estimated spectral models and parameters.
-
-.. code-block:: python
-
-    res_spec_models = Estimator.get_spec_models()
-    res_params = Estimator.get_params()
-
-    # Process or analyze the retrieved models and parameters as needed
+   examples/notebook/simulated_data_3voltages
+   examples/notebook/spectral_estimation_3voltages
