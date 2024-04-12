@@ -14,6 +14,6 @@ conda remove env --name $NAME --all
 conda create --name $NAME python=3.10
 conda activate $NAME
 conda install ipykernel
-conda install pandoc
+conda install conda-forge::pandoc
 python -m ipykernel install --user --name $NAME --display-name $NAME
 cd dev_scripts
