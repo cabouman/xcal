@@ -21,8 +21,8 @@ Before reading the tutorial please prepare required information listed below
 
 - **Homogeneous Samples with known composition and dimensions** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
 
-Jupyter Notebooks Tutorials
-===========================
+0. Jupyter Notebooks Tutorials
+==============================
 The remainder of this tutorial outlines the steps involved in XSPEC's spectral estimation with multiple jupyter notebook tutorials.
 
 The
@@ -57,8 +57,8 @@ Some examples use additional dependencies, which are listed in `requirements.txt
    pip install -r demo/requirements.txt  # Installs other example requirements
 
 
-Total X-ray System Response
-===========================
+1. Total X-ray System Response
+==============================
 
 The total X-ray system response, :math:`S(E)`, describes the sensitivity across different energy bins, remaining constant when scanning various samples. This sensitivity is determined by the energy-wise product of three components: the source spectrum :math:`S^{sr}(E)`, the filter response :math:`S^{fl}(E)`, and the scintillator response :math:`S^{sc}(E)`:
 
@@ -85,8 +85,8 @@ The following Python notebooks teach you
    examples/notebook/configure_spectral_models
    examples/notebook/user_spectral_models
 
-Forward Modeling
-================
+2. Forward Modeling
+===================
 
 In order to determine the spectral response of X-ray systems, we must link The normalized X-ray System Response :math:`x`, to the measurable data, :math:`y`. This connection is established through a model of the measurement process:
 
@@ -128,8 +128,8 @@ The following Python notebooks teach you
    examples/notebook/obj_detection
    examples/notebook/user_forward_projector
 
-Estimate System Parameters by Solving Inverse Problem
-=====================================================
+3. Estimate System Parameters by Solving Inverse Problem
+========================================================
 
 We define the MAP cost function for the multi-polychromatic dataset. This is accomplished by summing over all :math:`k`, as shown below:
 
