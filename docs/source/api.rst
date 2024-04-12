@@ -9,9 +9,14 @@ API reference
 
 .. _models: models.html
 
+* phantom_ includes functions to generate simulated phantoms for spectral estimation.
+
+.. _phantom: phantom.html
+
 .. toctree::
    :titlesonly:
    :hidden:
 
    xspec
    models
+   phantom
