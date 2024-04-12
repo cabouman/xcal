@@ -39,7 +39,6 @@ Indices and tables
    overview
    install
    tutorials
-   advanced_tutorials
    api
    demo
    credits
