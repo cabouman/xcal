@@ -82,7 +82,8 @@ The following Python notebooks teach you
 .. toctree::
    :maxdepth: 1
 
-   examples/notebook/configure_spectral_models
+   examples/notebook/configure_spectral_models_LTT
+   examples/notebook/configure_spectral_models_Spekpy
    examples/notebook/user_spectral_models
 
 2. Forward Modeling
