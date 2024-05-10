@@ -52,8 +52,21 @@ def _obtain_absorption(energies, formula, density, thickness, torch_mode=False):
         absr = energies*mu_en/mu*(1-np.exp(-mu*thickness))
     return absr
 
+def _obtain_absorption_2(energies, formula, density, thickness, torch_mode=False):
+    mu = get_lin_att_c_vs_E(density, formula, energies)
+    if torch_mode:
+        energies = torch.Tensor(energies) if energies is not torch.Tensor else energies
+        mu = torch.tensor(mu)
+        absr = energies*(1-torch.exp(-mu*thickness))
+    else:
+        absr = energies*(1-np.exp(-mu*thickness))
+    return absr
+
 def gen_scint_cvt_func(energies, scint_mat:Material, scint_th, torch_mode=True):
     return _obtain_absorption(energies, scint_mat.formula, scint_mat.density, scint_th, torch_mode)
+
+def gen_scint_cvt_func_2(energies, scint_mat:Material, scint_th, torch_mode=True):
+    return _obtain_absorption_2(energies, scint_mat.formula, scint_mat.density, scint_th, torch_mode)
 
 def gen_scints_specD(energies, composition=[], torch_mode=False):
     src_scint_dict = []

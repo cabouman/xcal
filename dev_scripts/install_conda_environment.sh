@@ -10,10 +10,10 @@ if [[ $ENV_STRING == *$NAME* ]]; then
 fi
 cd ..
 
-conda remove env --name $NAME --all
-conda create --name $NAME python=3.10
+yes | conda remove env --name $NAME --all
+yes | conda create --name $NAME python=3.10
 conda activate $NAME
-conda install ipykernel
-conda install conda-forge::pandoc
+yes | conda install ipykernel
+yes | conda install conda-forge::pandoc
 python -m ipykernel install --user --name $NAME --display-name $NAME
 cd dev_scripts
