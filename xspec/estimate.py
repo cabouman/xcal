@@ -20,7 +20,8 @@ from xspec.models import get_merged_params_list, get_concatenated_params_list, d
 def weighted_mse_loss(input, target, weight):
     return 0.5 * torch.mean(weight * (input - target) ** 2)
 
-def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector):
+
+def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector, slices=None):
     """
     Calculate the forward matrix for a combination of multiple solid objects using a given forward projector.
 
@@ -32,6 +33,7 @@ def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector
         forward_projector (object): An instance of a class that implements a forward projection method. This
             instance should have a method, forward(mask), takes a 3D volume mask as input and computes the photon's line
             path length.
+        trans_mask (numpy.ndarray): Boolean numpy array with same shape as the output of forward_projector.
 
     Returns:
         numpy.ndarray: The calculated forward matrix for spectral estimation.
@@ -40,8 +42,12 @@ def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector
     linear_att_intg_list = []
     for mask, lac_vs_energies in zip(homogenous_vol_masks, lac_vs_energies):
         linear_intg = forward_projector.forward(mask)
-        linear_att_intg_list.append(
-            linear_intg[np.newaxis, :, :, :] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis])
+        if slices is None:
+            linear_att_intg = linear_intg[np.newaxis, :] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis]
+
+        else:
+            linear_att_intg = linear_intg[(np.newaxis,) + slices] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis]
+        linear_att_intg_list.append(linear_att_intg)
 
     tot_lai = np.sum(np.array(linear_att_intg_list), axis=0)
     forward_matrix = np.exp(- tot_lai.transpose((1, 2, 3, 0)))
@@ -123,6 +129,8 @@ def fit_cell(energies,
                     sub_cost = weighted_mse_loss(trans_value, yy, ww)
                 elif loss_type == 'attmse':
                     sub_cost = 0.5 * loss(-torch.log(trans_value), -torch.log(yy))
+                elif loss_type == 'least_square':
+                    sub_cost = 0.5 * loss(trans_value, yy)
                 else:
                     raise ValueError('loss_type should be \'mse\' or \'wmse\' or \'attmse\'. ', 'Given', loss_type)
                 cost += sub_cost
