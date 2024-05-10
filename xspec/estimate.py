@@ -299,6 +299,20 @@ class Estimate():
         """
         return self.spec_models
 
+    def get_spectra(self):
+        """ Obtain optimized system responses corresponding to list of added nrad.
+
+        Returns:
+            list: A list of system responses.
+        """
+        spec_list = []
+        for sms in self.spec_models:
+            est_sp = torch.ones(self.energies.shape)
+            for sm in sms:
+                est_sp*=sm(self.energies)
+            spec_list.append(est_sp)
+        return spec_list
+
     def get_params(self):
         """
         Read estimated parameters as a dictionary.
