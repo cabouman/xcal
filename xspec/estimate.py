@@ -3,11 +3,9 @@ import atexit
 import warnings
 import numpy as np
 import copy
-import pprint
 
 import torch
 import torch.optim as optim
-from torch.nn.parameter import Parameter
 from torch.multiprocessing import Pool
 import torch.multiprocessing as mp
 
@@ -31,20 +29,25 @@ def calc_forward_matrix(homogenous_vol_masks, lac_vs_energies, forward_projector
         lac_vs_energies (list of numpy.ndarray): Each 1D array contains the linear attenuation coefficient (LAC)
             curve and the corresponding energies for the materials represented in `homogenous_vol_masks`.
         forward_projector (object): An instance of a class that implements a forward projection method. This
-            instance should have a method, forward(mask), takes a 3D volume mask as input and computes the photon's line
+            instance should have a method, forward(mask), that takes a 3D volume mask as input and computes the photon's line
             path length.
-        trans_mask (numpy.ndarray): Boolean numpy array with same shape as the output of forward_projector.
+        slices (tuple of slice objects, optional): Slices to apply to the forward projection output to reduce memory
+            usage. Each element in the tuple corresponds to a dimension of the 3D volume output of the forward_projector
+            (views, rows, and columns), and specifies the portion of the data to include in the calculation. If not
+            provided, the entire volume will be used.
 
     Returns:
-        numpy.ndarray: The calculated forward matrix for spectral estimation.
+        numpy.ndarray: The calculated forward matrix for spectral estimation. This matrix represents the exponential
+        attenuation of photons through the combined materials, with dimensions corresponding to the input volumes and
+        the energy levels specified in `lac_vs_energies`.
     """
+
 
     linear_att_intg_list = []
     for mask, lac_vs_energies in zip(homogenous_vol_masks, lac_vs_energies):
         linear_intg = forward_projector.forward(mask)
         if slices is None:
             linear_att_intg = linear_intg[np.newaxis, :] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis]
-
         else:
             linear_att_intg = linear_intg[(np.newaxis,) + slices] * lac_vs_energies[:, np.newaxis, np.newaxis, np.newaxis]
         linear_att_intg_list.append(linear_att_intg)
@@ -353,3 +356,76 @@ class Estimate():
             a unique combination of parameters and their evaluation metrics.
         """
         return self.results
+
+import torch
+import numpy as np
+
+def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, num_iterations=1000, learning_rate=1e-3, smoothness_lambda=0.01,non_neg_lambda=0.01, stop_threshold=1e-5):
+    """
+    Perform least squares estimation using Adam optimizer to solve y = Ax, ensuring that x is non-negative
+    and sums to one (treated as a probability distribution), with optional weighted loss, smoothness regularization,
+    and a stopping threshold when updates to x become very small. Prints loss every 50 iterations.
+
+    Args:
+        A_np (np.ndarray): The matrix coefficients of the linear model as a numpy array. Shape should be (m, n).
+        y_np (np.ndarray): The output vector as a numpy array. Shape should be (m,).
+        x_init_np (np.ndarray): Initial estimate of the parameter vector x as a numpy array. Shape should be (n,).
+        weights_np (np.ndarray, optional): Weights for each observation, affecting their contribution to the loss.
+                                          Shape should be (m,). If None, equal weighting is assumed.
+        num_iterations (int): Number of iterations for the optimization.
+        learning_rate (float): Learning rate for the optimization.
+        smoothness_lambda (float): Regularization parameter for promoting smoothness in the solution.
+        stop_threshold (float): Threshold for stopping the optimization when the change in x is small.
+
+    Returns:
+        np.ndarray: The estimated parameters x, non-negative and summing to one. Shape will be (n,).
+    """
+    # Convert numpy arrays to PyTorch tensors
+    energies = torch.tensor(energies, dtype=torch.float32)
+    A = torch.tensor(A_np, dtype=torch.float32)
+    y = torch.tensor(y_np, dtype=torch.float32)
+    x = torch.tensor(x_init_np, dtype=torch.float32, requires_grad=True)
+    if weights_np is not None:
+        weights = torch.tensor(weights_np, dtype=torch.float32)
+    else:
+        weights = torch.ones(y.shape[0], dtype=torch.float32)
+
+    # Define the optimizer using Adam
+    optimizer = torch.optim.Adam([x], lr=learning_rate)
+
+    # Initialize x_old for the first iteration
+    x_old = torch.zeros_like(x)
+
+    # Optimization loop
+    print('Start Estimation.')
+    for iteration in range(num_iterations):
+        optimizer.zero_grad()  # Clear previous gradients
+        y_pred = torch.trapz(A * x, energies, axis=-1).reshape((-1, 1))
+        loss = torch.mean(weights * (y_pred - y) ** 2)  # Weighted mean squared error loss
+
+        # Add smoothness regularization if required
+        if smoothness_lambda > 0:
+            smoothness_loss = torch.sum((x[:-1] - x[1:])**2)
+            loss += smoothness_lambda * smoothness_loss
+
+        loss += non_neg_lambda * torch.sum(torch.relu(-x) ** 2)
+        loss.backward()  # Perform backpropagation
+        optimizer.step()  # Update the parameters
+
+        # Apply non-negativity constraint and normalize to sum to one
+        with torch.no_grad():  # Update without tracking gradient
+            # x.data.clamp_(min=0)
+            # x.data /= x.data.sum()
+
+            # Check if the update is smaller than the stop threshold
+            if torch.norm(x - x_old) < stop_threshold:
+                break
+
+            x_old = x.clone()  # Update x_old with the new values
+
+        # Print loss every 50 iterations
+        if (iteration + 1) % 100 == 0:
+            print(f"Iteration {iteration + 1}: Loss = {loss.item()}")
+
+    # Return the estimated x as a numpy array
+    return x.detach().numpy()
