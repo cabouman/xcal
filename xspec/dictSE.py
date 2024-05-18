@@ -808,6 +808,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
     src_len = len(src_info)
     kV_list = list(set([si[0] for si in src_info]))
     kV_list.sort()
+    kv_len = len(kV_list)
     fltr_len = len(fltr_info_dict)
     scint_len = len(scints_info_dict)
     scint_list = list(set([si[0] for si in scints_info_dict]))
@@ -860,7 +861,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
             print('Test ID:', tst_ind)
             if len(S) > 0 and apply_phys_constraint:
                 dict_ind = S[0]
-                kV = kV_list[dict_ind // fltr_len // scint_len]
+                kV = kV_list[dict_ind //(src_len//kv_len) // fltr_len // scint_len]
                 scint_formula = scints_info_dict[dict_ind % scint_len][0]
                 print('kV:', kV, ' scintillator material:', scint_formula)
 
