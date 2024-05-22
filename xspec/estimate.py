@@ -144,6 +144,7 @@ def fit_cell(energies,
         cost = closure()
 
         if torch.isnan(cost):
+            print('Meet NaN!!')
             for component_models in spec_models:
                 for cm in component_models:
                     print(cm.get_params())

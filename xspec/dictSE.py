@@ -410,6 +410,8 @@ class Snap:
                         FD[:, k:k + 1] - FD[:, g:g + 1]) / m - 2 * l_star
                 if theta_2 < 0:
                     update = -np.sign(theta_1)
+                elif np.abs(theta_2) < 1e-9:
+                    update = np.sign(theta_1)
                 else:
                     update = -theta_1 / theta_2
                 if self.nnc == 'on-coef':
@@ -872,7 +874,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
                 dict_mask[:, :, :] *= kV_mask[:, None, None]
                 dict_mask = dict_mask.flatten()
 
-            elif len(S) == 0 and apc_method == 'traverse':
+            elif len(S) == 0 and apc_method == 'traverse' and apply_phys_constraint:
                 kV = kV_list[tst_ind // len(scint_list)]
                 scint_formula = scint_list[tst_ind % len(scint_list)]
 
