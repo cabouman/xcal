@@ -588,7 +588,6 @@ class Transmission_Source(Base_Spec_Model):
         return src_spec
 
 class Filter(Base_Spec_Model):
-
     def __init__(self, materials, thickness):
         """
         A template filter model based on Beer's Law and NIST mass attenuation coefficients, including all necessary methods.
@@ -596,10 +595,21 @@ class Filter(Base_Spec_Model):
         Args:
             materials (list): A list of possible materials for the filter,
                 where each material should be an instance containing formula and density.
-            thickness (tuple): (initial value, lower bound, upper bound) for the filter thickness.
-                These three values cannot be all None. It will not be optimized when lower == upper.
+            thickness (tuple or list): If a tuple, it should be (initial value, lower bound, upper bound) for the filter thickness.
+                If a list, it should have the same length as the materials list, specifying thickness for each material.
+                These values cannot be all None. It will not be optimized when lower == upper.
         """
-        params_list = [{'material': mat, 'thickness': thickness} for mat in materials]
+        if isinstance(thickness, tuple):
+            if all(t is None for t in thickness):
+                raise ValueError("Thickness tuple cannot have all None values.")
+            params_list = [{'material': mat, 'thickness': thickness} for mat in materials]
+        elif isinstance(thickness, list):
+            if len(thickness) != len(materials):
+                raise ValueError("Length of thickness list must match length of materials list.")
+            params_list = [{'material': mat, 'thickness': th} for mat, th in zip(materials, thickness)]
+        else:
+            raise TypeError("Thickness must be either a tuple or a list.")
+
         super().__init__(params_list)
 
     def forward(self, energies):
