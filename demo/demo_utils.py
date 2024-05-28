@@ -64,7 +64,7 @@ class fw_projector:
 
         """
 
-        projections = svmbir.project(mask, self.angles, self.num_channels) * self.delta_pixel
+        projections = svmbir.project(mask, self.angles, self.num_channels, num_threads=1) * self.delta_pixel
 
         return projections
 
