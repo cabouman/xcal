@@ -656,3 +656,56 @@ class Scintillator(Base_Spec_Model):
         th = self.get_params()[f"{self.prefix}_thickness"]
         # print('ID scintillator th:', id(th))
         return gen_scint_cvt_func(energies, mat, th)
+
+    class Scintillator_MCNP(Base_Spec_Model):
+        def __init__(self, thickness):
+            """
+            Initializes a scintillator model for interpolation over scintillator thickness.
+
+            Args:
+                thickness (tuple): A tuple containing three elements:
+                    - initial value (float or None): The initial value of the scintillator thickness.
+                    - lower bound (float or None): The lower bound for the scintillator thickness.
+                    - upper bound (float or None): The upper bound for the scintillator thickness.
+
+                    At least one of these values cannot be None. If the lower bound equals the upper bound,
+                    the thickness will not be optimized.
+            """
+            params_list = [{'thickness': thickness}]
+            super().__init__(params_list)
+
+        def set_scint_spec_list(self, scint_spec_list, thicknesses):
+            """
+            Sets the lookup table for interpolation, which will be used in the forward function.
+
+            Args:
+                scint_spec_list (numpy.ndarray): A 2D array containing the reference scintillator spectra.
+                    Each row in this array corresponds to a specific scintillator thickness from the `thicknesses` array.
+
+                thicknesses (numpy.ndarray): A sorted 1D array containing the scintillator thicknesses corresponding
+                    to each spectrum in `scint_spec_list`.
+
+            The method also computes the logarithmic attenuation for each spectrum, which is used for interpolation
+            over the thickness range.
+            """
+            self.scint_spec_list = np.array(scint_spec_list)
+            self.thicknesses = np.array(thicknesses)
+            self.log_scint_spec_list = np.array([-np.log(1 - ss) for ss in scint_spec_list])
+            self.scint_spec_interp_func_over_th = Interp1d(torch.tensor(self.thicknesses, dtype=torch.float32),
+                                                           torch.tensor(self.log_scint_spec_list, dtype=torch.float32))
+
+        def forward(self, energies):
+            """
+            Computes the scintillator response for given X-ray energies.
+
+            Args:
+                energies (torch.Tensor): A tensor containing X-ray energies of a poly-energetic response in keV.
+
+            Returns:
+                torch.Tensor: A tensor representing the interpolated scintillator response for energy integrating detector.
+            """
+            energies = torch.tensor(energies, dtype=torch.float32)
+            thickness = self.get_params()[f"{self.prefix}_thickness"]
+            src_spec = self.scint_spec_interp_func_over_th(thickness)
+            src_spec = 1 - torch.exp(-src_spec)
+            return src_spec * energies
