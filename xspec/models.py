@@ -403,25 +403,47 @@ class Base_Spec_Model(Module):
                 display_estimates[key] = value
         return display_estimates
 
+def first_nonzero_from_right(arr):
+    """
+    Finds the index of the first non-zero element from right to left in a 1D NumPy array.
 
-def prepare_for_interpolation(src_spec_list, simkV_list):
+    Args:
+        arr (numpy.ndarray): A 1D NumPy array.
+
+    Returns:
+        int: The index of the first non-zero element from the right. 
+             If no non-zero element is found, returns -1.
+    """
+    # Reverse the array and use np.argmax to find the first non-zero element from the right
+    rev_index = np.argmax(arr[::-1] != 0)
+    
+    # Check if all elements are zero
+    if arr[::-1][rev_index] == 0:
+        return -1
+    else:
+        # Convert the reverse index to the original index
+        return len(arr) - 1 - rev_index
+    
+    
+def prepare_for_interpolation(src_spec_list, kV_index=None):
     """
     Prepare the source spectral list for interpolation over voltage.
 
     Args:
         src_spec_list (list): List of source spectral responses for each voltage.
-        simkV_list (list): List of simulated voltages.
+        kV_index (list): List of simulated voltages.
 
     Returns:
         list: Modified source spectral list ready for interpolation.
     """
     modified_src_spec_list = src_spec_list.copy()
+    kV_index = [first_nonzero_from_right(modified_src_spec_list[i]) for i in range(len(modified_src_spec_list))]
     for sid, m_src_spec in enumerate(modified_src_spec_list[:-1]):
-        v0 = simkV_list[sid]
-        v1 = simkV_list[sid+1]
+        v0 = kV_index[sid]
+        v1 = kV_index[sid+1]
         f1 = modified_src_spec_list[sid+1]
         for v in range(v0, v1):
-            if v == simkV_list[sid+1]:
+            if v == kV_index[sid+1]:
                 m_src_spec[v] = 0
             else:
                 r = (v - float(v0)) / (v1 - float(v0))
@@ -499,7 +521,7 @@ class Reflection_Source(Base_Spec_Model):
         """
         self.src_spec_list = np.array(src_spec_list)
         self.src_voltage_list = np.array(src_voltage_list)
-        modified_src_spec_list = prepare_for_interpolation(self.src_spec_list, self.src_voltage_list)
+        modified_src_spec_list = prepare_for_interpolation(self.src_spec_list)
         self.src_spec_interp_func_over_v = Interp1d(torch.tensor(self.src_voltage_list, dtype=torch.float32),
                                                     torch.tensor(modified_src_spec_list, dtype=torch.float32))
 
@@ -561,7 +583,7 @@ class Transmission_Source(Base_Spec_Model):
         self.target_thicknesses = np.array(target_thicknesses)
         modified_src_spec_list = src_spec_list.copy()
         for tti, tt in enumerate(target_thicknesses):
-            modified_src_spec_list[:, tti] = prepare_for_interpolation(modified_src_spec_list[:, tti], self.voltages)
+            modified_src_spec_list[:, tti] = prepare_for_interpolation(modified_src_spec_list[:, tti])
 
         # Generate 2D grids for x and y coordinates
         V, T = torch.meshgrid(torch.tensor(self.voltages, dtype=torch.float32), torch.tensor(self.target_thicknesses, dtype=torch.float32), indexing='ij')
