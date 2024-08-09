@@ -358,10 +358,9 @@ class Estimate():
         """
         return self.results
 
-import torch
-import numpy as np
 
-def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, num_iterations=1000, learning_rate=1e-3, smoothness_lambda=0.01,non_neg_lambda=0.01, stop_threshold=1e-5):
+
+def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, num_iterations=1000, learning_rate=1e-3, smoothness_lambda=0.01, non_neg_lambda=0.01, change_lambda=0.01, change_scale=10000, change_threshold=0.001, stop_threshold=1e-5):
     """
     Perform least squares estimation using Adam optimizer to solve y = Ax, ensuring that x is non-negative
     and sums to one (treated as a probability distribution), with optional weighted loss, smoothness regularization,
@@ -376,6 +375,8 @@ def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, n
         num_iterations (int): Number of iterations for the optimization.
         learning_rate (float): Learning rate for the optimization.
         smoothness_lambda (float): Regularization parameter for promoting smoothness in the solution.
+        non_neg_lambda (float): Regularization parameter for enforcing non-negativity and sum-to-one constraint.
+        change_lambda (float): Regularization parameter for limiting changes from the initial estimate.
         stop_threshold (float): Threshold for stopping the optimization when the change in x is small.
 
     Returns:
@@ -385,6 +386,7 @@ def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, n
     energies = torch.tensor(energies, dtype=torch.float32)
     A = torch.tensor(A_np, dtype=torch.float32)
     y = torch.tensor(y_np, dtype=torch.float32)
+    x_init = torch.tensor(x_init_np, dtype=torch.float32)
     x = torch.tensor(x_init_np, dtype=torch.float32, requires_grad=True)
     if weights_np is not None:
         weights = torch.tensor(weights_np, dtype=torch.float32)
@@ -409,14 +411,19 @@ def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, n
             smoothness_loss = torch.sum((x[:-1] - x[1:])**2)
             loss += smoothness_lambda * smoothness_loss
 
-        loss += non_neg_lambda * torch.sum(torch.relu(-x) ** 2)
+        # Add non-negativity and sum-to-one constraints
+        non_neg_loss = torch.sum(torch.relu(-x) ** 2) + (torch.sum(x) - 1) ** 2
+        loss += non_neg_lambda * non_neg_loss
+
+        # Add change regularization term
+        change_penalty = torch.sum(torch.max(torch.abs(x - x_init) - change_scale * x_init, torch.tensor(change_threshold))- torch.tensor(change_threshold)) 
+        loss += change_lambda * change_penalty
+
         loss.backward()  # Perform backpropagation
         optimizer.step()  # Update the parameters
 
         # Apply non-negativity constraint and normalize to sum to one
         with torch.no_grad():  # Update without tracking gradient
-            # x.data.clamp_(min=0)
-            # x.data /= x.data.sum()
 
             # Check if the update is smaller than the stop threshold
             if torch.norm(x - x_old) < stop_threshold:
@@ -424,9 +431,11 @@ def least_squares_estimation(energies, A_np, y_np, x_init_np, weights_np=None, n
 
             x_old = x.clone()  # Update x_old with the new values
 
-        # Print loss every 50 iterations
+        # Print loss every 100 iterations
         if (iteration + 1) % 100 == 0:
             print(f"Iteration {iteration + 1}: Loss = {loss.item()}")
+            with torch.no_grad():
+                print(f"forward loss: {torch.mean(weights * (y_pred - y) ** 2)}; non-negative loss: {non_neg_lambda * non_neg_loss}; change penalty loss: {change_lambda * change_penalty}")
 
     # Return the estimated x as a numpy array
     return x.detach().numpy()
