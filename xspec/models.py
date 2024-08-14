@@ -105,7 +105,7 @@ class Interp2D:
         return interpolated_z
 
 
-class Interp1d:
+class Interp1D:
     def __init__(self, x, y):
         """
         Initialize the Interp1d class for performing linear interpolation.
@@ -522,7 +522,7 @@ class Reflection_Source(Base_Spec_Model):
         self.src_spec_list = np.array(src_spec_list)
         self.src_voltage_list = np.array(src_voltage_list)
         modified_src_spec_list = prepare_for_interpolation(self.src_spec_list)
-        self.src_spec_interp_func_over_v = Interp1d(torch.tensor(self.src_voltage_list, dtype=torch.float32),
+        self.src_spec_interp_func_over_v = Interp1D(torch.tensor(self.src_voltage_list, dtype=torch.float32),
                                                     torch.tensor(modified_src_spec_list, dtype=torch.float32))
 
         self.ref_takeoff_angle = ref_takeoff_angle
@@ -713,7 +713,7 @@ class Scintillator_MCNP(Base_Spec_Model):
         self.scint_spec_list = np.array(scint_spec_list)
         self.thicknesses = np.array(thicknesses)
         self.log_scint_spec_list = np.array([-np.log(1 - ss) for ss in scint_spec_list])
-        self.scint_spec_interp_func_over_th = Interp1d(torch.tensor(self.thicknesses, dtype=torch.float32),
+        self.scint_spec_interp_func_over_th = Interp1D(torch.tensor(self.thicknesses, dtype=torch.float32),
                                                        torch.tensor(self.log_scint_spec_list, dtype=torch.float32))
 
     def forward(self, energies):
