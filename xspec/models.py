@@ -8,6 +8,16 @@ from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
 from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
 
 
+def transpose_first_to_last(x):
+    dims = list(range(x.ndimension()))
+    dims.append(dims.pop(0))
+    return x.permute(dims)
+
+def transpose_last_to_first(x):
+    dims = list(range(x.ndimension()))
+    dims.insert(0, dims.pop(-1))
+    return x.permute(dims)
+
 def linear_interp(x, xp, fp):
     """
     Performs linear interpolation.
@@ -88,10 +98,10 @@ class Interp2D:
         y1 = self.y[0, y_indices + 1]
 
         # Extract the z-values at the corner points
-        z00 = self.z[x_indices, y_indices]
-        z01 = self.z[x_indices, y_indices + 1]
-        z10 = self.z[x_indices + 1, y_indices]
-        z11 = self.z[x_indices + 1, y_indices + 1]
+        z00 = transpose_first_to_last(self.z[x_indices, y_indices])
+        z01 = transpose_first_to_last(self.z[x_indices, y_indices + 1])
+        z10 = transpose_first_to_last(self.z[x_indices + 1, y_indices])
+        z11 = transpose_first_to_last(self.z[x_indices + 1, y_indices + 1])
 
         # Compute the weights for bilinear interpolation
         w00 = (x1 - new_x) * (y1 - new_y)
@@ -102,6 +112,7 @@ class Interp2D:
         # Perform bilinear interpolation
         interpolated_z = (w00 * z00 + w01 * z01 + w10 * z10 + w11 * z11) / ((x1 - x0) * (y1 - y0))
         interpolated_z = torch.clamp(interpolated_z, min=0)  # Ensure non-negativity
+        interpolated_z = transpose_last_to_first(interpolated_z)
         return interpolated_z
 
 
@@ -155,13 +166,14 @@ class Interp1D:
         # Calculate the weights for interpolation
         x0 = self.x[indices - 1]
         x1 = self.x[indices]
-        y0 = self.y[indices - 1]
-        y1 = self.y[indices]
+        y0 = transpose_first_to_last(self.y[indices - 1])
+        y1 = transpose_first_to_last(self.y[indices])
         alpha = (new_x - x0) / (x1 - x0)
 
         # Perform linear interpolation
         interpolated_y = y0 + alpha * (y1 - y0)
         interpolated_y = torch.clamp(interpolated_y, min=0)  # Ensure non-negativity
+        interpolated_y = transpose_last_to_first(interpolated_y)
         return interpolated_y
 
 class ClampFunction(torch.autograd.Function):
