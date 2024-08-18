@@ -582,7 +582,7 @@ class Transmission_Source(Base_Spec_Model):
                 params[f"{self.__class__.__name__}_target_thickness"] = params.pop(f"{self.prefix}_target_thickness")
             self._init_estimates()
 
-    def set_src_spec_list(self, src_spec_list, voltages, target_thicknesses):
+    def set_src_spec_list(self, energies, src_spec_list, voltages, target_thicknesses):
         """Set source spectra for interpolation, which will be used only by forward function.
 
         Args:
@@ -590,6 +590,7 @@ class Transmission_Source(Base_Spec_Model):
             src_voltage_list (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
             ref_takeoff_angle (float): This value represents the anode take-off angle, expressed in degrees, which is used in generating the reference X-ray spectra.
         """
+        self.energies = torch.tensor(energies, dtype=torch.float32)
         self.src_spec_list = np.array(src_spec_list)
         self.voltages = np.array(voltages)
         self.target_thicknesses = np.array(target_thicknesses)
@@ -618,8 +619,8 @@ class Transmission_Source(Base_Spec_Model):
         else:
             target_thickness = self.get_params()[f"{self.prefix}_target_thickness"]
         src_spec = self.src_spec_interp_func(voltage, target_thickness)
-
-        return src_spec
+        src_interp_E_func = Interp1D(self.energies, src_spec)
+        return src_interp_E_func(energies)
 
 class Filter(Base_Spec_Model):
     def __init__(self, materials, thickness):
