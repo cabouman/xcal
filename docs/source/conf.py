@@ -26,7 +26,8 @@ extensions = [
     'sphinx.ext.napoleon',
     'nbsphinx',
     'sphinxcontrib.bibtex',
-    'sphinx.ext.viewcode'
+    'sphinx.ext.viewcode',
+    'myst_parser',
 ]
 bibtex_bibfiles = [] # 'refs.bib'
 autoclass_content = 'both'
