@@ -147,7 +147,7 @@ def gen_datasets_3_voltages():
 
     plt.figure(3)
     voltage_list = [80.0, 130.0, 180.0]  # kV
-    sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(20, None, None), single_takeoff_angle=True) for
+    sources = [Reflection_Source_Analytical(voltage=(voltage, None, None), takeoff_angle=(20, None, None), single_takeoff_angle=True) for
         voltage in voltage_list]
     for src_i, source in enumerate(sources):
         source.set_src_spec_list(src_spec_list, simkV_list, ref_takeoff_angle)

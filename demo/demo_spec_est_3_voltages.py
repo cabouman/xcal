@@ -49,7 +49,7 @@ if __name__ == '__main__':
         src_spec_list.append(src_spec)
 
     voltage_list = [80.0, 130.0, 180.0]  # kV
-    sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
+    sources = [Reflection_Source_Analytical(voltage=(voltage, None, None), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
                for
                voltage in voltage_list]
     for src_i, source in enumerate(sources):

@@ -501,7 +501,7 @@ def angle_sin(psi, torch_mode=False):
         return np.sin(psi * np.pi / 180.0)
 
 
-class Reflection_Source(Base_Spec_Model):
+class Reflection_Source_Analytical(Base_Spec_Model):
     def __init__(self, voltage, takeoff_angle, single_takeoff_angle=True):
         """
         A template source model designed specifically for reflection sources, including all necessary methods.
@@ -563,7 +563,73 @@ class Reflection_Source(Base_Spec_Model):
         src_spec = src_spec * takeoff_angle_conversion_factor(voltage, sin_psi_cur, sin_psi_new, energies)
 
         return src_spec
+    
+class Reflection_Source(Base_Spec_Model):
+    def __init__(self, voltage, takeoff_angle, single_takeoff_angle=True):
+        """
+        A template source model designed specifically for reflection sources, including all necessary methods.
 
+        Args:
+            voltage (tuple): (initial value, lower bound, upper bound) for the source voltage.
+                These three values cannot be all None. It will not be optimized when lower == upper.
+            takeoff_angle (tuple): (initial value, lower bound, upper bound) for the takeoff angle, in degrees.
+                These three values cannot be all None. It will not be optimized when lower == upper.
+            single_takeoff_angle (bool, optional): Determines whether the takeoff angle is same for all instances.
+                If set to True (default), the same takeoff angle is applied to all instances of Reflection_Source.
+                If set to False, each instance may have a distinct takeoff angle, with different prefix.
+        """
+        params_list = [{'voltage': voltage, 'takeoff_angle': takeoff_angle}]
+        super().__init__(params_list)
+        self.single_takeoff_angle = single_takeoff_angle
+        if self.single_takeoff_angle:
+            for params in self._params_list:
+                params[f"{self.__class__.__name__}_takeoff_angle"] = params.pop(f"{self.prefix}_takeoff_angle")
+            self._init_estimates()
+
+    def set_src_spec_list(self, energies, src_spec_list, voltages, takeoff_angles):
+        """Set source spectra for interpolation, which will be used only by forward function.
+
+        Args:
+            energies (numpy.ndarray): Energies vector for lookup table.
+            src_spec_list (numpy.ndarray): NVoltages * NAngles * NEnergies. This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to one of the source voltages from src_voltage_list and one of takeoff angle from takeoff_angles.
+            voltages (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
+            takeoff_angles (numpy.ndarray): List of the anode take-off angles, expressed in degrees.
+        """
+        
+        self.energies = torch.tensor(energies, dtype=torch.float32)
+        self.src_spec_list = np.array(src_spec_list)
+        self.voltages = np.array(voltages)
+        self.takeoff_angles = np.array(takeoff_angles)
+        modified_src_spec_list = src_spec_list.copy()
+        for tti, tt in enumerate(takeoff_angles):
+            modified_src_spec_list[:, tti] = prepare_for_interpolation(modified_src_spec_list[:, tti])
+
+        # Generate 2D grids for x and y coordinates
+        V, T = torch.meshgrid(torch.tensor(self.voltages, dtype=torch.float32), torch.tensor(self.takeoff_angles, dtype=torch.float32), indexing='ij')
+        self.src_spec_interp_func = Interp2D(V, T, torch.tensor(modified_src_spec_list, dtype=torch.float32))
+        
+    def forward(self, energies):
+        """
+        Takes X-ray energies and returns the source spectrum.
+
+        Args:
+            energies (torch.Tensor): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
+
+        Returns:
+            torch.Tensor: The source response.
+        """
+
+        voltage = self.get_params()[f"{self.prefix}_voltage"]
+        if self.single_takeoff_angle:
+            takeoff_angle = self.get_params()[f"{self.__class__.__name__}_takeoff_angle"]
+        else:
+            takeoff_angle = self.get_params()[f"{self.prefix}_takeoff_angle"]
+        src_spec = self.src_spec_interp_func(voltage, takeoff_angle)
+        src_interp_E_func = Interp1D(self.energies, src_spec)
+        return src_interp_E_func(energies)
+    
+    
+    
 class Transmission_Source(Base_Spec_Model):
     def __init__(self, voltage, target_thickness, single_target_thickness):
         """
