@@ -82,9 +82,9 @@ The following Python notebooks teach you
 .. toctree::
    :maxdepth: 1
 
-   examples/notebook/configure_spectral_models_LTT
-   examples/notebook/configure_spectral_models_Spekpy
-   examples/notebook/user_spectral_models
+   examples/notebooks/configure_spectral_models_LTT
+   examples/notebooks/configure_spectral_models_Spekpy
+   examples/notebooks/user_spectral_models
 
 2. Forward Modeling
 ===================
@@ -126,8 +126,8 @@ The following Python notebooks teach you
 .. toctree::
    :maxdepth: 1
 
-   examples/notebook/obj_detection
-   examples/notebook/user_forward_projector
+   examples/notebooks/obj_detection
+   examples/notebooks/user_forward_projector
 
 3. Estimate System Parameters by Solving Inverse Problem
 ========================================================
@@ -161,5 +161,5 @@ The following Python notebooks teach you
 .. toctree::
    :maxdepth: 1
 
-   examples/notebook/simulated_data_3voltages
-   examples/notebook/spectral_estimation_3voltages
+   examples/notebooks/simulated_data_3voltages
+   examples/notebooks/spectral_estimation_3voltages
