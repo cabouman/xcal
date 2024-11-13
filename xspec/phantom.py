@@ -89,6 +89,8 @@ def detect_hough_circles(phantom, radius_range=None, vmin=0, vmax=None, min_dist
             detected circles. If too small, multiple neighbor circles may be
             falsely detected in addition to a true one. If too large, some
             circles may be missed. Defaults to 100.
+        HoughCircles_params1 (float, optional): Upper threshold for the internal edge detection.
+        HoughCircles_params2 (float, optional): Threshold for center detection, which influences the detection sensitivity. Large param2 leads to fewer detected circles. 
 
     Returns:
         numpy.ndarray: An array of detected circles, each represented by the
