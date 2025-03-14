@@ -2,6 +2,8 @@
 
 xspec is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material target at different energies.
 
+Full documentation is available at [xspec_docs](https://xspec.readthedocs.io/en/latest/index.html).
+
 ## Step 1: Clone repository
 
 ```bash
@@ -45,28 +47,7 @@ cd ..
    pip install .
    ```
 
-3. **Build documentation**
-   After the package is installed, you can build the documentation.
-   In your terminal window:
-
-   a. Install required dependencies
-
-   ```bash
-   cd docs/
-   conda install pandoc
-   pip install -r requirements.txt
-   ```
-
-   b. Build documentation
-
-   ```bash
-   make clean html
-   cd ..
-   ```
-
-   c. Open documentation in docs/build/html/index.html. You will see API references on that webpage.
-
-4. **Install demo requirement**
+3. **Install demo requirement**
 
    ```bash
    pip install -r demo/requirements.txt
