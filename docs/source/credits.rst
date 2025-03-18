@@ -18,19 +18,16 @@ We would like to thank the following sponsors for their financial support in the
     * The Laboratory Directed Research and Development program of Lawrence Livermore National Laboratory under project number
 
 
-Distribution Statement
-----------------------
-
-XXXXX
-
-
 Citation
 --------
 
-XXXXX
+Please use the following Bibtex citation when referencing this software.
+::
 
+    @Misc {xspec-2025,
+    author = {XSPEC Development Team},
+    title =	{{X-ray Spectrum Calibration},
+    howpublished = {Software library available from \url{https://github.com/cabouman/xspec}},
+    year = 2025
+    }
 
-References
-==========
-
-XXXXX
