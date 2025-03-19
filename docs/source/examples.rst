@@ -34,3 +34,11 @@ List of Examples
 
 .. note::
    Demonstrate how to configure and customize an interpolation X-ray component modules.
+
+.. toctree::
+   :maxdepth: 1
+
+   examples/T04_Customizing_Analytical_Modules
+
+.. note::
+   Demonstrate how to configure and customize an analytical X-ray component modules.
