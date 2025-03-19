@@ -30,7 +30,7 @@ List of Examples
 .. toctree::
    :maxdepth: 1
 
-   examples/T03_Customizing_Modules
+   examples/T03_Customizing_Interp_Modules
 
 .. note::
-   Demonstrate how to configure and customize different X-ray component modules (source, filter, and detector).
+   Demonstrate how to configure and customize an interpolation X-ray component modules.
