@@ -14,4 +14,4 @@ conda activate xspec
 yes | source install_xspec.sh
 
 # Build documentation
-yes | source install_docs.sh
+# yes | source install_docs.sh
