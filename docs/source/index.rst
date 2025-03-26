@@ -38,7 +38,6 @@ Indices and tables
 
    overview
    install
-   tutorials
    demo
    examples
    api
