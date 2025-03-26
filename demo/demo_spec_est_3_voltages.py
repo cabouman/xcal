@@ -26,34 +26,43 @@ if __name__ == '__main__':
     gt_scint = data[0]['scintillator']
 
     # Set source's parameters.
-    voltage_list = [80.0, 130.0, 180.0]
-    simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
-    max_simkV = max(simkV_list)
+    voltage_list = [80, 130, 180]
+    max_simkV = max(voltage_list)
     reference_anode_angle = 11
 
     # Detector pixel size in mm units.
     dsize = 0.01  # mm
 
     # Energy bins.
-    energies = np.linspace(1, max_simkV, max_simkV)
+    energies = np.linspace(1.5, max_simkV - 0.5, max_simkV-1)
 
     # Use Spekpy to generate a source spectra dictionary.
+    takeoff_angles = np.linspace(5, 45, 11)
     src_spec_list = []
-    for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=reference_anode_angle, dk=1, mas=1, char=True)  # Create the spectrum model
-        k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
-        phi_k = phi_k * ((dsize / 10) ** 2)
+    for case_i, simkV in enumerate(voltage_list):
+        for ta in takeoff_angles:
+            # Generate the X-ray spectrum model with Spekpy for each voltage.
+            s = sp.Spek(kvp=simkV, th=ta, dk=1, mas=1, char=True)
+            k, phi_k = s.get_spectrum(edges=False)  # Retrieve energy bins and fluence spectrum [Photons cm^-2 keV^-1]
 
-        src_spec = np.zeros((max_simkV))
-        src_spec[:simkV] = phi_k[::2]
-        src_spec_list.append(src_spec)
+            # Adjust the fluence for the detector pixel area.
+            phi_k = phi_k * ((dsize / 10) ** 2) # Convert pixel size from mm² to cm²
 
-    voltage_list = [80.0, 130.0, 180.0]  # kV
-    sources = [Reflection_Source_Analytical(voltage=(voltage, None, None), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
+            # Initialize a zero-filled spectrum array with length max_simkV.
+            src_spec = np.zeros(max_simkV - 1)
+            src_spec[:simkV - 1] = phi_k  # Assign spectrum values starting from 1.5 keV
+
+            # Add the processed spectrum for this voltage to the list.
+            src_spec_list.append(src_spec)
+
+    src_spec_list = np.array(src_spec_list)
+    src_spec_list = src_spec_list.reshape((len(voltage_list), len(takeoff_angles), -1))
+
+    sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(25, 5, 45), single_takeoff_angle=True)
                for
                voltage in voltage_list]
     for src_i, source in enumerate(sources):
-        source.set_src_spec_list(src_spec_list, simkV_list, reference_anode_angle)
+        source.set_src_spec_list(energies, src_spec_list, voltage_list, takeoff_angles)
 
     psb_fltr_mat = [Material(formula='Al', density=2.702), Material(formula='Cu', density=8.92)]
     filter_1 = Filter(psb_fltr_mat, thickness=(5, 0, 10))
@@ -71,7 +80,6 @@ if __name__ == '__main__':
     scintillator_1 = Scintillator(materials=psb_scint_mat, thickness=(0.25, 0.01, 0.5))
 
     spec_models = [[source, filter_1, scintillator_1] for source in sources]
-
     learning_rate = 0.02
     max_iterations = 5000
     stop_threshold = 1e-5
@@ -92,7 +100,7 @@ if __name__ == '__main__':
                   optimizer_type=optimizer_type,
                   loss_type='transmission',
                   logpath=None,
-                  num_processes=1)
+                  num_processes=7)
     res_spec_models = Estimator.get_spec_models()
     res_params = Estimator.get_params()
 

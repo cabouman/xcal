@@ -110,29 +110,34 @@ def gen_datasets_3_voltages():
     # Optional: Add title and axis labels
     plt.title('Linear Attenuation Coefficients at 60 kV')
     plt.savefig('./output/1.png')
+    voltage_list = [80, 130, 180]  # kV
 
-    simkV_list = np.linspace(30, 200, 18, endpoint=True).astype('int')
-    max_simkV = max(simkV_list)
+    max_simkV = max(voltage_list)
     takeoff_angle = 20
     ref_takeoff_angle = 11
     # Energy bins.
-    energies = np.linspace(1, max_simkV, max_simkV)
+    energies = np.linspace(1.5, max_simkV - 0.5, max_simkV-1)
 
     # Use Spekpy to generate a source spectra dictionary.
     src_spec_list = []
     fig, axs = plt.subplots(1, 1, figsize=(12, 9), dpi=80)
     plt.figure(2)
     print('\nRunning demo script (10 mAs, 100 cm)\n')
-    for simkV in simkV_list:
-        s = sp.Spek(kvp=simkV + 1, th=ref_takeoff_angle, dk=1, mas=1, char=True)  # Create the spectrum model
-        k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
-        phi_k = phi_k * ((rsize / 10) ** 2)
+    for simkV in voltage_list:
+        s = sp.Spek(kvp=simkV, th=ref_takeoff_angle, dk=1, mas=1, char=True)  # Create the spectrum model
+        k, phi_k = s.get_spectrum(edges=False)  # Get arrays of energy & fluence spectrum
+        # Adjust the fluence for the detector pixel area.
+        phi_k = phi_k * ((rsize / 10) ** 2)  # Convert pixel size from mm² to cm²
         ## Plot the x-ray spectrum
-        axs.plot(k[::2], phi_k[::2],
-                 label='Char: kvp:%d Anode angle:%d' % (simkV, ref_takeoff_angle))
-        src_spec = np.zeros((max_simkV))
-        src_spec[:simkV] = phi_k[::2]
+
+        # Initialize a zero-filled spectrum array with length max_simkV.
+        src_spec = np.zeros(max_simkV - 1)
+        src_spec[:simkV - 1] = phi_k  # Assign spectrum values starting from 1.5 keV
         src_spec_list.append(src_spec)
+        axs.plot(energies, src_spec_list[-1],
+                 label='Char: kvp:%d Anode angle:%d' % (simkV, ref_takeoff_angle))
+    src_spec_list = np.array(src_spec_list)
+    src_spec_list = src_spec_list.reshape((len(voltage_list), 1, -1))
 
     print('\nFinished!\n')
     axs.set_xlabel('Energy  [keV]', fontsize=8)
@@ -146,11 +151,11 @@ def gen_datasets_3_voltages():
     plt.savefig('./output/2.png')
 
     plt.figure(3)
-    voltage_list = [80.0, 130.0, 180.0]  # kV
-    sources = [Reflection_Source_Analytical(voltage=(voltage, None, None), takeoff_angle=(20, None, None), single_takeoff_angle=True) for
+
+    sources = [Reflection_Source(voltage=(voltage, None, None), takeoff_angle=(ref_takeoff_angle, None, None), single_takeoff_angle=True) for
         voltage in voltage_list]
     for src_i, source in enumerate(sources):
-        source.set_src_spec_list(src_spec_list, simkV_list, ref_takeoff_angle)
+        source.set_src_spec_list(energies, src_spec_list, voltage_list, [ref_takeoff_angle])
         plt.plot(energies, source(energies), label='%d kV'%voltage_list[src_i])
     plt.title('Spectrally distributed photon flux')
     plt.xlabel('Energy  [keV]')

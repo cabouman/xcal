@@ -606,8 +606,21 @@ class Reflection_Source(Base_Spec_Model):
 
         # Generate 2D grids for x and y coordinates
         V, T = torch.meshgrid(torch.tensor(self.voltages, dtype=torch.float32), torch.tensor(self.takeoff_angles, dtype=torch.float32), indexing='ij')
-        self.src_spec_interp_func = Interp2D(V, T, torch.tensor(modified_src_spec_list, dtype=torch.float32))
-        
+        Z = torch.tensor(modified_src_spec_list, dtype=torch.float32)
+
+        if V.shape[0] == 1 and T.shape[1] > 1:  # Only one voltage → 1D interp along angle
+            self.src_spec_interp_func = Interp1D(T[0], Z[0])
+            return
+        if T.shape[1] == 1 and V.shape[0] > 1:  # Only one takeoff angle → 1D interp along voltage
+            self.src_spec_interp_func = Interp1D(V[:, 0], Z[:, 0])
+            return
+        if T.shape[1] > 1 and V.shape[0] > 1:
+            self.src_spec_interp_func = Interp2D(V, T, Z)
+            return
+        if T.shape[1] == 1 and V.shape[0] == 1:
+            self.src_spec_interp_func = None
+            return
+
     def forward(self, energies):
         """
         Takes X-ray energies and returns the source spectrum.
@@ -624,7 +637,17 @@ class Reflection_Source(Base_Spec_Model):
             takeoff_angle = self.get_params()[f"{self.__class__.__name__}_takeoff_angle"]
         else:
             takeoff_angle = self.get_params()[f"{self.prefix}_takeoff_angle"]
-        src_spec = self.src_spec_interp_func(voltage, takeoff_angle)
+        if isinstance(self.src_spec_interp_func, Interp1D):
+            if len(self.voltages) == 1:  # Only one voltage, interpolate over angle
+                src_spec = self.src_spec_interp_func(takeoff_angle)
+            else:  # Only one takeoff angle, interpolate over voltage
+                src_spec = self.src_spec_interp_func(voltage)
+        elif isinstance(self.src_spec_interp_func, Interp2D):
+            src_spec = self.src_spec_interp_func(voltage, takeoff_angle)
+        else:
+            src_spec = self.src_spec_list[0, 0]
+
+        energies = torch.tensor(energies, dtype=torch.float32) if not isinstance(energies, torch.Tensor) else energies
         src_interp_E_func = Interp1D(self.energies, src_spec)
         return src_interp_E_func(energies)
     
@@ -685,6 +708,7 @@ class Transmission_Source(Base_Spec_Model):
         else:
             target_thickness = self.get_params()[f"{self.prefix}_target_thickness"]
         src_spec = self.src_spec_interp_func(voltage, target_thickness)
+        energies = torch.tensor(energies, dtype=torch.float32) if not isinstance(energies, torch.Tensor) else energies
         src_interp_E_func = Interp1D(self.energies, src_spec)
         return src_interp_E_func(energies)
 
@@ -726,6 +750,7 @@ class Filter(Base_Spec_Model):
         mat = self.get_params()[f"{self.prefix}_material"]
         th = self.get_params()[f"{self.prefix}_thickness"]
         # print('ID filter th:', id(th))
+        energies = torch.tensor(energies, dtype=torch.float32) if not isinstance(energies, torch.Tensor) else energies
         return gen_fltr_res(energies, mat, th)
 
 
@@ -756,6 +781,7 @@ class Scintillator(Base_Spec_Model):
         mat = self.get_params()[f"{self.prefix}_material"]
         th = self.get_params()[f"{self.prefix}_thickness"]
         # print('ID scintillator th:', id(th))
+        energies = torch.tensor(energies, dtype=torch.float32) if not isinstance(energies, torch.Tensor) else energies
         return gen_scint_cvt_func(energies, mat, th)
 
 class Scintillator_MCNP(Base_Spec_Model):
@@ -805,7 +831,7 @@ class Scintillator_MCNP(Base_Spec_Model):
         Returns:
             torch.Tensor: A tensor representing the interpolated scintillator response for energy integrating detector.
         """
-        energies = torch.tensor(energies, dtype=torch.float32)
+        energies = torch.tensor(energies, dtype=torch.float32) if not isinstance(energies, torch.Tensor) else energies
         thickness = self.get_params()[f"{self.prefix}_thickness"]
         src_spec = self.scint_spec_interp_func_over_th(thickness)
         src_spec = 1 - torch.exp(-src_spec)
