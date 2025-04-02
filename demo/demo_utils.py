@@ -246,3 +246,47 @@ def gen_datasets_3_voltages():
     plt.savefig('./output/7.png')
     plt.close('all')
     return datasets
+
+
+from xspec.defs import Material
+from xspec.models import Base_Spec_Model, prepare_for_interpolation
+from xspec.models import Filter, Scintillator
+import torch
+class Synchrotron_Source(Base_Spec_Model):
+    def __init__(self, voltage):
+        """
+        A template source model designed specifically for reflection sources, including all necessary methods.
+
+        Args:
+            voltage (tuple): (initial value, lower bound, upper bound) for the source voltage.
+                These three values cannot be all None. It will not be optimized when lower == upper.
+        """
+        params_list = [{'voltage': voltage}]
+        super().__init__(params_list)
+
+
+    def set_src_spec_list(self, src_spec_list, src_voltage_list):
+        """Set source spectra for interpolation, which will be used only by forward function.
+
+        Args:
+            src_spec_list (numpy.ndarray): This array contains the reference X-ray source spectra. Each spectrum in this array corresponds to a specific combination of the ref_takeoff_angle and one of the source voltages from src_voltage_list.
+            src_voltage_list (numpy.ndarray): This is a sorted array containing the source voltages, each corresponding to a specific reference X-ray source spectrum.
+        """
+        self.src_spec_list = np.array(src_spec_list)
+        self.src_voltage_list = np.array(src_voltage_list)
+        modified_src_spec_list = prepare_for_interpolation(self.src_spec_list, self.src_voltage_list)
+        self.src_spec = torch.tensor(modified_src_spec_list[0], dtype=torch.float32)
+
+
+    def forward(self, energies):
+        """
+        Takes X-ray energies and returns the source spectrum.
+
+        Args:
+            energies (torch.Tensor): A tensor containing the X-ray energies of a poly-energetic source in units of keV.
+
+        Returns:
+            torch.Tensor: The source response.
+        """
+
+        return self.src_spec
