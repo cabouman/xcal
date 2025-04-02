@@ -117,6 +117,7 @@ if __name__ == '__main__':
     # --------- Step 3: Calculate forward matrix with estimated masks ---------
     # Use the masks and forward projector to calculate the path length of each material in each projection
     # Result is a list of forward matrices A of shape (num_measurements, num_energies)
+    center_offset_list = [-31, -24, -35, -10, -68, -68, 128, 140]
     total_num_views = data_norm_list[0].shape[0]
     angles = np.linspace(-np.pi, np.pi, total_num_views, endpoint=True)
 
