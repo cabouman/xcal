@@ -14,6 +14,9 @@ Steps:
 """
 
 import os
+import urllib.request
+import tarfile
+
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
@@ -25,7 +28,6 @@ from xspec.chem_consts._periodictabledata import density
 from xspec.chem_consts._als_utils import als_bm832, detect_outliers,only_center_mask
 from xspec.phantom import segment_object
 from xspec.defs import Material
-from xspec.models import Base_Spec_Model, prepare_for_interpolation
 from xspec.models import Filter, Scintillator
 from xspec.estimate import Estimate
 from demo_utils import Synchrotron_Source
@@ -64,6 +66,33 @@ class fw_projector:
         return projections
 
 if __name__ == '__main__':
+    # --------- Step 0: Download ALS dataset ---------
+    # Define the target folder and expected files
+    data_dir = os.path.expanduser("../data/demo_xspec_cal_data")
+    expected_files = [
+        "high_fltr_Al.h5", "high_fltr_Mg.h5", "high_fltr_Ti.h5", "high_fltr_V.h5",
+        "low_fltr_Al.h5", "low_fltr_Mg.h5", "low_fltr_Ti.h5", "low_fltr_V.h5"
+    ]
+
+    # Check if all expected files exist
+    if not os.path.isdir(data_dir) or not all(os.path.exists(os.path.join(data_dir, f)) for f in expected_files):
+        print("Downloading demo_xspec_cal_data.tgz...")
+        url = "https://www.datadepot.rcac.purdue.edu/bouman/data/demo_xspec_cal_data.tgz"
+        download_path = os.path.expanduser("~/Documents/LLNL/xspec/data/demo_xspec_cal_data.tgz")
+
+        # Download the file
+        urllib.request.urlretrieve(url, download_path)
+        print("Download complete.")
+
+        # Extract the archive
+        print("Extracting files...")
+        with tarfile.open(download_path, "r:gz") as tar:
+            tar.extractall(path=os.path.dirname(data_dir))
+
+        print("Extraction complete.")
+    else:
+        print("All demo calibration files already exist.")
+
 
     # --------- Step 1: Load data from HDF5 files ---------
     # Files contain: data_norm (normalized radiograph/transmission), recon (SVMBIR reconstruction)
