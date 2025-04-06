@@ -16,6 +16,7 @@ Steps:
 import os
 import urllib.request
 import tarfile
+from pprint import pprint
 
 import h5py
 import numpy as np
@@ -78,7 +79,7 @@ if __name__ == '__main__':
     if not os.path.isdir(data_dir) or not all(os.path.exists(os.path.join(data_dir, f)) for f in expected_files):
         print("Downloading demo_xspec_cal_data.tgz...")
         url = "https://www.datadepot.rcac.purdue.edu/bouman/data/demo_xspec_cal_data.tgz"
-        download_path = os.path.expanduser("~/Documents/LLNL/xspec/data/demo_xspec_cal_data.tgz")
+        download_path = os.path.expanduser("../data/demo_xspec_cal_data.tgz")
 
         # Download the file
         urllib.request.urlretrieve(url, download_path)
@@ -123,25 +124,23 @@ if __name__ == '__main__':
     vmin_list = [1, 1, 0.15, 0.05, 0.3, 0.05, 0.06, 0.05]
     vmax_list = [4, 2.2, 0.3, 0.5, 2.0, 1.0, 0.1, 0.2]
 
-    fig, axes = plt.subplots(4, 2, figsize=(12, 20))
-    axes = axes.T.flatten()  # column-wise layout
+    fig, axes = plt.subplots(2, 4, figsize=(16, 10))  # 2 rows, 4 columns
+    axes = axes.flatten()  # Flatten row-wise
+
     recon_mask_list = []
     for i in range(8):
         ax = axes[i]
-
         img = recon_list[i][0]
         mask = segment_object(img, vmin_list[i], vmax_list[i], 60, 900)
         recon_mask_list.append(mask[np.newaxis, :, :])
         ax.imshow(mask * img, origin='lower', vmin=vmin_list[i], vmax=vmax_list[i])
-
         ax.set_aspect('equal')
         ax.set_title(f"{filenames[i].split('/')[-1][:-3]}")
         ax.axis('off')
 
-    plt.suptitle('Reconstruction after segmentation with estimated mask', y=0.99, fontsize=20)
+    plt.suptitle('Reconstruction after segmentation with estimated mask', y=0.98, fontsize=20)
     plt.tight_layout()
-    plt.show()
-
+    plt.show(block=False)
 
     # --------- Step 3: Calculate forward matrix with estimated masks ---------
     # Use the masks and forward projector to calculate the path length of each material in each projection
@@ -219,27 +218,36 @@ if __name__ == '__main__':
 
 
     # --------- Step 6: Plot estimated spectrum and display parameters ---------
-    # Visualize the estimated X-ray spectrum
+    # Ensure output directory exists
+    output_dir = './output'
+    os.makedirs(output_dir, exist_ok=True)
 
-    print(Estimator.get_params())
-    # Get the estimated effective response for each source voltage.
-    # Make sure to convert to numpy array from tensor before plotting.
+    # Save Estimator object (if it's serializable this way)
+    als_estimator_path = os.path.join(output_dir, 'ALS_Estimator.npy')
+    np.save(als_estimator_path, Estimator)  # Save parameters instead of the object directly
+    print(f"Saved ALS Estimator parameters to: {als_estimator_path}")
+    print()
+    print("Estimated Parameters:")
+    pprint(Estimator.get_params())
+
+    # Get estimated effective responses
     est_sp = Estimator.get_spectra()
-
-    fig = plt.figure()
     title_list = ['Low filtration Effective Spectrum', 'High filtration Effective Spectrum']
-    savename_list = ['low_fltr_sp.npy','high_fltr_sp.npy']
+    savename_list = ['ALS_low_fltr_sp.npy', 'ALS_high_fltr_sp.npy']
+
+    # Plot and save spectra
+    fig = plt.figure()
     for i in range(2):
-        # ax = axs[i]
         with torch.no_grad():
-            es = est_sp[i*4].numpy()
-            es /= np.trapz(es,energies)
-            np.save('./output/'+savename_list[i],[energies, es])
+            es = est_sp[i * 4].numpy()
+            es /= np.trapz(es, energies)
+            save_path = os.path.join(output_dir, savename_list[i])
+            np.save(save_path, [energies, es])
+            print(f"Saved estimated spectrum to: {save_path}")
             plt.plot(energies, es, label=title_list[i])
 
-        # ax.legend()
-        # ax.set_title(title_list[i])
     plt.legend()
     plt.title('Estimated Effective Spectrum')
-    plt.show()
+    plt.show(block=False)
 
+    print("Plotting complete. All results saved in the './output' folder.")
