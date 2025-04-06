@@ -61,8 +61,14 @@ a. Go to folder demo/
 cd demo/
 ```
 
-b. Run demo 1: 3 Datasets scanned with 3 different source voltages and the same filter and scintillator.
+b. Run demo 1: Simulated Multi-Voltage Datasets scanned with three different source voltages and the same filter and scintillator.
 
 ```bash
 python demo_spec_est_3_voltages.py
+```
+
+c. Run demo 2: Measured ALS Datasets scanned with two different filtrations.
+
+```bash
+python demo_als.py
 ```
