@@ -67,7 +67,7 @@ b. Run demo 1: Simulated Multi-Voltage Datasets scanned with three different sou
 python demo_spec_est_3_voltages.py
 ```
 
-b. Run demo 2: Measured ALS Datasets scanned with two different filtrations.
+c. Run demo 2: Measured ALS Datasets scanned with two different filtrations.
 
 ```bash
 python demo_als.py
