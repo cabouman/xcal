@@ -141,6 +141,7 @@ if __name__ == '__main__':
     plt.suptitle('Reconstruction after segmentation with estimated mask', y=0.98, fontsize=20)
     plt.tight_layout()
     plt.show(block=False)
+    plt.savefig('./output/als_masked_region.png')
 
     # --------- Step 3: Calculate forward matrix with estimated masks ---------
     # Use the masks and forward projector to calculate the path length of each material in each projection
@@ -249,5 +250,6 @@ if __name__ == '__main__':
     plt.legend()
     plt.title('Estimated Effective Spectrum')
     plt.show(block=False)
+    plt.savefig('./output/als_estimated_spec.png')
 
     print("Plotting complete. All results saved in the './output' folder.")
