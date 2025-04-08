@@ -1,6 +1,7 @@
 # Additional things to ignore in this package
 demo/output/*
 demo/output_3_source_voltages/
+data/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
