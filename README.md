@@ -1,19 +1,19 @@
-# xspec
+# xcal
 
-xspec is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material target at different energies.
+xcal is a Python package for automatically estimating the X-ray CT parameters that determine the X-ray energy spectrum including the source voltage, filter material and thickness, and scintillator and thickness. The package takes as input views of a known material target at different energies.
 
-Full documentation is available at [xspec_docs](https://xspec.readthedocs.io/en/latest/index.html).
+Full documentation is available at [xcal_docs](https://xcal.readthedocs.io/en/latest/index.html).
 
 ## Step 1: Clone repository
 
 ```bash
-git clone git@github.com:cabouman/xspec.git
-cd xspec
+git clone git@github.com:cabouman/xcal.git
+cd xcal
 ```
 
-## Step 2: Install xspec
+## Step 2: Install xcal
 
-Two options are listed below for installing xspec. 
+Two options are listed below for installing xcal. 
 Option 1 only requires that a bash script be run, but it is less flexible. 
 Option 2 explains how to perform manual installation.
 
@@ -30,14 +30,14 @@ cd ..
 ### Option 2: Manual install
 
 1. **Create conda environment:**
-   Create a new conda environment named `xspec` using the following commands:
+   Create a new conda environment named `xcal` using the following commands:
 
    ```bash
-   conda remove env --name xspec --all
-   conda create --name xspec python=3.10
-   conda activate xspec
+   conda remove env --name xcal --all
+   conda create --name xcal python=3.10
+   conda activate xcal
    conda install ipykernel
-   python -m ipykernel install --user --name xspec --display-name xspec
+   python -m ipykernel install --user --name xcal --display-name xcal
    ```
 
 2. **Install package:**
