@@ -1,6 +1,6 @@
-xspec.phantom
+xcal.phantom
 -------------
-.. automodule:: xspec.phantom
+.. automodule:: xcal.phantom
    :members:
    :undoc-members:
    :show-inheritance:

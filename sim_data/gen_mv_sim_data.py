@@ -5,13 +5,13 @@ import warnings
 import svmbir
 import h5py
 
-from xspec.chem_consts import get_lin_att_c_vs_E
-from xspec.chem_consts._periodictabledata import density
-from xspec.dict_gen import gen_filts_specD, gen_scints_specD
-from xspec.dictSE import cal_fw_mat
-from xspec._utils import *
+from xcal.chem_consts import get_lin_att_c_vs_E
+from xcal.chem_consts._periodictabledata import density
+from xcal.dict_gen import gen_filts_specD, gen_scints_specD
+from xcal.dictSE import cal_fw_mat
+from xcal._utils import *
 import spekpy as sp  # Import SpekPy
-from xspec.defs import *
+from xcal.defs import *
 
 
 class Gen_Circle:

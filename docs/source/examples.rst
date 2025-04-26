@@ -3,9 +3,9 @@
 Advanced Examples
 =================
 
-This section provides advanced examples demonstrating how to use XSPEC in various scenarios, including:
+This section provides advanced examples demonstrating how to use XCAL in various scenarios, including:
 
-1. Using XSPEC with different CT projectors.
+1. Using XCAL with different CT projectors.
 2. Configuring and customizing different X-ray component modules for specific sources, filters, and detectors.
 
 List of Examples

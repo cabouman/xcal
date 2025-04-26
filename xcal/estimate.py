@@ -12,9 +12,9 @@ import torch.multiprocessing as mp
 mp.set_sharing_strategy('file_system')
 
 import logging
-from xspec.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
-from xspec._utils import *
-from xspec.models import get_merged_params_list, get_concatenated_params_list, denormalize_parameter_as_tuple, clamp_with_grad
+from xcal.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
+from xcal._utils import *
+from xcal.models import get_merged_params_list, get_concatenated_params_list, denormalize_parameter_as_tuple, clamp_with_grad
 def weighted_mse_loss(input, target, weight):
     return 0.5 * torch.mean(weight * (input - target) ** 2)
 
@@ -237,7 +237,7 @@ class Estimate():
         Args:
 
             nrad (numpy.ndarray): Normalized radiograph with dimensions [N_views, N_rows, N_cols].
-            forward_matrix (numpy.ndarray): Forward matricx corresponds to nrad with dimensions [N_views, N_rows, N_cols, N_energiy_bins]. We provide ``xspec.calc_forward_matrix.rst`` to calculate a forward matrix from a 3D mask for a homogenous object.
+            forward_matrix (numpy.ndarray): Forward matricx corresponds to nrad with dimensions [N_views, N_rows, N_cols, N_energiy_bins]. We provide ``xcal.calc_forward_matrix.rst`` to calculate a forward matrix from a 3D mask for a homogenous object.
             component_models (object): An instance of Base_Spec_Model.
             weight (numpy.ndarray): Weight corresponds to the normalized radiograph.
 

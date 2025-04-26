@@ -1,7 +1,7 @@
 Overview and Introduction
 =========================
 
-Xspec is a Python package designed to accurately determine the spectral response of X-ray systems by solving the inverse problem using measurements from homogeneous samples with known composition and dimensions. Xspec stands out by leveraging advanced modeling techniques and providing a flexible, user-friendly approach to analyzing X-ray systems across various applications.
+Xcal is a Python package designed to accurately determine the spectral response of X-ray systems by solving the inverse problem using measurements from homogeneous samples with known composition and dimensions. Xcal stands out by leveraging advanced modeling techniques and providing a flexible, user-friendly approach to analyzing X-ray systems across various applications.
 
 User Inputs
 -----------
@@ -33,7 +33,7 @@ Separable Model: Source, Filter, and Scintillator
 Enables Joint Parameter Estimation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Given the ill-conditioned nature of the inverse problem, accurately estimating scintillator parameters can be challenging. Xspec enhances the precision of spectral estimation through joint parameter estimation, leveraging:
+Given the ill-conditioned nature of the inverse problem, accurately estimating scintillator parameters can be challenging. Xcal enhances the precision of spectral estimation through joint parameter estimation, leveraging:
 
 - **Multi-Voltage Datasets**
 - **Multi-Filter Datasets**
@@ -41,4 +41,4 @@ Given the ill-conditioned nature of the inverse problem, accurately estimating s
 Modular Design
 ~~~~~~~~~~~~~~
 
-- **Customizable Components**: Users can integrate their own models of sources, filters, and scintillators based on specific application needs. This modularity ensures that Xspec can be tailored to a wide range of X-ray analysis scenarios, accommodating the complexity and diversity of real-world applications.
+- **Customizable Components**: Users can integrate their own models of sources, filters, and scintillators based on specific application needs. This modularity ensures that Xcal can be tailored to a wide range of X-ray analysis scenarios, accommodating the complexity and diversity of real-world applications.

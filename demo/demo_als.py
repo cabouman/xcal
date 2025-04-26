@@ -5,7 +5,7 @@ This script demonstrates how to perform model-based spectral calibration
 using normalized transmission of known objects scanned under different filtration conditions.
 
 Steps:
-1. Load dataset (normalized radiograph/transmission + reconstruction) from HDF5 files in ../data/demo_xspec_cal_data.
+1. Load dataset (normalized radiograph/transmission + reconstruction) from HDF5 files in ../data/demo_xcal_data.
 2. Perform circle detection and segmentation to obtain the mask of the homogenous object.
 3. Compute the forward matrix using estimated masks.
 4. Configure the X-ray system model.
@@ -23,14 +23,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import glob
 
-from xspec.chem_consts import get_lin_att_c_vs_E
-from xspec import calc_forward_matrix
-from xspec.chem_consts._periodictabledata import density
-from xspec.chem_consts._als_utils import als_bm832, detect_outliers,only_center_mask
-from xspec.phantom import segment_object
-from xspec.defs import Material
-from xspec.models import Filter, Scintillator
-from xspec.estimate import Estimate
+from xcal.chem_consts import get_lin_att_c_vs_E
+from xcal import calc_forward_matrix
+from xcal.chem_consts._periodictabledata import density
+from xcal.chem_consts._als_utils import als_bm832, detect_outliers,only_center_mask
+from xcal.phantom import segment_object
+from xcal.defs import Material
+from xcal.models import Filter, Scintillator
+from xcal.estimate import Estimate
 from demo_utils import Synchrotron_Source
 import svmbir
 
@@ -69,7 +69,7 @@ class fw_projector:
 if __name__ == '__main__':
     # --------- Step 0: Download ALS dataset ---------
     # Define the target folder and expected files
-    data_dir = os.path.expanduser("../data/demo_xspec_cal_data")
+    data_dir = os.path.expanduser("../data/demo_xcal_data")
     expected_files = [
         "high_fltr_Al.h5", "high_fltr_Mg.h5", "high_fltr_Ti.h5", "high_fltr_V.h5",
         "low_fltr_Al.h5", "low_fltr_Mg.h5", "low_fltr_Ti.h5", "low_fltr_V.h5"
@@ -77,9 +77,9 @@ if __name__ == '__main__':
 
     # Check if all expected files exist
     if not os.path.isdir(data_dir) or not all(os.path.exists(os.path.join(data_dir, f)) for f in expected_files):
-        print("Downloading demo_xspec_cal_data.tgz...")
-        url = "https://www.datadepot.rcac.purdue.edu/bouman/data/demo_xspec_cal_data.tgz"
-        download_path = os.path.expanduser("../data/demo_xspec_cal_data.tgz")
+        print("Downloading demo_xcal_data.tgz...")
+        url = "https://www.datadepot.rcac.purdue.edu/bouman/data/demo_xcal_data.tgz"
+        download_path = os.path.expanduser("../data/demo_xcal_data.tgz")
 
         # Download the file
         urllib.request.urlretrieve(url, download_path)
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     # --------- Step 1: Load data from HDF5 files ---------
     # Files contain: data_norm (normalized radiograph/transmission), recon (SVMBIR reconstruction)
     print('Loading both low filtration and high filtration datasets.')
-    filenames = glob.glob('../data/demo_xspec_cal_data/*.h5')
+    filenames = glob.glob('../data/demo_xcal_data/*.h5')
     filenames.sort(reverse=True) # Reverse sort
 
     data_norm_list = []

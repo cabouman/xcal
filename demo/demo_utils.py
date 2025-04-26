@@ -6,13 +6,13 @@ import warnings
 import svmbir
 import h5py
 
-from xspec.chem_consts import get_lin_att_c_vs_E
-from xspec import calc_forward_matrix
-from xspec._utils import Gen_Circle
+from xcal.chem_consts import get_lin_att_c_vs_E
+from xcal import calc_forward_matrix
+from xcal._utils import Gen_Circle
 import spekpy as sp  # Import SpekPy
-from xspec.defs import Material
-from xspec.chem_consts._periodictabledata import density
-from xspec.models import *
+from xcal.defs import Material
+from xcal.chem_consts._periodictabledata import density
+from xcal.models import *
 
 import torch
 
@@ -248,9 +248,9 @@ def gen_datasets_3_voltages():
     return datasets
 
 
-from xspec.defs import Material
-from xspec.models import Base_Spec_Model, prepare_for_interpolation
-from xspec.models import Filter, Scintillator
+from xcal.defs import Material
+from xcal.models import Base_Spec_Model, prepare_for_interpolation
+from xcal.models import Filter, Scintillator
 import torch
 class Synchrotron_Source(Base_Spec_Model):
     def __init__(self, voltage):

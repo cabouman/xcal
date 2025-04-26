@@ -2,20 +2,20 @@
 Installation
 ============
 
-The ``xspec`` package is currently only available to download and install from source available from `XSPEC <https://github.com/cabouman/xspec>`_.
+The ``xcal`` package is currently only available to download and install from source available from `XCAL <https://github.com/cabouman/xcal>`_.
 
 Step 1: Clone repository
 ------------------------
 
 .. code-block:: bash
 
-   git clone git@github.com:cabouman/xspec.git
-   cd xspec
+   git clone git@github.com:cabouman/xcal.git
+   cd xcal
 
-Step 2: Install xspec
+Step 2: Install xcal
 ---------------------
 
-Two options are listed below for installing xspec.
+Two options are listed below for installing xcal.
 Option 1 only requires that a bash script be run, but it is less flexible.
 Option 2 explains how to perform manual installation.
 
@@ -34,15 +34,15 @@ Option 2: Manual install
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 1. **Create conda environment:**
-   Create a new conda environment named ``xspec`` using the following commands:
+   Create a new conda environment named ``xcal`` using the following commands:
 
    .. code-block:: bash
 
-      conda remove env --name xspec --all
-      conda create --name xspec python=3.10
-      conda activate xspec
+      conda remove env --name xcal --all
+      conda create --name xcal python=3.10
+      conda activate xcal
       conda install ipykernel
-      python -m ipykernel install --user --name xspec --display-name xspec
+      python -m ipykernel install --user --name xcal --display-name xcal
 
 2. **Install package:**
 

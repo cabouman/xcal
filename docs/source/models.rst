@@ -1,6 +1,6 @@
-xspec.models
+xcal.models
 ------------
-.. automodule:: xspec.models
+.. automodule:: xcal.models
    :members: Base_Spec_Model, Reflection_Source, Transmission_Source, Filter, Scintillator
    :undoc-members:
    :show-inheritance:

@@ -6,9 +6,9 @@ Running Included Demo Scripts
 -----------------------------
 
 The 
-`[xspec] <https://github.com/cabouman/xspec>`__
+`[xcal] <https://github.com/cabouman/xcal>`__
 contains a number of sample Python scripts in the 
-`[demo] <https://github.com/cabouman/xspec/tree/main/demo>`__
+`[demo] <https://github.com/cabouman/xcal/tree/main/demo>`__
 folder.
 
 

@@ -2,7 +2,7 @@
 Getting Started/Tutorial
 ========================
 
-Xspec aims to accurately determine the spectral response of X-ray systems by solving the inverse problem using calibration measurements.
+Xcal aims to accurately determine the spectral response of X-ray systems by solving the inverse problem using calibration measurements.
 
 .. figure:: /figs/physic_model.png
    :align: left
@@ -23,12 +23,12 @@ Before reading the tutorial please prepare required information listed below
 
 0. Jupyter Notebooks Tutorials
 ==============================
-The remainder of this tutorial outlines the steps involved in XSPEC's spectral estimation with multiple jupyter notebook tutorials.
+The remainder of this tutorial outlines the steps involved in XCAL's spectral estimation with multiple jupyter notebook tutorials.
 
 The
-`[xspec] <https://github.com/cabouman/xspec>`__
+`[xcal] <https://github.com/cabouman/xcal>`__
 contains a number of example Python notebooks in the
-`[examples] <https://github.com/cabouman/xspec/tree/main/examples>`__
+`[examples] <https://github.com/cabouman/xcal/tree/main/examples>`__
 folder.
 
 To run jupyter notebook:
@@ -44,13 +44,13 @@ To run jupyter notebook:
 
 3. Change Kernel: Select "Change kernel" from the dropdown. A list of available kernels will appear, including Python versions and any other kernels you have installed (like R, Julia, etc.).
 
-4. Select Desired Kernel (xspec): Click on the kernel you wish to switch to. The notebook will refresh, and the new kernel will be activated.
+4. Select Desired Kernel (xcal): Click on the kernel you wish to switch to. The notebook will refresh, and the new kernel will be activated.
 
 
 
 Example Dependencies
 --------------------
-Some examples use additional dependencies, which are listed in `requirements.txt <https://github.com/cabouman/xspec/blob/main/demo/requirements.txt>`_.
+Some examples use additional dependencies, which are listed in `requirements.txt <https://github.com/cabouman/xcal/blob/main/demo/requirements.txt>`_.
 
 ::
 
@@ -115,7 +115,7 @@ where:
 
 
 For 3 dimensional case, calculate the forward matrix(:math:`N_{\text{views}} \times N_{\text{rows}} \times N_{\text{cols}} \times N_E`) using
-the list of masks, LAC, and projector using :func:`xspec.calc_forward_matrix`:
+the list of masks, LAC, and projector using :func:`xcal.calc_forward_matrix`:
 
 Examples: Forward Matrix
 ------------------------

@@ -1,5 +1,5 @@
-from xspec.models import Filter, Scintillator
-from xspec.defs import Material
+from xcal.models import Filter, Scintillator
+from xcal.defs import Material
 import numpy as np
 
 def get_filter_response(energies, mat, den, thickness):

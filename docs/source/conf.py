@@ -8,9 +8,9 @@
 
 import sphinx_rtd_theme
 
-project = 'xspec'
-copyright = '2022-2023, XSpec Development Team'
-author = 'XSpec Development Team'
+project = 'xcal'
+copyright = '2022-2023, Xcal Development Team'
+author = 'Xcal Development Team'
 release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------

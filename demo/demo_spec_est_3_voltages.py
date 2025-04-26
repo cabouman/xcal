@@ -2,10 +2,10 @@
 import os
 import matplotlib.pyplot as plt
 import numpy as np
-from xspec.estimate import Estimate
-from xspec.defs import Material
-from xspec._utils import *
-from xspec.models import *
+from xcal.estimate import Estimate
+from xcal.defs import Material
+from xcal._utils import *
+from xcal.models import *
 import spekpy as sp  # Import SpekPy
 from demo_utils import gen_datasets_3_voltages
 

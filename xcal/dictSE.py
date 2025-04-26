@@ -6,8 +6,8 @@ from functools import partial
 from psutil import cpu_count
 
 import numpy as np
-from xspec._utils import huber_func
-from xspec.dict_gen import *
+from xcal._utils import huber_func
+from xcal.dict_gen import *
 
 class Huber:
     """Solve nonlinear model Huber prior using ICD update.

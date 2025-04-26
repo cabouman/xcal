@@ -79,7 +79,7 @@ Obtain LAC :math:`\mu(E)` for each scanned homogenous object with ``get_lin_att_
 .. code-block:: python
 
     import numpy as np
-    from xspec.chem_consts import get_lin_att_c_vs_E
+    from xcal.chem_consts import get_lin_att_c_vs_E
 
     # Scanned cylinders
     materials = ['V', 'Al', 'Ti', 'Mg']
@@ -100,7 +100,7 @@ the list of masks, LAC, and projector using ``calc_forward_matrix``:
 
 .. code-block:: python
 
-    from xspec import calc_forward_matrix
+    from xcal import calc_forward_matrix
     spec_F = calc_forward_matrix(mask_list, lac_vs_E_list, projector)
 
 

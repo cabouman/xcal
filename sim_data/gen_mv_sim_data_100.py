@@ -6,13 +6,13 @@ import svmbir
 import h5py
 import random
 
-from xspec.chem_consts import get_lin_att_c_vs_E
-from xspec import calc_forward_matrix
-from xspec._utils import Gen_Circle
+from xcal.chem_consts import get_lin_att_c_vs_E
+from xcal import calc_forward_matrix
+from xcal._utils import Gen_Circle
 import spekpy as sp  # Import SpekPy
-from xspec.defs import Material
-from xspec.chem_consts._periodictabledata import density
-from xspec.models import *
+from xcal.defs import Material
+from xcal.chem_consts._periodictabledata import density
+from xcal.models import *
 from tqdm import tqdm
 class fw_projector:
     """A class for forward projection using SVMBIR."""

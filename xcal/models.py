@@ -3,9 +3,9 @@ import torch
 from torch.nn import Module
 from torch.nn.parameter import Parameter
 
-from xspec.chem_consts._consts_from_table import get_mass_absp_c_vs_E
-from xspec.chem_consts._periodictabledata import atom_weights, ptableinverse
-from xspec.dict_gen import gen_fltr_res, gen_scint_cvt_func
+from xcal.chem_consts._consts_from_table import get_mass_absp_c_vs_E
+from xcal.chem_consts._periodictabledata import atom_weights, ptableinverse
+from xcal.dict_gen import gen_fltr_res, gen_scint_cvt_func
 
 
 def transpose_first_to_last(x):
@@ -300,7 +300,7 @@ def get_concatenated_params_list(lists):
 class Base_Spec_Model(Module):
 
     def __init__(self, params_list=[]):
-        """Base class for all spectral components in xspec.
+        """Base class for all spectral components in xcal.
 
         Args:
             params_list (list): List of dictionaries containing possible discrete and continuous parameters combinations.

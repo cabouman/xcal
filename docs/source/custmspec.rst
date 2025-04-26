@@ -1,14 +1,14 @@
-Developing your own xspec Spectral Models
+Developing your own xcal Spectral Models
 =========================================
 
-Whether you are proposing a new spectral model for inclusion in XSPEC, developing a separate package that extends XSPEC's capabilities, or implementing custom models for your own astrophysical research projects, this guide details how to develop components that integrate seamlessly with XSPEC's analysis tools and frameworks.
+Whether you are proposing a new spectral model for inclusion in XCAL, developing a separate package that extends XCAL's capabilities, or implementing custom models for your own astrophysical research projects, this guide details how to develop components that integrate seamlessly with XCAL's analysis tools and frameworks.
 
-By following these guidelines, you can ensure that your spectral models are compatible with XSPEC's architecture, allowing them to be used effectively within XSPEC's environment for fitting astronomical data, performing statistical analysis, and contributing to the broader astrophysical community's research efforts.
+By following these guidelines, you can ensure that your spectral models are compatible with XCAL's architecture, allowing them to be used effectively within XCAL's environment for fitting astronomical data, performing statistical analysis, and contributing to the broader astrophysical community's research efforts.
 
 Base_Spec_Model Class Overview with Examples
 --------------------------------------------
 
-The ``Base_Spec_Model`` class is designed as a foundation for implementing spectral models in astrophysical data analysis, particularly for the XSPEC framework. Below, we provide a brief overview of each method within this class along with example code snippets to illustrate their usage.
+The ``Base_Spec_Model`` class is designed as a foundation for implementing spectral models in astrophysical data analysis, particularly for the XCAL framework. Below, we provide a brief overview of each method within this class along with example code snippets to illustrate their usage.
 
 Constructor: ``__init__(self, params_list)``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -31,7 +31,7 @@ Example:
 
 .. code-block:: python
 
-    from xspec.models import Base_Spec_Model
+    from xcal.models import Base_Spec_Model
     params_list = [
         {'thickness': (5.0, 1.0, 10.0), 'model_type': 'A'},  # Continuous and discrete parameters
         {'thickness': (7.0, 1.0, 15.0), 'model_type': 'B'}   # Thickness is continuous and assign a tuple
@@ -168,9 +168,9 @@ Example Implementation
 
 	import numpy as np
 	import torch
-	from xspec import Material
-	from xspec.chem_consts import get_lin_att_c_vs_E
-	from xspec.models import Base_Spec_Model
+	from xcal import Material
+	from xcal.chem_consts import get_lin_att_c_vs_E
+	from xcal.models import Base_Spec_Model
 
 	def gen_fltr_res(energies, fltr_mat: Material, fltr_th: float):
 		# thickness is in mm
@@ -239,8 +239,8 @@ You can view the notebook within the documentation or download it for local use.
 .. raw:: html
 
    <ul>
-     <li>View the notebook: <a href="ipynb/Developing xspec spectral models.html">Developing xspec spectral models</a></li>
-     <li>Download: <a href="ipynb/Developing xspec spectral models.ipynb" download>Right Click to Download</a></li>
+     <li>View the notebook: <a href="ipynb/Developing xcal spectral models.html">Developing xcal spectral models</a></li>
+     <li>Download: <a href="ipynb/Developing xcal spectral models.ipynb" download>Right Click to Download</a></li>
    </ul>
 
 

@@ -1,6 +1,6 @@
-xspec
+xcal
 -----
-.. automodule:: xspec
+.. automodule:: xcal
    :members: 
    :undoc-members:
    :show-inheritance:

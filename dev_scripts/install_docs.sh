@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script installs the documentation.
-# You can view documentation pages from xspec/docs/build/index.html .
+# You can view documentation pages from xcal/docs/build/index.html .
 
 # Build documentation
 cd ../docs

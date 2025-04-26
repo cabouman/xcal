@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script just installs xspec along with requirements of xspec.
+# This script just installs xcal along with requirements of xcal.
 
 cd ..
 pip install -r requirements.txt
