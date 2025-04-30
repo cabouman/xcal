@@ -1,16 +1,16 @@
 #!/bin/bash
-# This script purges XSPEC
+# This script purges XCAL
 
 cd ..
 /bin/rm -r build
 /bin/rm -r dist
-/bin/rm -r xspec.egg-info
+/bin/rm -r xcal.egg-info
 
 #!/bin/bash
-# This script destroys the conda environment named "xspec" and reinstall it.
+# This script destroys the conda environment named "xcal" and reinstall it.
 
 # First check if the target environment is active and deactivate if so
-NAME=xspec
+NAME=xcal
 
 ENV_STRING=$((conda env list) | grep $NAME)
 if [[ $ENV_STRING == *$NAME* ]]; then
