@@ -162,7 +162,7 @@ if __name__ == '__main__':
         fig, axs = plt.subplots(2, 1, figsize=(10, 8))
         # Subplot 1: Ground Truth X-ray Spectral Response
         for spec_i, gt_spec in enumerate(gt_spec_list):
-            axs[0].plot(energies, gt_spec / np.trapz(gt_spec, energies), label='%d kV' % voltage_list[spec_i])
+            axs[0].plot(energies, gt_spec / np.trapzoid(gt_spec, energies), label='%d kV' % voltage_list[spec_i])
         axs[0].legend(loc='upper left')
         axs[0].set_title('Ground Truth: Total X-ray Spectral Response')
         axs[0].set_xlabel('Energy [keV]')
@@ -176,14 +176,14 @@ if __name__ == '__main__':
             trans_list = []
 
             # Add poisson noise before reaching detector/scintillator.
-            trans = np.trapz(spec_F * gt_spec, energies, axis=-1)
-            trans_0 = np.trapz(gt_spec, energies, axis=-1)
+            trans = np.trapzoid(spec_F * gt_spec, energies, axis=-1)
+            trans_0 = np.trapzoid(gt_spec, energies, axis=-1)
             trans_noise = np.random.poisson(trans).astype(np.float64)
             trans_noise /= trans_0
 
             # Add poisson noise before reaching detector/scintillator.
-            trans = np.trapz(spec_F * gt_spec, energies, axis=-1)
-            trans_0 = np.trapz(gt_spec, energies, axis=-1)
+            trans = np.trapzoid(spec_F * gt_spec, energies, axis=-1)
+            trans_0 = np.trapzoid(gt_spec, energies, axis=-1)
             trans_noise = np.random.poisson(trans).astype(np.float64)
             trans_noise /= trans_0
 
