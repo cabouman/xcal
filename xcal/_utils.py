@@ -51,7 +51,7 @@ def get_wavelength(energy):
 
 
 def trapz_weight(x, axis=-1):
-    """Modified from numpy.trapzoid.
+    """Modified from numpy.trapezoid.
        Return weights for y to integrate along the given axis using the composite trapezoidal rule.
     """
     x = asanyarray(x)

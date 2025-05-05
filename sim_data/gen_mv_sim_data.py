@@ -144,7 +144,7 @@ if __name__ == '__main__':
             k, phi_k = s.get_spectrum(edges=True)  # Get arrays of energy & fluence spectrum
 
             ## Plot the x-ray spectrum
-            axs[0, 0].plot(k[::2], phi_k[::2] / np.trapzoid(phi_k[::2], k[::2]),
+            axs[0, 0].plot(k[::2], phi_k[::2] / np.trapezoid(phi_k[::2], k[::2]),
                            label='Char: kvp:%d Anode angle:%d' % (simkV, th))
             src_info.append((simkV,))
             src_spec = np.zeros((max_simkV))
@@ -208,7 +208,7 @@ if __name__ == '__main__':
                 * scints_dict[np.newaxis, np.newaxis, :, :]
 
     spec_dict = spec_dict.reshape(-1, spec_dict.shape[-1]).T
-    spec_dict_norm = spec_dict / np.trapzoid(spec_dict, energies, axis=0)
+    spec_dict_norm = spec_dict / np.trapezoid(spec_dict, energies, axis=0)
     print(spec_dict.shape)
 
     for rand_seed_num in [41, 71, 81, 7080]:
@@ -322,7 +322,7 @@ if __name__ == '__main__':
                                * ref_fltr_dict[np.newaxis, :, np.newaxis, :] \
                                * ref_scints_dict[np.newaxis, np.newaxis, :, :]
                 gt_spec_dict = gt_spec_dict.reshape((-1, gt_spec_dict.shape[-1])).T
-                gt_spec_dict /= np.trapzoid(gt_spec_dict, energies, axis=0)
+                gt_spec_dict /= np.trapezoid(gt_spec_dict, energies, axis=0)
                 ref_spec_simkv_list.append(ref_src_spec_list)
                 gt_spec_simkv_list.append(gt_spec_dict)
                 print('Generate spectrum dictionary with shape: ', gt_spec_dict.shape)
@@ -352,7 +352,7 @@ if __name__ == '__main__':
 
                     pfp = pt_fw_projector(angles, num_channels=nchanl, delta_pixel=rsize[mat_id])
                     spec_F = cal_fw_mat(mask_list, lac_vs_E_list, energies, pfp)
-                    proj = np.trapzoid(spec_F * gt_spec_dict.flatten(), energies, axis=-1)
+                    proj = np.trapezoid(spec_F * gt_spec_dict.flatten(), energies, axis=-1)
                     proj_list.append(proj)
                     spec_F_train = spec_F.reshape((-1, spec_F.shape[-1]))
                     spec_F_train_list.append(spec_F_train)

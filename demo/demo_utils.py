@@ -3,7 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import warnings
-import svmbir
+import mbirjax
 import h5py
 
 from xcal.chem_consts import get_lin_att_c_vs_E
@@ -32,7 +32,7 @@ def read_mv_hdf5(file_name):
 
 # Customerize forward projector with a forward function that do forwald projection of a given mask.
 class fw_projector:
-    def __init__(self, angles, num_channels, delta_pixel=1, geometry='parallel'):
+    def __init__(self, angles, num_channels, delta_pixel=1):
         """
 
         Parameters
@@ -41,13 +41,12 @@ class fw_projector:
         N_views
         psize
         xcenter
-        geometry
         arange
         """
         self.angles = angles
         self.num_channels = num_channels
         self.delta_pixel = delta_pixel
-        self.geometry = geometry
+        self.sinogram_shape = (len(angles), 1, self.num_channels)
 
     def forward(self, mask):
         """
@@ -64,7 +63,10 @@ class fw_projector:
 
         """
 
-        projections = svmbir.project(mask, self.angles, self.num_channels, num_threads=1) * self.delta_pixel
+        ct_model_for_generation = mbirjax.ParallelBeamModel(self.sinogram_shape, self.angles)
+        # Print out model parameters
+        ct_model_for_generation.print_params()
+        projections = ct_model_for_generation.forward_project(mask) * self.delta_pixel
 
         return projections
 
@@ -192,7 +194,7 @@ def gen_datasets_3_voltages():
     plt.figure(6)
     gt_spec_list = [(source(energies) * filter_1(energies)  * scintillator_1(energies)).numpy() for source in sources]
     for spec_i, gt_spec in enumerate(gt_spec_list):
-        plt.plot(energies, gt_spec / np.trapz(gt_spec, energies), label='%d kV'%voltage_list[spec_i])
+        plt.plot(energies, gt_spec / np.trapezoid(gt_spec, energies), label='%d kV'%voltage_list[spec_i])
     plt.legend()
     plt.title('X-ray spectral effective spectrum')
     plt.xlabel('Energy  [keV]')
@@ -221,8 +223,8 @@ def gen_datasets_3_voltages():
         spec_F = calc_forward_matrix(mask_list, lac_vs_E_list, projector)
 
         # Add poisson noise before reaching detector/scintillator.
-        trans = np.trapz(spec_F * gt_spec, energies, axis=-1)
-        trans_0 = np.trapz(gt_spec, energies, axis=-1)
+        trans = np.trapezoid(spec_F * gt_spec, energies, axis=-1)
+        trans_0 = np.trapezoid(gt_spec, energies, axis=-1)
         trans_noise = np.random.poisson(trans).astype(np.float64)
         trans_noise /= trans_0
 
