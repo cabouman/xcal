@@ -10,6 +10,7 @@ from torch.multiprocessing import Pool
 import torch.multiprocessing as mp
 
 mp.set_sharing_strategy('file_system')
+mp.set_start_method("spawn", force=True)
 
 import logging
 from xcal.opt._pytorch_lbfgs.functions.LBFGS import FullBatchLBFGS as NNAT_LBFGS
