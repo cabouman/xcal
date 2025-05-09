@@ -1,2 +1,2 @@
-svmbir
+mbirjax
 git+https://bitbucket.org/spekpy/spekpy_release.git@master#egg=spekpy

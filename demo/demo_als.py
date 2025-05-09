@@ -32,12 +32,12 @@ from xcal.defs import Material
 from xcal.models import Filter, Scintillator
 from xcal.estimate import Estimate
 from demo_utils import Synchrotron_Source
-import svmbir
+import mbirjax
 
 import torch
 
 class fw_projector:
-    """A class for forward projection using SVMBIR."""
+    """A class for forward projection using MBIRJAX."""
 
     def __init__(self, angles, num_channels, center_offset=0, delta_pixel=1):
         """
@@ -52,6 +52,7 @@ class fw_projector:
         self.num_channels = num_channels
         self.delta_pixel = delta_pixel
         self.center_offset = center_offset
+        self.sinogram_shape = (len(angles), 1, self.num_channels) # (num_views, num_rows, num_columns)
 
     def forward(self, mask):
         """
@@ -63,7 +64,12 @@ class fw_projector:
         Returns:
             numpy.ndarray: The computed projection of the mask.
         """
-        projections = svmbir.project(mask, self.angles, self.num_channels, center_offset=self.center_offset) * self.delta_pixel
+        ct_model_for_generation = mbirjax.ParallelBeamModel(self.sinogram_shape, self.angles)
+        ct_model_for_generation.set_params(det_channel_offset=self.center_offset)
+
+        # Print out model parameters
+        ct_model_for_generation.print_params()
+        projections = ct_model_for_generation.forward_project(mask) * self.delta_pixel
         return projections
 
 if __name__ == '__main__':
@@ -96,7 +102,7 @@ if __name__ == '__main__':
 
 
     # --------- Step 1: Load data from HDF5 files ---------
-    # Files contain: data_norm (normalized radiograph/transmission), recon (SVMBIR reconstruction)
+    # Files contain: data_norm (normalized radiograph/transmission), recon (MBIRJAX reconstruction)
     print('Loading both low filtration and high filtration datasets.')
     filenames = glob.glob('../data/demo_xcal_data/*.h5')
     filenames.sort(reverse=True) # Reverse sort
@@ -148,7 +154,7 @@ if __name__ == '__main__':
     # Result is a list of forward matrices A of shape (num_measurements, num_energies)
     center_offset_list = [-31, -24, -35, -10, -68, -68, 128, 140]
     total_num_views = data_norm_list[0].shape[0]
-    angles = np.linspace(-np.pi, np.pi, total_num_views, endpoint=True)
+    angles = -np.linspace(-0.5*np.pi, 1.5*np.pi, total_num_views, endpoint=True)
 
     energies, sp_als = als_bm832()
     energies, sp_als = energies[1:], sp_als[1:]
@@ -241,7 +247,7 @@ if __name__ == '__main__':
     for i in range(2):
         with torch.no_grad():
             es = est_sp[i * 4].numpy()
-            es /= np.trapz(es, energies)
+            es /= np.trapezoid(es, energies)
             save_path = os.path.join(output_dir, savename_list[i])
             np.save(save_path, [energies, es])
             print(f"Saved estimated spectrum to: {save_path}")

@@ -680,7 +680,7 @@ def _compute_criteria_and_beta(yhat_F, spec_dict, energies, y_yhat, FDsq, y_F_Dk
     """
 
     # Compute yhat_F_Dk
-    yhat_F_Dk = np.trapz(yhat_F * spec_dict, energies, axis=0)
+    yhat_F_Dk = np.trapezoid(yhat_F * spec_dict, energies, axis=0)
 
     # Compute rho1 and rho2
     rho1 = y_yhat + FDsq - y_F_Dk - yhat_F_Dk
@@ -767,7 +767,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
     #
     #         # ALS
     #         energies, sp_als =als_bm832()    #Generate dictionary source spectrum
-    #         sp_als/= np.trapz(sp_als,energies) # normalized spectrum response.
+    #         sp_als/= np.trapezoid(sp_als,energies) # normalized spectrum response.
     #         x, y = np.meshgrid(np.arange(0, 128.0)*0.001, np.arange(0, 128.0)*0.001) #Grid shape 128 x 128. Pixel 0.001mm.
     #         projs = np.zeros_like(x)[np.newaxis] #Ground-truth projections. Unitary dimension indicates one view.
     #         mask = (0.032**2 - (x-0.064)**2) > 0 #Mask for non-zero projections of 0.032mm cylinder.
@@ -780,7 +780,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
     #         wnum = 2 * np.pi / get_wavelength(energies)
     #
     #         # Poly-energic
-    #         polyE_projs = np.trapz(np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1)))*sp_als,energies, axis=-1)
+    #         polyE_projs = np.trapezoid(np.exp(-2*wnum*beta_projs.transpose((0,2,3,4,1)))*sp_als,energies, axis=-1)
     #
     #         # Add noise
     #         Trans_noisy = polyE_projs  + np.sqrt(polyE_projs)*0.1*0.01*np.random.standard_normal(size=polyE_projs.shape)
@@ -839,13 +839,13 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
     # Pre-calculate matrices
     ysq = np.sum(y * signal_weight * y)
     y_F = ((y * signal_weight).T @ forward_mat).reshape((-1, 1))
-    y_F_Dk = np.trapz(y_F * spec_dict, energies, axis=0)
+    y_F_Dk = np.trapezoid(y_F * spec_dict, energies, axis=0)
     Fsq = np.einsum('ik,k,kj->ij', forward_mat.T, signal_weight.flatten(), forward_mat)
 
-    D_Fsq = np.trapz(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
+    D_Fsq = np.trapezoid(spec_dict.T[:, :, np.newaxis] * Fsq[np.newaxis, :, :], energies, axis=1)
     if verbose > 0:
         print('D_Fsq shape:', D_Fsq.shape)
-    FDsq = np.trapz(D_Fsq * spec_dict.T, energies, axis=1)
+    FDsq = np.trapezoid(D_Fsq * spec_dict.T, energies, axis=1)
     if verbose > 0:
         print('FDsq shape:', FDsq.shape)
 
@@ -939,7 +939,7 @@ def dictSE(signal, energies, forward_mat, spec_dict, src_info, fltr_info_dict, s
                 new_omega[k[0], 0] = 1 - beta[k[0]]
 
                 print(new_S)
-                FDk = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
+                FDk = np.trapezoid(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, k], energies, axis=1)
                 FDS = np.concatenate([pre_FDS, FDk], axis=1)
 
                 # Find best coefficient with new support given solver.
@@ -1069,7 +1069,7 @@ def uncertainty_analysis(signal, back_ground_area, energies, forward_mat, spec_d
                                                      signal_weight=[1.0 / sig for sig in signal], auto_stop=True,
                                                      return_component=True,
                                                      verbose=0)
-        ideal_proj = [np.trapz(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(sig.shape) for sig, fwm in
+        ideal_proj = [np.trapezoid(fwm * estimated_spec.flatten(), energies, axis=-1).reshape(sig.shape) for sig, fwm in
                       zip(signal, forward_mat)]
         with contextlib.closing(Pool(num_cores)) as pool:
             result_list = pool.map(
@@ -1128,7 +1128,7 @@ def dictSE_sep_model(signal, energies, forward_mat,
     spec_dict = (src_dict[:, :, np.newaxis, np.newaxis] \
                 * fltr_dict[:, np.newaxis, :, np.newaxis] \
                 * scint_dict[:, np.newaxis, np.newaxis, :]).reshape((src_dict.shape[0], -1))
-    Z = np.trapz(spec_dict, energies, axis=0).reshape((1, spec_dict.shape[-1]))
+    Z = np.trapezoid(spec_dict, energies, axis=0).reshape((1, spec_dict.shape[-1]))
 
     yZ = y.reshape((-1, 1)) @ Z
     print('yZ shape:', yZ.shape)
@@ -1172,7 +1172,7 @@ def dictSE_sep_model(signal, energies, forward_mat,
 
                 # Find best coefficient with new support given solver.
                 SS = [a*fltr_len*scint_len+b*scint_len+c for a in S_src for b in S_fltr for c in S_scint]
-                FDS = np.trapz(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, SS], energies, axis=1)
+                FDS = np.trapezoid(forward_mat[:, :, np.newaxis] * spec_dict[np.newaxis, :, SS], energies, axis=1)
 
                 e = (yZ[:,SS] - FDS) @ omega[SS]
                 print('Cost before ICD:', cal_cost(e/(Z[:,SS]@ omega[SS]), signal_weight))
