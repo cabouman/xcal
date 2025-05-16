@@ -14,7 +14,7 @@ folder.
 
 1. In your terminal window, under demo folder, install required dependencies for the demos::
 
-    $ pip install -r requirements.txt
+    pip install -r requirements.txt
 
 2. In your terminal window, use python to run each demo.
 
