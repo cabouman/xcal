@@ -436,7 +436,7 @@ if __name__ == '__main__':
     plt.tight_layout()
 
     fig = plt.gcf()
-    fig.savefig(f'{result_folder}/lac.png', dpi=300, bbox_inches='tight')
+    fig.savefig(f'{result_folder}/attenuation_matrix.png', dpi=300, bbox_inches='tight')
     plt.close(fig)
 
     # In[9]:
