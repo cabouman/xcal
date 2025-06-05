@@ -17,15 +17,15 @@ List of Examples
    examples/T01_Calibration_LEAP
 
 .. note::
-   Perform model-based spectral calibration with a CT software, LEAP, to do CT projection and reconstruction.
+   Perform model-based spectral calibration with CT software, LEAP, to do CT projection and reconstruction.
 
 .. toctree::
    :maxdepth: 1
 
-   examples/T02_Calibration_SVMBIR
+   examples/T02_Calibration_MBIRJAX
 
 .. note::
-   Perform model-based spectral calibration with a CT software, SVMBIR, for CT projection and reconstruction.
+   Perform model-based spectral calibration with CT software, SVMBIR, for CT projection and reconstruction.
 
 .. toctree::
    :maxdepth: 1
@@ -33,7 +33,7 @@ List of Examples
    examples/T03_Customizing_Interp_Modules
 
 .. note::
-   Demonstrate how to configure and customize an interpolation X-ray component modules.
+   Demonstrate how to configure and customize interpolation X-ray component modules.
 
 .. toctree::
    :maxdepth: 1
