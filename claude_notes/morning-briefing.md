@@ -23,8 +23,16 @@ over the runner-up.  LOOK AT THE IMAGES FIRST:
 claude_notes/e2e_output/ holds spectra.png (estimate on top of
 ground truth at all three voltages), segmentation.png, and fit.png.
 
-Run it yourself: `python demo/demo_simulated_multi_voltage.py`
-(about two minutes, prints the same comparison).
+The ALS-style case works too: a second simulated calibration with a
+known synchrotron source and two filtrations recovers Si 2.03 mm
+(truth 2.0), Al 7.99 mm (truth 8.0), and picks LuAG from the seven
+scintillators at 0.046 mm (truth 0.05).  So both scan types you
+asked for, multi-voltage and multi-filtration, run end to end.
+
+Run them yourself (both verified tonight exactly as committed):
+`python demo/demo_simulated_multi_voltage.py` (about 3 minutes) and
+`python demo/demo_simulated_multi_filtration.py` (about 1 minute).
+Their figures are also in claude_notes/e2e_output/.
 
 ## What exists now
 

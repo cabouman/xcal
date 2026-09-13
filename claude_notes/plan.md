@@ -3,9 +3,16 @@
 Goal: make xcal much easier to use and understand, and move its CT
 dependency from mbirjax to mbirtorch.
 
+STATUS (2026-09-13): steps 1 and 2 are done.  Step 3 (the core
+implementation), step 5 (tests and two simulated demos), and most of
+step 6 (pyproject packaging) were implemented and verified on the
+night of Sep 12; see claude_notes/morning-briefing.md.  Remaining:
+Charlie's review, the open decisions in the briefing, a measured-data
+demo, CI, and the readthedocs cutover.
+
 ## 1. Preserve the current version
 
-- Tag the current main as v0.1.0.  (Tag created locally, not yet pushed.)
+- Tag the current main as v0.1.0.  (Done: tag pushed, GitHub release published.)
 - Note: setup.py says version 0.3.0 but xcal/__init__.py says 0.1.0.
   The new version will keep the version number in one place.
 

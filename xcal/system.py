@@ -116,13 +116,14 @@ class Rod:
     """One homogeneous rod in the calibration object.
 
     Args:
-        material (str): Chemical formula of the rod material, e.g. 'Ti'.
-            Must resolve against the materials catalog or be an element.
-        diameter (float): Nominal rod diameter in mm.  Used to guide
-            segmentation; the actual shape is measured from the
-            reconstruction.
+        material (str): The rod material: a catalog name or any
+            chemical formula of elements 1 through 92, e.g. 'Ti'.
+        diameter (float): Rod diameter in mm, a manufactured dimension
+            the user knows.  The segmentation locates each rod,
+            validates this diameter against the reconstruction, and
+            uses it for the path length masks.
         density (float, optional): Density in g/cm^3.  Required only for
-            materials whose density is not in the catalog.
+            compound formulas whose density is not in the catalog.
     """
 
     def __init__(self, material, diameter, density=None):
