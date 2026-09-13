@@ -2,8 +2,8 @@
 
 The physical parameters live as data files in xcal/physical_params
 (the periodic table, the NIST attenuation tables, the materials
-catalog) and xcal/source_models (source spectrum tables).  The
-functions here read them.
+catalog).  The functions here read them.  Source spectrum tables
+(xcal/source_models) are read by xcal._physics.
 """
 
 import os
@@ -12,8 +12,6 @@ import numpy as np
 
 _PHYSICAL_PARAMS_DIR = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'physical_params')
-_SOURCE_MODELS_DIR = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'source_models')
 
 _periodic_table_cache = None
 
@@ -132,44 +130,6 @@ def get_lin_absp_c_vs_E(density, formula, energies):
     """
     energies = np.asarray(energies, dtype=float)
     return density * _mass_coefficient(formula, energies, 2) / 10.0
-
-
-# ---------------------------------------------------------------------------
-# The ALS Beamline 8.3.2 source spectrum
-# ---------------------------------------------------------------------------
-
-def als_bm832():
-    """Return the ALS Beamline 8.3.2 spectrum rebinned to uniform
-    1 keV bins.
-
-    Returns:
-        tuple: (energies, spectrum).  Bin center energies from 0.5 to
-        99.5 keV, and photon counts per bin, total counts preserved.
-    """
-    import csv
-    path = os.path.join(_SOURCE_MODELS_DIR, 'als_bm832_spectrum.csv')
-    energies, spectrum = [], []
-    with open(path) as f:
-        for line in csv.reader(r for r in f if not r.startswith('#')):
-            if line[0] == 'energy_keV':
-                continue
-            energies.append(float(line[0]))
-            spectrum.append(float(line[1]))
-    energies = np.array(energies)
-    spectrum = np.array(spectrum)
-
-    edges = np.linspace(0, 100, num=101)
-    rebinned = np.zeros(len(edges) - 1)
-    for i in range(len(spectrum) - 1):
-        start, end = energies[i], energies[i + 1]
-        count = spectrum[i]
-        j0 = np.searchsorted(edges, start, side='right') - 1
-        j1 = np.searchsorted(edges, end, side='left')
-        for j in range(j0, j1):
-            overlap = ((min(end, edges[j + 1]) - max(start, edges[j]))
-                       / (end - start))
-            rebinned[j] += overlap * count
-    return edges[1:] - 0.5, rebinned
 
 
 # ---------------------------------------------------------------------------

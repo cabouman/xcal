@@ -38,21 +38,24 @@ import xcal
 
 sino_80, model_80 = mtp.zeiss.get_sino_and_model('scan_080kV.txrm')
 
-rods = [xcal.Rod('Ti', diameter=1.0), xcal.Rod('Al', diameter=0.5)]
+targets = [xcal.Target('Ti', 1.0), xcal.Target('Al', 0.5)]
 system = xcal.System(
     source=xcal.TransmissionSource(target_thickness=xcal.estimate(0.001, 0.007)),
     filters=[xcal.Filter(material=['Al', 'Cu'], thickness=xcal.estimate(0, 10))],
     detector=xcal.Scintillator(),
 )
 
-cal = xcal.Calibrator(system, rods)
-cal.add_scan(sino_80, model_80, voltage=80)
-result = cal.calibrate()
+recon, _ = model_80.recon(sino_80)
+masks = xcal.segment_targets(recon, targets, model_80)
 
-result.show()
-R = result.effective_spectrum(voltage=80)   # a function of energy in keV
+cal = xcal.Calibrator(system, targets)
+cal.add_scan(sino_80, model_80, masks, voltage=80)
+est_system, fit_info = cal.calibrate()
+
+fit_info.show()
+R = est_system.effective_spectrum(voltage=80)   # a function of energy in keV
 ```
 
 See the [Quick Start](https://xcal.readthedocs.io) for the complete
-workflow, and `demo/demo_simulated_multi_voltage.py` for a runnable
+workflow, and `demo/demo_1_multi_voltage.py` for a runnable
 simulated calibration with known ground truth.

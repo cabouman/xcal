@@ -69,8 +69,9 @@ def test_transmission_source_table_loads():
     assert spectra[0, 0].max() > 0
 
 
-def test_als_spectrum_loads():
-    energies, counts = _physics.load_als_spectrum()
+def test_synchrotron_spectrum_loads():
+    assert 'als_bm832' in _physics.available_synchrotron_spectra()
+    energies, counts = _physics.synchrotron_source_table()
     assert energies.ndim == 1 and counts.shape == energies.shape
     assert counts.max() > 0
 

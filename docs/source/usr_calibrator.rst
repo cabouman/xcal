@@ -160,6 +160,10 @@ of it is wrong.
 
 .. autoclass:: xcal.CalibrationResult
 
+.. autoproperty:: xcal.CalibrationResult.est_system
+
+.. automethod:: xcal.CalibrationResult.parameters
+
 .. automethod:: xcal.CalibrationResult.show
 
 .. automethod:: xcal.CalibrationResult.summary

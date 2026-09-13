@@ -59,11 +59,9 @@ def test_filter_name_appears_in_label():
 
 
 def test_synchrotron_source_forms():
-    import numpy as np
-    s = xcal.SynchrotronSource('als_bm832')
+    s = xcal.SynchrotronSource()
     assert s.spectrum == 'als_bm832'
-    with pytest.raises(ValueError, match='built-in'):
+    energies, counts = s.table()
+    assert energies.shape == counts.shape and counts.max() > 0
+    with pytest.raises(ValueError, match='available'):
         xcal.SynchrotronSource('als_unknown')
-    e = np.linspace(1, 100, 100)
-    s2 = xcal.SynchrotronSource((e, np.ones_like(e)))
-    assert s2.spectrum[0].shape == (100,)

@@ -16,6 +16,7 @@ import numpy as np
 
 from . import catalog
 from . import _materials
+from . import _physics
 
 __all__ = ['estimate', 'Target', 'Filter', 'Scintillator', 'ReflectionSource',
            'TransmissionSource', 'SynchrotronSource', 'System',
@@ -149,9 +150,10 @@ class Filter:
     """A beam filter modeled by Beer's law.
 
     Args:
-        material (str or list, optional): Chemical formula, a list of
-            candidate formulas, or omitted to search the catalog's
-            standard filter materials.
+        material (str or list, optional): A catalog name or any
+            chemical formula of elements 1 through 92, a list of
+            candidates, or omitted to search the catalog's standard
+            filter materials.
         thickness (float or estimate, optional): Thickness in mm, known
             or estimated.  Omitted, the catalog's default thickness
             range for the candidate materials is used.
@@ -209,7 +211,8 @@ class Scintillator(Filter):
     energy-absorption tables.
 
     Args:
-        material (str or list, optional): Chemical formula, a list of
+        material (str or list, optional): A catalog name or any
+            chemical formula of elements 1 through 92, a list of
             candidates, or omitted to search the catalog's standard
             scintillators.
         thickness (float or estimate, optional): Thickness in mm, known
@@ -223,16 +226,14 @@ class Scintillator(Filter):
 
 
 class ReflectionSource:
-    """An X-ray tube with a thick angled tungsten anode.
-
-    Spectra come from a Spekpy lookup table over voltage and takeoff
-    angle that xcal generates internally.  The per-scan voltage is given
-    to :meth:`Calibrator.add_scan`, not here.
+    """An X-ray tube with a thick angled tungsten anode.  Spectra are
+    generated at run time by Spekpy; the anode is tungsten only.
+    The per-scan voltage is given to :meth:`Calibrator.add_scan`.
 
     Args:
-        takeoff_angle (float or estimate, optional): Anode takeoff angle
-            in degrees, known or estimated.  Omitted, the catalog's
-            default range (5 to 45 degrees) is estimated.
+        takeoff_angle (float or estimate, optional): Anode takeoff
+            angle in degrees.  Valid: 0 to 90.  Omitted: estimated
+            over the catalog default, 5 to 45.
     """
 
     def __init__(self, takeoff_angle=None):
@@ -248,68 +249,75 @@ class ReflectionSource:
 
 class TransmissionSource:
     """An X-ray tube with a thin tungsten transmission target.
-
-    Spectra come from a lookup table over voltage and target thickness.
-    The per-scan voltage is given to :meth:`Calibrator.add_scan`, not
-    here.
+    Spectra come from lookup tables, one CSV file per physics
+    model in xcal/source_models (files transmission_<model>.csv).
+    The shipped files (Geant4, tungsten target on a 250 um diamond
+    substrate) define the valid values below.  To add a model, put
+    a file in the same layout in that folder; its name becomes a
+    valid physics_model and its contents define the other valid
+    values.  Invalid choices are refused with the options listed.
+    The per-scan voltage is given to
+    :meth:`Calibrator.add_scan`; valid: 40 to 150 kV.
 
     Args:
-        target_thickness (float or estimate): Target thickness in mm,
-            known or estimated.
-        spectra_table (str, optional): Path to an HDF5 lookup table of
-            simulated source spectra over voltage and target thickness.
-            xcal does not ship transmission tables yet, so one must be
-            provided.
+        target_thickness (float or estimate): Target thickness in
+            mm.  Valid: 0.001 to 0.007.
+        apex_angle (float, optional): Anode apex angle in degrees.
+            Valid: 1.7, 5, or 10.  Default 10.
+        physics_model (str, optional): Geant4 physics model.  Valid:
+            'G4EmPenelopePhysics', 'G4EmLivermorePhysics',
+            'G4EmStandardPhysics', 'G4EmStandardPhysics-option4'.
+            Default 'G4EmLivermorePhysics'.
     """
 
-    def __init__(self, target_thickness, spectra_table=None):
+    def __init__(self, target_thickness, apex_angle=10.0,
+                 physics_model='G4EmLivermorePhysics'):
         self.target_thickness = _check_scalar_or_estimate(
             target_thickness, 'target_thickness')
-        self.spectra_table = spectra_table
+        self.apex_angle = float(apex_angle)
+        available = _physics.available_transmission_models()
+        if physics_model not in available:
+            raise ValueError(
+                f"Unknown physics model '{physics_model}'; "
+                f"available: {available}.")
+        self.physics_model = str(physics_model)
 
     def __repr__(self):
         return (f"TransmissionSource(target_thickness="
-                f"{self.target_thickness})")
+                f"{self.target_thickness}, "
+                f"apex_angle={self.apex_angle})")
 
 
 class SynchrotronSource:
-    """A source with a known spectrum, such as a synchrotron beamline.
-
-    No source parameter is estimated.
+    """A source with a known, exact spectrum and no parameters:
+    nothing about it is estimated, and there is no per-scan voltage.
+    Spectra come from CSV files, one per spectrum, in
+    xcal/source_models (files synchrotron_<name>.csv).  To add a
+    spectrum, put a file in the same layout in that folder; its
+    name becomes a valid choice.  Invalid names are refused with
+    the options listed.
 
     Args:
-        spectrum (str or tuple): The name of a built-in spectrum table
-            ('als_bm832' for ALS beamline 8.3.2), or a tuple
-            (energies, counts) of numpy arrays with energies in keV.
+        spectrum (str, optional): Spectrum name.  Valid:
+            'als_bm832' (the measured ALS Beamline 8.3.2 spectrum,
+            0.5 to 99.5 keV).  Default 'als_bm832'.
     """
 
-    _builtin = ('als_bm832',)
+    def __init__(self, spectrum='als_bm832'):
+        available = _physics.available_synchrotron_spectra()
+        if spectrum not in available:
+            raise ValueError(
+                f"Unknown spectrum '{spectrum}'; available: "
+                f"{available}.")
+        self.spectrum = spectrum
 
-    def __init__(self, spectrum):
-        if isinstance(spectrum, str):
-            if spectrum not in self._builtin:
-                raise ValueError(
-                    f"Unknown built-in spectrum '{spectrum}'; available: "
-                    f"{list(self._builtin)}.")
-            self.spectrum = spectrum
-        else:
-            try:
-                energies, counts = spectrum
-                energies = np.asarray(energies, dtype=float)
-                counts = np.asarray(counts, dtype=float)
-            except (TypeError, ValueError):
-                raise ValueError(
-                    "spectrum must be a built-in name or a tuple "
-                    "(energies, counts) of equal-length arrays.")
-            if energies.shape != counts.shape or energies.ndim != 1:
-                raise ValueError(
-                    "spectrum arrays must be 1D and of equal length, got "
-                    f"shapes {energies.shape} and {counts.shape}.")
-            self.spectrum = (energies, counts)
+    def table(self):
+        """Return the spectrum as an (energies, counts) pair of
+        arrays, energies in keV."""
+        return _physics.synchrotron_source_table(self.spectrum)
 
     def __repr__(self):
-        label = self.spectrum if isinstance(self.spectrum, str) else 'custom'
-        return f"SynchrotronSource(spectrum='{label}')"
+        return f"SynchrotronSource(spectrum='{self.spectrum}')"
 
 
 class System:
@@ -398,18 +406,12 @@ class System:
                    'takeoff_angle': value(source.takeoff_angle)}
         elif isinstance(source, TransmissionSource):
             src = {'type': 'transmission',
-                   'target_thickness': value(source.target_thickness)}
-            if source.spectra_table:
-                src['spectra_table'] = source.spectra_table
+                   'target_thickness': value(source.target_thickness),
+                   'apex_angle': source.apex_angle,
+                   'physics_model': source.physics_model}
         else:
-            if isinstance(source.spectrum, str):
-                src = {'type': 'synchrotron',
-                       'spectrum': source.spectrum}
-            else:
-                energies, counts = source.spectrum
-                src = {'type': 'synchrotron',
-                       'energies': [float(x) for x in energies],
-                       'counts': [float(x) for x in counts]}
+            src = {'type': 'synchrotron',
+                   'spectrum': source.spectrum}
 
         data = {'xcal_system': 1,
                 'source': src,
@@ -455,7 +457,6 @@ class System:
             callable: A function R with R(energies) -> density in
             1/keV, normalized to integrate to one.
         """
-        from . import _physics
         self._require_fully_specified('effective_spectrum')
         filts = list(filters) if filters is not None else \
             list(self.filters)
@@ -465,10 +466,7 @@ class System:
                                  f"filters.")
 
         if isinstance(self.source, SynchrotronSource):
-            if isinstance(self.source.spectrum, str):
-                e_tab, counts = _physics.load_als_spectrum()
-            else:
-                e_tab, counts = self.source.spectrum
+            e_tab, counts = self.source.table()
             grid = np.linspace(1.0, float(e_tab.max()),
                                max(int(e_tab.max()) * 4, 64))
             values = np.interp(grid, e_tab, counts, left=0.0, right=0.0)
@@ -484,7 +482,8 @@ class System:
             else:
                 voltages, th_mm, e_tab, spectra = \
                     _physics.transmission_source_table(
-                        self.source.spectra_table)
+                        apex_angle=self.source.apex_angle,
+                        physics_model=self.source.physics_model)
                 per_th = []
                 for ti in range(len(th_mm)):
                     ext = _physics.prepare_for_interpolation(
@@ -562,13 +561,11 @@ def load_system(filename):
     elif src['type'] == 'transmission':
         source = TransmissionSource(
             target_thickness=value(src['target_thickness']),
-            spectra_table=src.get('spectra_table'))
+            apex_angle=src.get('apex_angle', 10.0),
+            physics_model=src.get('physics_model',
+                                  'G4EmLivermorePhysics'))
     elif src['type'] == 'synchrotron':
-        if 'spectrum' in src:
-            source = SynchrotronSource(src['spectrum'])
-        else:
-            source = SynchrotronSource((np.array(src['energies']),
-                                        np.array(src['counts'])))
+        source = SynchrotronSource(src['spectrum'])
     else:
         raise ValueError(f"unknown source type {src['type']!r} in "
                          f"{filename}.")

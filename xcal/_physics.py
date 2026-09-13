@@ -130,19 +130,29 @@ def reflection_source_table(voltage, takeoff_angles, energies):
     return table
 
 
-_TRANSMISSION_TABLE = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'source_models',
-    'Geant4_Transmission_Source_Spectra.csv')
+_SOURCE_MODELS_DIR = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), 'source_models')
 
 
-def transmission_source_table(csv_path=None, apex_angle='10deg',
+def available_transmission_models():
+    """Return the physics model names of the shipped transmission
+    source tables (files transmission_<model>.csv in
+    xcal/source_models)."""
+    import glob
+    paths = glob.glob(os.path.join(_SOURCE_MODELS_DIR,
+                                   'transmission_*.csv'))
+    return sorted(os.path.basename(p)[len('transmission_'):-len('.csv')]
+                  for p in paths)
+
+
+def transmission_source_table(apex_angle=10.0,
                               physics_model='G4EmLivermorePhysics'):
-    """Load the Geant4 transmission source lookup table shipped in
-    xcal/source_models.
+    """Load one transmission source table.
 
-    The table holds simulated tungsten transmission target spectra at
-    voltages 40, 80, and 150 kV and target thicknesses 1 to 7
-    micrometers, on 0.1 keV bins that are summed here into 1 keV bins.
+    Each physics model is one CSV file
+    xcal/source_models/transmission_<model>.csv with columns
+    apex_angle_deg, voltage_kV, target_thickness_um, energy_keV,
+    photons.
 
     Returns:
         tuple: (voltages_kV, thicknesses_mm, energies_keV, spectra)
@@ -150,52 +160,48 @@ def transmission_source_table(csv_path=None, apex_angle='10deg',
         len(energies)) on a 1 keV grid.
     """
     import csv as _csv
-    path = csv_path or _TRANSMISSION_TABLE
-    with open(path) as f:
-        rows = list(_csv.reader(f))
-    header = {}
-    data_start = 0
-    for i, row in enumerate(rows):
-        key = row[0].strip()
-        if key in ('W_Thickness', 'Diamond_Thickness', 'Angle',
-                   'PhysicsModel', 'Voltage', 'Energy (keV)'):
-            header[key] = row[1:]
-            data_start = i + 1
-        else:
-            break
-    n_cols = len(header['W_Thickness'])
-    data = np.array([[float(x) if x else 0.0 for x in row[1:n_cols + 1]]
-                     for row in rows[data_start:] if row and row[0]])
+    path = os.path.join(_SOURCE_MODELS_DIR,
+                        f'transmission_{physics_model}.csv')
+    if not os.path.exists(path):
+        raise ValueError(
+            f"physics model {physics_model!r} has no table; "
+            f"available models: {available_transmission_models()}.")
 
-    w_levels = sorted({w for w in header['W_Thickness']},
-                      key=lambda s: float(s.rstrip('um')))
-    v_levels = sorted({v for v in header['Voltage']},
-                      key=lambda s: float(s.rstrip('kVp')))
-    thicknesses_mm = np.array([float(w.rstrip('um')) * 1e-3
-                               for w in w_levels])
-    voltages = np.array([float(v.rstrip('kVp')) for v in v_levels])
+    rows = []
+    with open(path) as f:
+        for line in _csv.reader(r for r in f if not r.startswith('#')):
+            if line[0] == 'apex_angle_deg':
+                continue
+            rows.append([float(x) for x in line])
+    rows = np.array(rows)
+    angles = sorted(set(rows[:, 0]))
+    if float(apex_angle) not in angles:
+        raise ValueError(
+            f"apex angle {apex_angle!r} is not in {path}; available "
+            f"angles: {angles} degrees.")
+    rows = rows[rows[:, 0] == float(apex_angle)]
+
+    voltages = np.array(sorted(set(rows[:, 1])))
+    thicknesses_um = np.array(sorted(set(rows[:, 2])))
+    thicknesses_mm = thicknesses_um * 1e-3
     max_v = int(voltages.max())
+    fine = np.round(np.arange(1, 10 * max_v + 1) * 0.1, 6)
     energies = np.linspace(1.0, max_v, max_v)
 
-    spectra = np.zeros((len(voltages), len(thicknesses_mm), len(energies)))
-    for vi, v in enumerate(v_levels):
-        for wi, w in enumerate(w_levels):
-            cols = [c for c in range(n_cols)
-                    if header['W_Thickness'][c] == w
-                    and header['Voltage'][c] == v
-                    and header['Angle'][c] == apex_angle
-                    and header['PhysicsModel'][c] == physics_model]
-            if not cols:
-                raise ValueError(
-                    f"no column for thickness {w}, voltage {v}, angle "
-                    f"{apex_angle}, physics model {physics_model} in "
-                    f"{path}.")
-            col = data[:, cols[0]]
-            # Sum each 10 fine bins into 1 keV bins, skipping the first
-            # 0.9 keV so bins center on integer keV.
-            n_bins = (len(col) - 9) // 10
-            binned = col[9:9 + n_bins * 10].reshape(n_bins, 10).sum(axis=1)
-            spectra[vi, wi, :min(n_bins, len(energies))] = \
+    spectra = np.zeros((len(voltages), len(thicknesses_mm),
+                        len(energies)))
+    for vi, v in enumerate(voltages):
+        for ti, th in enumerate(thicknesses_um):
+            sel = (rows[:, 1] == v) & (rows[:, 2] == th)
+            dense = np.zeros(len(fine))
+            idx = np.searchsorted(fine, np.round(rows[sel, 3], 6))
+            dense[idx] = rows[sel, 4]
+            # Sum each 10 fine bins into 1 keV bins, skipping the
+            # first 0.9 keV so bins center on integer keV.
+            n_bins = (len(dense) - 9) // 10
+            binned = dense[9:9 + n_bins * 10].reshape(n_bins,
+                                                      10).sum(axis=1)
+            spectra[vi, ti, :min(n_bins, len(energies))] = \
                 binned[:len(energies)]
     return voltages, thicknesses_mm, energies, spectra
 
@@ -265,9 +271,55 @@ def interpolate_rows(x_grid, table, x):
     return (1 - a) * table[i] + a * table[i + 1]
 
 
-def load_als_spectrum():
-    """Return (energies_keV, counts) for the built-in ALS beamline
-    8.3.2 spectrum, rebinned to 1 keV bins."""
-    from .utils import als_bm832
-    energies, counts = als_bm832()
-    return np.asarray(energies, dtype=float), np.asarray(counts, dtype=float)
+def available_synchrotron_spectra():
+    """Return the names of the shipped synchrotron spectra (files
+    synchrotron_<name>.csv in xcal/source_models)."""
+    import glob
+    paths = glob.glob(os.path.join(_SOURCE_MODELS_DIR,
+                                   'synchrotron_*.csv'))
+    return sorted(os.path.basename(p)[len('synchrotron_'):-len('.csv')]
+                  for p in paths)
+
+
+def synchrotron_source_table(spectrum='als_bm832'):
+    """Load one synchrotron spectrum, rebinned to uniform 1 keV bins.
+
+    A spectrum is one CSV file
+    xcal/source_models/synchrotron_<name>.csv with columns
+    energy_keV (bin edge in keV) and photon_counts (counts in the
+    bin starting at that edge).
+
+    Returns:
+        tuple: (energies, counts).  Bin center energies 0.5, 1.5,
+        ..., and photon counts per bin, total counts preserved.
+    """
+    import csv as _csv
+    path = os.path.join(_SOURCE_MODELS_DIR,
+                        f'synchrotron_{spectrum}.csv')
+    if not os.path.exists(path):
+        raise ValueError(
+            f"spectrum {spectrum!r} has no file; available "
+            f"spectra: {available_synchrotron_spectra()}.")
+
+    energies, counts = [], []
+    with open(path) as f:
+        for line in _csv.reader(r for r in f if not r.startswith('#')):
+            if line[0] == 'energy_keV':
+                continue
+            energies.append(float(line[0]))
+            counts.append(float(line[1]))
+    energies = np.array(energies)
+    counts = np.array(counts)
+
+    top = int(np.ceil(energies.max()))
+    edges = np.linspace(0, top, num=top + 1)
+    rebinned = np.zeros(top)
+    for i in range(len(counts) - 1):
+        start, end = energies[i], energies[i + 1]
+        j0 = np.searchsorted(edges, start, side='right') - 1
+        j1 = np.searchsorted(edges, end, side='left')
+        for j in range(j0, j1):
+            overlap = ((min(end, edges[j + 1]) - max(start, edges[j]))
+                       / (end - start))
+            rebinned[j] += overlap * counts[i]
+    return edges[1:] - 0.5, rebinned

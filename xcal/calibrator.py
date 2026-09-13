@@ -1,9 +1,11 @@
 """The calibrator and its result.
 
-The :class:`Calibrator` is built from a :class:`~xcal.System` and a list
-of :class:`~xcal.Target` objects.  Scans are added as (sinogram, model)
-pairs produced by mbirtorch preprocessing, and :meth:`Calibrator.calibrate`
-returns a :class:`CalibrationResult`.
+The :class:`Calibrator` is built from a :class:`~xcal.System` and a
+list of :class:`~xcal.Target` objects.  Each scan is added as three
+things: the sinogram and CT model from mbirtorch preprocessing, and
+the target masks from segmentation or from a mask builder.
+:meth:`Calibrator.calibrate` returns the estimated system and a
+:class:`CalibrationResult` holding the fit information.
 """
 
 import numpy as np
@@ -180,11 +182,8 @@ class Calibrator:
     def _energy_grid(self):
         source = self.system.source
         if isinstance(source, SynchrotronSource):
-            if isinstance(source.spectrum, str):
-                energies, _ = _physics.load_als_spectrum()
-            else:
-                energies = source.spectrum[0]
-            max_e = float(energies.max())
+            energies, _ = source.table()
+            max_e = float(np.max(energies))
             return _physics.default_energy_grid(max_e)
         max_v = max(s['voltage'] for s in self.scans)
         return _physics.default_energy_grid(max_v)
@@ -194,10 +193,7 @@ class Calibrator:
         ('table', grid, table)."""
         source = self.system.source
         if isinstance(source, SynchrotronSource):
-            if isinstance(source.spectrum, str):
-                e_tab, counts = _physics.load_als_spectrum()
-            else:
-                e_tab, counts = source.spectrum
+            e_tab, counts = source.table()
             spec = np.interp(energies, e_tab, counts, left=0.0, right=0.0)
             return ('fixed', spec)
 
@@ -215,7 +211,8 @@ class Calibrator:
         # Transmission source: interpolate the Geant4 table to this
         # scan's voltage, leaving thickness as the table coordinate.
         voltages, th_mm, e_tab, spectra = _physics.transmission_source_table(
-            source.spectra_table)
+            apex_angle=source.apex_angle,
+            physics_model=source.physics_model)
         v = scan['voltage']
         if not voltages.min() <= v <= voltages.max():
             raise ValueError(
@@ -433,7 +430,8 @@ class CalibrationResult:
         elif isinstance(source, TransmissionSource):
             src = TransmissionSource(
                 target_thickness=self._source_value,
-                spectra_table=source.spectra_table)
+                apex_angle=source.apex_angle,
+                physics_model=source.physics_model)
         else:
             src = source
         filters = [Filter(material=m.formula, thickness=th,
@@ -588,10 +586,7 @@ class CalibrationResult:
     def _source_spectrum_values(self, energies, voltage):
         source = self._system.source
         if isinstance(source, SynchrotronSource):
-            if isinstance(source.spectrum, str):
-                e_tab, counts = _physics.load_als_spectrum()
-            else:
-                e_tab, counts = source.spectrum
+            e_tab, counts = source.table()
             return np.interp(energies, e_tab, counts, left=0.0, right=0.0)
         if voltage is None:
             raise ValueError("voltage is required for tube sources.")
@@ -600,7 +595,9 @@ class CalibrationResult:
                 voltage, [self._source_value], energies)
             return table[0]
         voltages, th_mm, e_tab, spectra = \
-            _physics.transmission_source_table(source.spectra_table)
+            _physics.transmission_source_table(
+                apex_angle=source.apex_angle,
+                physics_model=source.physics_model)
         per_th = []
         for ti in range(len(th_mm)):
             ext = _physics.prepare_for_interpolation(spectra[:, ti])

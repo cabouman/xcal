@@ -47,16 +47,28 @@ def test_feasible_round_trip():
 
 
 def test_synchrotron_custom_spectrum_round_trip():
+    # A user adds a spectrum by dropping a file in xcal/source_models.
     E = np.linspace(1, 100, 100)
     counts = np.exp(-0.5 * ((E - 30) / 10) ** 2)
-    s = xcal.System(
-        source=xcal.SynchrotronSource((E, counts)),
-        filters=[xcal.Filter('Si', thickness=2.0)],
-        detector=xcal.Scintillator('LuAG', thickness=0.05))
-    back = _round_trip(s)
-    a = s.effective_spectrum()(E[5:])
-    b = back.effective_spectrum()(E[5:])
-    assert np.allclose(a, b)
+    csv_path = os.path.join(os.path.dirname(xcal.__file__),
+                            'source_models',
+                            'synchrotron_test_gauss.csv')
+    with open(csv_path, 'w') as f:
+        f.write('energy_keV,photon_counts\n')
+        for e, c in zip(E, counts):
+            f.write(f'{e},{c}\n')
+    try:
+        s = xcal.System(
+            source=xcal.SynchrotronSource('test_gauss'),
+            filters=[xcal.Filter('Si', thickness=2.0)],
+            detector=xcal.Scintillator('LuAG', thickness=0.05))
+        back = _round_trip(s)
+        assert back.source.spectrum == 'test_gauss'
+        a = s.effective_spectrum()(E[5:])
+        b = back.effective_spectrum()(E[5:])
+        assert np.allclose(a, b)
+    finally:
+        os.unlink(csv_path)
 
 
 def test_load_rejects_other_files():
