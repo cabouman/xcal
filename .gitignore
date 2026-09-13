@@ -140,4 +140,4 @@ dmypy.json
 *.DS_Store
 
 # xcal 2 review outputs kept out of the repository
-claude_notes/e2e_output/
+claude_notes/review_figures/

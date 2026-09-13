@@ -20,7 +20,7 @@ recovers:
 
 The correct material combination wins with a 65 percent cost margin
 over the runner-up.  LOOK AT THE IMAGES FIRST:
-claude_notes/e2e_output/ holds spectra.png (estimate on top of
+claude_notes/review_figures/ holds spectra.png (estimate on top of
 ground truth at all three voltages), segmentation.png, and fit.png.
 
 The ALS-style case works too: a second simulated calibration with a
@@ -32,7 +32,7 @@ asked for, multi-voltage and multi-filtration, run end to end.
 Run them yourself (both verified tonight exactly as committed):
 `python demo/demo_simulated_multi_voltage.py` (about 3 minutes) and
 `python demo/demo_simulated_multi_filtration.py` (about 1 minute).
-Their figures are also in claude_notes/e2e_output/.
+Their figures are also in claude_notes/review_figures/.
 
 ## What exists now
 
@@ -135,7 +135,7 @@ below.
 
 - I installed two small packages into the mbirtorch conda env:
   chemparse and spekpy (both pure Python, needed by xcal).
-- Untracked outputs for your review: claude_notes/e2e_output/*.png
+- Untracked outputs for your review: claude_notes/review_figures/*.png
   (not committed, per the no-binaries rule).
 - The scratchpad test scripts live outside the repo and vanish with
   the session.
