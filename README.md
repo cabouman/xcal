@@ -50,9 +50,10 @@ masks = xcal.segment_targets(recon, targets, model_80)
 
 cal = xcal.Calibrator(system, targets)
 cal.add_scan(sino_80, model_80, masks, voltage=80)
-est_system, fit_info = cal.calibrate()
+cal_result = cal.calibrate()
 
-fit_info.show()
+cal_result.show()
+est_system = cal_result.est_system
 R = est_system.effective_spectrum(voltage=80)   # a function of energy in keV
 ```
 

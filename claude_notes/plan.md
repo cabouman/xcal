@@ -33,9 +33,10 @@ The result: a three-step workflow (reconstruct with mbirtorch,
 segment_targets for masks, Calibrator.add_scan then calibrate);
 System/Filter/Scintillator/Target objects with plain values for
 givens and xcal.estimate(low, high) for unknowns; scans enter as a
-sinogram plus an mbirtorch CT model; results return as est_system
-(a fully specified System) plus fit_info; every parameter has a
-stable readable name.  Refinement continues in the demo 1 walk.
+sinogram plus an mbirtorch CT model; calibrate() returns a single
+cal_result whose est_system property is the estimated system as a
+fully specified System; every parameter has a stable readable
+name.  Refinement continues in the demo 1 walk.
 
 ## 3. Restructure the package — DONE
 

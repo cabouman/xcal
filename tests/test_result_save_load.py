@@ -36,12 +36,25 @@ def _make_result():
 
 
 def test_save_load_round_trip():
+    import shutil
     res = _make_result()
-    path = tempfile.mktemp(suffix='.h5')
+    path = tempfile.mkdtemp()
     try:
         res.save(path)
+        for name in ('summary.txt', 'feasible_system.yaml',
+                     'est_system.yaml', 'fit_data.h5',
+                     'plots/spectrum.png',
+                     'plots/transmission_fit.png'):
+            assert os.path.exists(os.path.join(path, name)), name
+
         loaded = CalibrationResult.load(path)
         assert loaded.params == res.params
+
+        # The parameter table rebuilds with its provenance.
+        rows = {r['name']: r for r in loaded.parameters()}
+        assert rows['source takeoff angle']['origin'] == 'estimated'
+        assert rows['source takeoff angle']['low'] == 5
+        assert rows['detector material']['origin'] == 'estimated'
 
         # The response functions rebuild from the stored parameters.
         R = loaded.effective_spectrum(voltage=80)
@@ -56,8 +69,7 @@ def test_save_load_round_trip():
         assert y.shape == pred.shape == (20,)
 
     finally:
-        if os.path.exists(path):
-            os.unlink(path)
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def test_effective_spectrum_requires_voltage_for_tube():

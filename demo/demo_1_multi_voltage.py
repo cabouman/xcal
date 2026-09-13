@@ -14,7 +14,6 @@ tests the fit alone.  With False, each scan is reconstructed and the
 targets are segmented from the reconstruction, so the demo tests the
 whole measurement pipeline.
 """
-import csv
 import os
 import time
 
@@ -84,7 +83,7 @@ def simulate_scanner(gt_system, cal_target, voltage,
 
 if __name__ == '__main__':
     t0 = time.time()
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(f'{OUTPUT_DIR}/plots', exist_ok=True)
 
     # ------------- The ground truth (gt) system -------------
     gt_system = xcal.System(
@@ -144,7 +143,7 @@ if __name__ == '__main__':
                 ax.contour(m[:, :, 0] > 0.5, levels=[0.5],
                            colors='r', linewidths=0.7)
             ax.set_title(f'{kv:.0f} kV reconstruction and masks')
-            fig.savefig(f'{OUTPUT_DIR}/segmentation_{kv:.0f}kV.png',
+            fig.savefig(f'{OUTPUT_DIR}/plots/segmentation_{kv:.0f}kV.png',
                         dpi=120)
         masks_per_scan.append(masks)
 
@@ -156,27 +155,23 @@ if __name__ == '__main__':
     # -------------------- Calibrate --------------------
     # The central step of the whole demo.  The calibrator searches
     # the feasible systems for the one whose predicted transmissions
-    # best match every scan, and returns two things: est_system, the
-    # estimated system with every value filled in, and fit_info,
-    # everything about how the fit went.
-    est_system, fit_info = cal.calibrate()
+    # best match every scan, and returns the complete calibration
+    # result.  Its est_system property is the estimated system with
+    # every value filled in.
+    cal_result = cal.calibrate()
+    est_system = cal_result.est_system
 
     # ---------------- Report ----------------
     print()
-    print(fit_info.summary())
+    print(cal_result.summary())
     print()
     print(f'Ground truth: takeoff angle {GT_TAKEOFF_ANGLE} deg; '
           f'{GT_FILTER_MATERIAL} filter {GT_FILTER_THICKNESS} mm; '
           f'{GT_SCINT_MATERIAL} scintillator {GT_SCINT_THICKNESS} mm')
 
-    with open(f'{OUTPUT_DIR}/summary.txt', 'w') as f:
-        f.write(fit_info.summary() + '\n')
-    with open(f'{OUTPUT_DIR}/parameters.csv', 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['name', 'value', 'units',
-                                               'origin', 'low', 'high',
-                                               'note'])
-        writer.writeheader()
-        writer.writerows(fit_info.parameters())
+    # Save the whole calibration: summary.txt, the feasible and
+    # estimated systems as YAML, the fit data as HDF5, and plots.
+    cal_result.save(OUTPUT_DIR)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
     for ax, kv in zip(axes, VOLTAGES):
@@ -193,10 +188,7 @@ if __name__ == '__main__':
     fig.suptitle('Effective spectrum: ground truth vs estimate '
                  '(paper Table 3 NRMSE: 0.0017, 0.0010, 0.0008)')
     fig.tight_layout()
-    fig.savefig(f'{OUTPUT_DIR}/spectra.png', dpi=130)
-
-    fit_info.save(f'{OUTPUT_DIR}/calibration.h5')
-    est_system.save(f'{OUTPUT_DIR}/est_system.yaml')
+    fig.savefig(f'{OUTPUT_DIR}/plots/spectra.png', dpi=130)
 
     # ---------------- Reuse the estimated parts ----------------
     # The estimated components are ordinary values, so a new system
@@ -220,6 +212,6 @@ if __name__ == '__main__':
     ax.legend()
     ax.grid(True)
     fig.tight_layout()
-    fig.savefig(f'{OUTPUT_DIR}/reconfigured_spectrum.png', dpi=130)
+    fig.savefig(f'{OUTPUT_DIR}/plots/reconfigured_spectrum.png', dpi=130)
 
     print(f'total time {time.time()-t0:.0f} s; output in {OUTPUT_DIR}')

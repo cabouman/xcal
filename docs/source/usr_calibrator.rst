@@ -99,12 +99,13 @@ the beam, is always right.
 Running the calibration
 -----------------------
 
-One call runs the whole pipeline and returns two things, the
-estimated system and the information about how the fit went:
+One call runs the whole pipeline and returns the complete
+calibration result:
 
 .. code-block:: python
 
-    est_system, fit_info = cal.calibrate()
+    cal_result = cal.calibrate()
+    est_system = cal_result.est_system
 
 Internally, calibrate does two things.  It forward projects each
 scan's target masks to get the path length of every ray through every
@@ -143,16 +144,20 @@ the air scan normalization makes the absolute scale unidentifiable.
 The voltage may be any value in the calibrated range, not only the
 scanned voltages, because the source model interpolates.
 
-``fit_info`` holds everything about how the fit went.
-``fit_info.parameters()`` is the full parameter table with
+``cal_result`` holds everything about how the fit went.
+``cal_result.parameters()`` is the full parameter table with
 provenance (given, estimated with bounds, or setting), and
-``fit_info.summary()`` prints it.  ``fit_info.transmission_fit(0)``
-returns the measured and predicted transmission arrays for the
-first scan you added, for judging how well the model fits the data.
-``fit_info.candidates`` ranks every material combination by cost.
-``fit_info.save(path)`` stores the calibration.
+``cal_result.summary()`` prints it.
+``cal_result.transmission_fit(0)`` returns the measured and
+predicted transmission arrays for the first scan you added, for
+judging how well the model fits the data.
+``cal_result.candidates`` ranks every material combination by cost.
+``cal_result.save(directory)`` stores the whole calibration as one
+directory of readable files: the summary, the feasible and
+estimated systems as YAML, the fit data as HDF5, and plots.
+``CalibrationResult.load(directory)`` rebuilds the result from it.
 
-For review there is one display convenience, ``fit_info.show()``:
+For review there is one display convenience, ``cal_result.show()``:
 it prints the parameter table and plots the spectra and the fit.
 The target masks are reviewed earlier, at the segmentation step,
 before any fitting: if a mask is wrong, every estimate downstream

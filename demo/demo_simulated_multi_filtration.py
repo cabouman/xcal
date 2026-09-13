@@ -64,10 +64,10 @@ if __name__ == '__main__':
                                   seed=i)
         cal.add_scan(sino, model, filters=filts)
         print(f'simulated scan {i} ({time.time()-t0:.0f} s)')
-    result = cal.calibrate()
+    cal_result = cal.calibrate()
 
     print()
-    print(result.summary())
+    print(cal_result.summary())
     print()
     print('Ground truth: Si 2.0 mm, Al 8.0 mm, LuAG 0.05 mm')
 
@@ -80,7 +80,7 @@ if __name__ == '__main__':
              'high filtration')]):
         ax.plot(E, truth.effective_spectrum(filters=truth_filts)(E),
                 label='ground truth')
-        ax.plot(E, result.effective_spectrum(filters=filts)(E), '--',
+        ax.plot(E, cal_result.effective_spectrum(filters=filts)(E), '--',
                 label='estimate')
         ax.set_title(label)
         ax.set_xlabel('Energy (keV)')

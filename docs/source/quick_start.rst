@@ -50,14 +50,16 @@ xcal never touches scanner formats.
         recon, _ = model.recon(sino)
         masks = xcal.segment_targets(recon, targets, model)
         cal.add_scan(sino, model, masks, voltage=kv)
-    est_system, fit_info = cal.calibrate()
+    cal_result = cal.calibrate()
+    est_system = cal_result.est_system
 
     # Review: prints the parameter table and plots the spectra and
     # the transmission fit.
-    fit_info.show()
+    cal_result.show()
 
-    # Save the calibration for later use.
-    fit_info.save('versa_calibration.h5')
+    # Save the calibration: one directory holding the summary, the
+    # feasible and estimated systems as YAML, the fit data, and plots.
+    cal_result.save('versa_calibration')
 
     # The effective spectrum at 80 kV, returned as a function of
     # energy in keV.  Evaluate and plot it however you choose.

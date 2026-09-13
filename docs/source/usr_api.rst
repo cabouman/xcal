@@ -33,11 +33,12 @@ In outline, every calibration script looks like this:
     ...
 
     # 3. Calibrate.
-    est_system, fit_info = cal.calibrate()
+    cal_result = cal.calibrate()
+    est_system = cal_result.est_system
 
     # 4. Review.
-    fit_info.show()
-    print(fit_info.summary())
+    cal_result.show()
+    print(cal_result.summary())
 
 The named materials you can use in step 1, and how to add your own,
 are listed by the materials catalog (:ref:`CatalogDocs`).

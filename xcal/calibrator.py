@@ -8,6 +8,8 @@ the target masks from segmentation or from a mask builder.
 :class:`CalibrationResult` holding the fit information.
 """
 
+import os
+
 import numpy as np
 
 from . import _physics
@@ -41,7 +43,8 @@ class Calibrator:
         >>> masks = xcal.segment_targets(recon, targets, ct_model)
         >>> cal = xcal.Calibrator(system, targets)
         >>> cal.add_scan(sino, ct_model, masks, voltage=80)
-        >>> est_system, fit_info = cal.calibrate()
+        >>> cal_result = cal.calibrate()
+        >>> est_system = cal_result.est_system
     """
 
     def __init__(self, system, targets):
@@ -283,9 +286,9 @@ class Calibrator:
             verbose (int, optional): 0 is silent, 1 prints progress.
 
         Returns:
-            tuple: (est_system, fit_info).  est_system is a fully
-            specified :class:`~xcal.System` holding the estimated
-            values.  fit_info is a :class:`CalibrationResult` holding
+            CalibrationResult: The complete calibration result.  Its
+            ``est_system`` property is the estimated system as a
+            fully specified :class:`~xcal.System`; it also holds
             everything about how the fit went: the cost, the ranked
             material combinations, the measured and predicted
             transmissions, the parameter table with provenance, and
@@ -371,9 +374,8 @@ class Calibrator:
                                  stop_threshold=stop_threshold,
                                  verbose=verbose)
 
-        fit_info = CalibrationResult(self, energies, solution,
-                                     all_paths, selections, fit_scans)
-        return fit_info.est_system, fit_info
+        return CalibrationResult(self, energies, solution,
+                                 all_paths, selections, fit_scans)
 
 
 class CalibrationResult:
@@ -458,8 +460,6 @@ class CalibrationResult:
         Returns:
             list of dict: The rows, in system order.
         """
-        if getattr(self, '_loaded_rows', None) is not None:
-            return [dict(r) for r in self._loaded_rows]
         rows = []
         source = self._system.source
 
@@ -736,8 +736,9 @@ class CalibrationResult:
             tuple: (measured, predicted) 1D numpy arrays, one entry per
             fit ray.
         """
-        if getattr(self, '_loaded_scans', None) is not None:
-            return self._loaded_scans[scan]
+        if getattr(self, '_loaded', None) is not None:
+            s = self._loaded[scan]
+            return s['measured'], s['predicted']
         fs = self._fit_scans[scan]
         spec = self._effective_values_for_scan(scan)
         predicted = np.trapezoid(fs['A'] * spec, self._energies, axis=-1)
@@ -754,153 +755,225 @@ class CalibrationResult:
 
     # -- persistence and display -------------------------------------------
 
-    def save(self, filename):
-        """Save the estimated parameters and fit data to an HDF5 file.
+    def _n_scans(self):
+        if getattr(self, '_loaded', None) is not None:
+            return len(self._loaded)
+        return len(self._fit_scans)
 
-        The file stores the estimated values with the resolved
-        formulas and densities (never only catalog names), the energy
-        grid, and the per-scan measured and predicted transmissions.
-        The response functions are rebuilt from the parameters on
-        load.
+    def _scan_label(self, scan):
+        v = self._cal.scans[scan].get('voltage')
+        return f'{v:g} kV' if v is not None else f'scan {scan}'
+
+    def _ray_coordinates(self, scan):
+        """Return (view, row, channel, sinogram_shape) for the fit
+        rays of one scan, or None if unavailable."""
+        if getattr(self, '_loaded', None) is not None:
+            s = self._loaded[scan]
+            return s.get('coordinates')
+        if self._selections is None or self._selections[scan] is None:
+            return None
+        sel = self._selections[scan]
+        view, row, channel = np.nonzero(sel)
+        return view, row, channel, sel.shape
+
+    def save(self, directory):
+        """Save the calibration to a directory.
+
+        The directory is the single saved object.  It holds
+        summary.txt (the parameter report), feasible_system.yaml
+        (the search space the calibrator was given),
+        est_system.yaml (the estimated system), fit_data.h5 (the
+        analog fit data: the final cost, the energy grid, and per
+        scan the measured and predicted transmission of every fit
+        ray with its view, row, and channel in the sinogram), and
+        plots/ (the effective spectra and the transmission fit).
+        Every file is readable on its own; :meth:`load` rebuilds
+        the result from the directory.
 
         Args:
-            filename (str): Output path.
+            directory (str): Output directory; created if needed.
         """
         import h5py
-        source = self._system.source
-        with h5py.File(filename, 'w') as f:
-            f.attrs['xcal_result_version'] = 1
+        os.makedirs(os.path.join(directory, 'plots'), exist_ok=True)
+        with open(os.path.join(directory, 'summary.txt'), 'w') as f:
+            f.write(self.summary() + '\n')
+        self._system.save(os.path.join(directory,
+                                       'feasible_system.yaml'))
+        self.est_system.save(os.path.join(directory,
+                                          'est_system.yaml'))
+
+        path = os.path.join(directory, 'fit_data.h5')
+        with h5py.File(path, 'w') as f:
+            f.attrs['xcal_fit_data_version'] = 1
             f.attrs['cost'] = self.cost
-            grp = f.create_group('params')
-            for key, value in self.params.items():
-                grp.attrs[key] = value
-            table = f.create_group('parameter_table')
-            for idx, r in enumerate(self.parameters()):
-                g = table.create_group(f'row_{idx:02d}')
-                for key, value in r.items():
-                    g.attrs[key] = '' if value is None else value
-            src = f.create_group('source')
-            if isinstance(source, ReflectionSource):
-                src.attrs['type'] = 'reflection'
-                src.attrs['value'] = self._source_value
-            elif isinstance(source, TransmissionSource):
-                src.attrs['type'] = 'transmission'
-                src.attrs['value'] = self._source_value
-            else:
-                src.attrs['type'] = 'synchrotron'
-                e_grid = self._energies
-                src.create_dataset('energies', data=e_grid)
-                src.create_dataset(
-                    'counts',
-                    data=self._source_spectrum_values(e_grid, None))
-            for i, (filt, mat, th) in enumerate(
-                    zip(self.filters, self._filter_materials,
-                        self._filter_thicknesses)):
-                g = f.create_group(f'filter_{i}')
-                g.attrs['label'] = self._system.filter_label(filt)
-                g.attrs['name'] = filt.name or ''
-                g.attrs['formula'] = mat.formula
-                g.attrs['density'] = mat.density
-                g.attrs['thickness'] = th
-            det = f.create_group('detector')
-            det.attrs['formula'] = self._detector_material.formula
-            det.attrs['density'] = self._detector_material.density
-            det.attrs['thickness'] = self._detector_thickness
             f.create_dataset('energies', data=self._energies)
-            for si in range(len(self._fit_scans)):
+            for si in range(self._n_scans()):
                 y, pred = self.transmission_fit(si)
                 g = f.create_group(f'scan_{si}')
-                g.create_dataset('measured', data=y)
-                g.create_dataset('predicted', data=pred)
+                s = self._cal.scans[si]
+                if s.get('voltage') is not None:
+                    g.attrs['voltage'] = float(s['voltage'])
+                g.attrs['filters'] = ', '.join(
+                    self._system.filter_label(sf)
+                    for sf in s['filters'])
+                g.create_dataset('measured',
+                                 data=np.asarray(y, np.float32))
+                g.create_dataset('predicted',
+                                 data=np.asarray(pred, np.float32))
+                coords = self._ray_coordinates(si)
+                if coords is not None:
+                    view, row, channel, shape = coords
+                    g.attrs['sinogram_shape'] = shape
+                    g.create_dataset(
+                        'view', data=np.asarray(view, np.uint32))
+                    g.create_dataset(
+                        'row', data=np.asarray(row, np.uint32))
+                    g.create_dataset(
+                        'channel', data=np.asarray(channel, np.uint32))
 
-    @classmethod
-    def load(cls, filename):
-        """Load a result saved by :meth:`save`.
+        self.save_plots(directory)
 
-        The loaded result rebuilds the response functions from the
-        stored parameters, and exposes the filters as
-        ``result.filters`` so ``filter_response(result.filters[0])``
-        works in a new session.
+    def save_plots(self, directory):
+        """Write the calibration plots to <directory>/plots.
+
+        Two files: spectrum.png, the estimated effective spectrum of
+        each scan, and transmission_fit.png, the measured versus
+        predicted transmission of the fit rays.  :meth:`save` calls
+        this; call it directly to regenerate only the plots.
 
         Args:
-            filename (str): Path to a saved result.
+            directory (str): Output directory; its plots subfolder
+                is created if needed.
+        """
+        import matplotlib.pyplot as plt
+        plots_dir = os.path.join(directory, 'plots')
+        os.makedirs(plots_dir, exist_ok=True)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for si in range(self._n_scans()):
+            ax.plot(self._energies,
+                    self._effective_values_for_scan(si),
+                    label=self._scan_label(si))
+        ax.set_xlabel('Energy (keV)')
+        ax.set_ylabel('Effective spectrum (1/keV)')
+        ax.legend()
+        ax.grid(True)
+        fig.tight_layout()
+        fig.savefig(os.path.join(plots_dir, 'spectrum.png'), dpi=130)
+        plt.close(fig)
+
+        fig, ax = plt.subplots(figsize=(5, 5))
+        for si in range(self._n_scans()):
+            y, pred = self.transmission_fit(si)
+            ax.plot(y, pred, '.', markersize=2,
+                    label=self._scan_label(si))
+        lim = [0, 1.05]
+        ax.plot(lim, lim, 'k-', linewidth=0.5)
+        ax.set_xlabel('Measured transmission')
+        ax.set_ylabel('Predicted transmission')
+        ax.legend()
+        ax.grid(True)
+        fig.tight_layout()
+        fig.savefig(os.path.join(plots_dir, 'transmission_fit.png'),
+                    dpi=130)
+        plt.close(fig)
+
+    @classmethod
+    def load(cls, directory):
+        """Load a calibration saved by :meth:`save`.
+
+        The result is rebuilt from feasible_system.yaml,
+        est_system.yaml, and fit_data.h5, so the parameter table,
+        the response functions, and the transmission fit all work
+        in a new session without rerunning the calibration.
+
+        Args:
+            directory (str): Path to a saved calibration directory.
 
         Returns:
             CalibrationResult: The loaded result.
         """
         import h5py
-        from .system import System
-        with h5py.File(filename, 'r') as f:
-            src = f['source']
-            src_type = src.attrs['type']
-            if src_type == 'reflection':
-                source = ReflectionSource(
-                    takeoff_angle=float(src.attrs['value']))
-                source_value = float(src.attrs['value'])
-            elif src_type == 'transmission':
-                source = TransmissionSource(
-                    target_thickness=float(src.attrs['value']))
-                source_value = float(src.attrs['value'])
-            else:
-                source = SynchrotronSource(
-                    (np.array(src['energies']), np.array(src['counts'])))
-                source_value = 0.0
-            filters, filter_materials, filter_thicknesses = [], [], []
-            i = 0
-            while f'filter_{i}' in f:
-                g = f[f'filter_{i}']
-                filt = Filter(material=str(g.attrs['formula']),
-                              thickness=float(g.attrs['thickness']),
-                              name=str(g.attrs['name']) or None,
-                              density=float(g.attrs['density']))
-                filters.append(filt)
-                filter_materials.append(filt.materials[0])
-                filter_thicknesses.append(float(g.attrs['thickness']))
-                i += 1
-            det = f['detector']
-            detector = Scintillator(material=str(det.attrs['formula']),
-                                    thickness=float(det.attrs['thickness']),
-                                    density=float(det.attrs['density']))
+        from .system import load_system
+        feasible = load_system(os.path.join(directory,
+                                            'feasible_system.yaml'))
+        est = load_system(os.path.join(directory, 'est_system.yaml'))
+
+        with h5py.File(os.path.join(directory, 'fit_data.h5'),
+                       'r') as f:
             energies = np.array(f['energies'])
+            cost = float(f.attrs['cost'])
             scans = []
             si = 0
             while f'scan_{si}' in f:
-                scans.append((np.array(f[f'scan_{si}/measured']),
-                              np.array(f[f'scan_{si}/predicted'])))
+                g = f[f'scan_{si}']
+                coordinates = None
+                if 'view' in g:
+                    coordinates = (np.array(g['view']),
+                                   np.array(g['row']),
+                                   np.array(g['channel']),
+                                   tuple(g.attrs['sinogram_shape']))
+                scans.append({
+                    'voltage': (float(g.attrs['voltage'])
+                                if 'voltage' in g.attrs else None),
+                    'filter_labels': str(g.attrs.get('filters', '')),
+                    'measured': np.array(g['measured']),
+                    'predicted': np.array(g['predicted']),
+                    'coordinates': coordinates,
+                })
                 si += 1
-            cost = float(f.attrs['cost'])
-            loaded_rows = []
-            if 'parameter_table' in f:
-                for key in sorted(f['parameter_table']):
-                    a = f['parameter_table'][key].attrs
-                    loaded_rows.append(
-                        {k: (None if isinstance(a[k], str) and a[k] == ''
-                             and k in ('low', 'high') else a[k])
-                         for k in ('name', 'value', 'units', 'origin',
-                                   'low', 'high', 'note')})
 
-        system = System(source=source, filters=filters, detector=detector)
+        source = feasible.source
+        if isinstance(source, ReflectionSource):
+            source_value = est.source.takeoff_angle
+        elif isinstance(source, TransmissionSource):
+            source_value = est.source.target_thickness
+        else:
+            source_value = 0.0
+
+        def candidate_index(feasible_part, est_part, what):
+            formula = est_part.materials[0].formula
+            for j, m in enumerate(feasible_part.materials):
+                if m.formula == formula:
+                    return j
+            raise ValueError(
+                f"est_system.yaml names {what} material "
+                f"{formula!r}, which is not among the candidates "
+                f"in feasible_system.yaml.")
+
+        combo = tuple(
+            candidate_index(f, ef, 'a filter')
+            for f, ef in zip(feasible.filters, est.filters))
+        combo = combo + (candidate_index(feasible.detector,
+                                         est.detector, 'the detector'),)
         solution = {
-            'combo': tuple([0] * len(filters) + [0]),
+            'combo': combo,
             'cost': cost,
             'source_value': source_value,
-            'filter_thicknesses': filter_thicknesses,
-            'detector_thickness': float(det_thickness
-                                        := detector.thickness),
+            'filter_thicknesses': [f.thickness for f in est.filters],
+            'detector_thickness': est.detector.thickness,
             'iterations': 0,
             'all': [],
         }
 
+        label_to_filter = {feasible.filter_label(f): f
+                           for f in feasible.filters}
+
         class _LoadedCal:
             pass
         cal = _LoadedCal()
-        cal.system = system
-        cal.scans = [{'voltage': None, 'filters': list(filters)}
-                     for _ in scans]
+        cal.system = feasible
+        cal.scans = []
+        for s in scans:
+            labels = [x.strip() for x in s['filter_labels'].split(',')
+                      if x.strip()]
+            filts = [label_to_filter[x] for x in labels
+                     if x in label_to_filter]
+            cal.scans.append({'voltage': s['voltage'],
+                              'filters': filts or
+                              list(feasible.filters)})
         result = cls(cal, energies, solution, paths=None,
                      selections=None, fit_scans=None)
-        result._loaded_scans = scans
-        result._loaded_rows = loaded_rows
+        result._loaded = scans
         return result
 
     def show(self, block=True):
@@ -915,11 +988,13 @@ class CalibrationResult:
         print(self.summary())
         import matplotlib.pyplot as plt
         fig, axes = plt.subplots(1, 2, figsize=(11, 4))
-        for si in range(len(self._fit_scans)):
+        for si in range(self._n_scans()):
             spec = self._effective_values_for_scan(si)
-            axes[0].plot(self._energies, spec, label=f'scan {si}')
+            axes[0].plot(self._energies, spec,
+                         label=self._scan_label(si))
             y, pred = self.transmission_fit(si)
-            axes[1].plot(y, pred, '.', markersize=2, label=f'scan {si}')
+            axes[1].plot(y, pred, '.', markersize=2,
+                         label=self._scan_label(si))
         axes[0].set_xlabel('Energy (keV)')
         axes[0].set_ylabel('Effective spectrum (1/keV)')
         axes[0].legend()

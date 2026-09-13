@@ -97,10 +97,10 @@ if __name__ == '__main__':
             print(f'added {filtration} filtration, {name} rod '
                   f'({time.time()-t0:.0f} s)')
 
-    result = cal.calibrate()
+    cal_result = cal.calibrate()
 
     print()
-    print(result.summary())
+    print(cal_result.summary())
     print()
     print('Paper (Table 9): Si 2.557 mm, Al 9.494 mm, LuAG 0.0506 mm')
     print('Nominal:         Si 2.0 mm,   Al 8.0 mm,   LuAG 0.050 mm')
@@ -108,8 +108,8 @@ if __name__ == '__main__':
     # ---------------- Figures for review ----------------
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     for si_, ax in enumerate(axes.flat):
-        ax.imshow(result.reconstruction(si_)[:, :, 0], origin='lower')
-        labels = result.segmentation(si_)[:, :, 0]
+        ax.imshow(cal_result.reconstruction(si_)[:, :, 0], origin='lower')
+        labels = cal_result.segmentation(si_)[:, :, 0]
         ax.contour(labels > 0, levels=[0.5], colors='r',
                    linewidths=0.7)
         ax.set_title(f'scan {si_}')
@@ -122,14 +122,14 @@ if __name__ == '__main__':
     energies = np.linspace(1.5, 99.5, 400)
     for filts, label in [([si_filter], 'low filtration'),
                          ([si_filter, al_filter], 'high filtration')]:
-        R = result.effective_spectrum(filters=filts)
+        R = cal_result.effective_spectrum(filters=filts)
         axes[0].plot(energies, R(energies), label=label)
     axes[0].set_xlabel('Energy (keV)')
     axes[0].set_ylabel('Effective spectrum (1/keV)')
     axes[0].legend()
     axes[0].grid(True)
     for si_ in range(8):
-        y, pred = result.transmission_fit(si_)
+        y, pred = cal_result.transmission_fit(si_)
         axes[1].plot(y, pred, '.', markersize=1)
     axes[1].plot([0, 1], [0, 1], 'k-', linewidth=0.5)
     axes[1].set_xlabel('Measured transmission')
@@ -138,5 +138,5 @@ if __name__ == '__main__':
     fig.tight_layout()
     fig.savefig(f'{out}/spectra_and_fit.png', dpi=130)
 
-    result.save(f'{out}/als_calibration.h5')
+    cal_result.save(out)
     print(f'total time {time.time()-t0:.0f} s; output in {out}')
