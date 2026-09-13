@@ -45,3 +45,4 @@ are listed by the materials catalog (:ref:`CatalogDocs`).
    usr_system
    usr_calibrator
    usr_catalog
+   usr_simulate

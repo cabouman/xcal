@@ -93,11 +93,9 @@ below.
 
 ## Decisions that are yours (in rough priority order)
 
-1. Rod masks use the DECLARED diameter; the measurement locates the
-   center and validates (within 15 percent).  Using the measured
-   radius instead carries 2 to 5 percent bias from edge brightening
-   and blur, which was enough to flip the estimated filter material.
-   Keep declared, or measure?
+1. DECIDED (2026-09-13): rod masks are the measured shapes, from
+   Wenrui's segmentation approach with automatic value ranges.  The
+   accuracy note moved to claude_notes/improvements.md.
 2. Loss and weights are fixed to v1's transmission loss with
    1/transmission weights.  v1's ALS demo used unweighted least
    squares; if we reproduce ALS-style data, this choice matters.

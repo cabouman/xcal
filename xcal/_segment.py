@@ -151,23 +151,31 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
     remaining = image.copy()
     yy, xx = np.ogrid[:rows, :cols]
     circles = []
-    for _ in range(len(rods) + 2):
-        if len(circles) >= len(rods):
-            break
+    # The background noise level, measured robustly, guards the later
+    # rounds: once every rod is blanked, only noise remains, and no
+    # candidate circle may pass the contrast test.
+    noise = 1.4826 * np.median(np.abs(image - np.median(image)))
+    for _ in range(len(rods)):
         found = _detect_circles(remaining, radius_range, min_dist)
         if found is None or len(found) == 0:
             break
-        new = 0
         background_level = float(np.median(remaining))
+        accepted = False
         for x, y, r in found:
             if any((x - c[0]) ** 2 + (y - c[1]) ** 2 < min_dist ** 2
                    for c in circles):
                 continue
+            inside = ((yy - y) ** 2 + (xx - x) ** 2) <= (0.7 * r) ** 2
+            if not inside.any():
+                continue
+            if remaining[inside].mean() < background_level + 4 * noise:
+                continue
             circles.append((x, y, r))
             remaining[(yy - y) ** 2 + (xx - x) ** 2
                       <= (1.3 * r) ** 2] = background_level
-            new += 1
-        if new == 0:
+            accepted = True
+            break
+        if not accepted:
             break
     if len(circles) < len(rods):
         raise ValueError(
