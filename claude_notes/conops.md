@@ -34,15 +34,33 @@ their voltage range, and how many scans to take.
 
 ## Role of mbirtorch
 
-mbirtorch is a dependency of xcal, not a separate step the user
-runs.  xcal calls mbirtorch internally to read the scanner files,
-normalize the data, reconstruct, and compute the path length of
-each ray through each rod.  xcal also reconstructs and segments the
-rods itself, so the rod geometry is measured from the data rather
-than trusted from the user.  The user never converts data, never
-writes a projector wrapper, and never builds a forward matrix.  The
-estimated spectrum can then feed back into mbirtorch preprocessing,
-for example beam hardening correction.
+The design follows the mbirtorch composition pattern: preprocessing
+produces a sinogram and a tomography model, and higher-level
+algorithms are built from those objects (as MACE4DModel in mbirjax
+is built from a ct_model).
+
+- Scanner-specific loading stays in mbirtorch.preprocess.  In the
+  user's script, one call per scan such as
+  `mtp.zeiss.get_sino_and_model(file)` returns the sinogram and a
+  fully configured tomography model carrying the real geometry and
+  pixel size.
+- xcal accepts (sinogram, model) pairs and never touches scanner
+  file formats.  It works with any geometry mbirtorch supports,
+  because it uses only the model's recon and forward projection
+  methods.
+- Inside xcal: reconstruct each scan, segment the rods, forward
+  project the masks for path lengths, and fit.  The rod geometry is
+  measured from the data rather than trusted from the user.  The
+  user never writes a projector wrapper and never builds a forward
+  matrix.
+- The estimated spectrum feeds back into mbirtorch preprocessing,
+  for example beam hardening correction.
+
+For scanners without an mbirtorch loader (such as the ALS
+data-exchange files today), the user's script builds the pair
+directly, a few lines in the style of the nersc application script:
+read the arrays, call compute_sino_transmission, and construct a
+ParallelBeamModel.
 
 ## How the user describes the system
 
@@ -95,9 +113,6 @@ numpy arrays and return numpy arrays.
 
 ## Open questions
 
-- Whether mbirtorch's loaders need any additions, for example an
-  option to return the transmission data before the log is taken,
-  which is what the estimator uses.
 - Whether the segmentation step needs any user input, such as
   approximate rod diameters, or can run fully automatically.
 - Which candidate lists to curate and what goes in them.

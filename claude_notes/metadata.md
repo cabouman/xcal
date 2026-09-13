@@ -145,11 +145,20 @@ from the reconstruction, not trusted from the file.
 
 ### Scans
 
-One entry per scan: the data file path, its format (`zeiss`, `nsi`,
-`als`, or `arrays`), and the per-scan setting, normally the voltage
-or which filters were in the beam.  Two or three scans at different
-settings are expected; that diversity is what makes the estimation
-well posed.
+Scan data enters xcal as a sinogram plus a tomography model, the
+pair produced by mbirtorch preprocessing
+(`mtp.zeiss.get_sino_and_model(...)` and its siblings).  The
+sinogram is in the usual log domain; xcal recovers the transmission
+internally as exp(-sino).  The documentation and the add_scan
+docstring warn that preprocessing corrections (stripe or offset
+removal) carry into the recovered transmission, which is normally
+desirable.  File paths
+and scanner formats live in the user's script at the preprocessing
+call, never inside xcal.  Each scan added to the calibrator also
+states its per-scan settings: the voltage, and when relevant which
+rods and which filters were in the beam.  Two or three scans at
+different settings are expected; that diversity is what makes the
+estimation well posed.
 
 ## Proposed format: one YAML file
 

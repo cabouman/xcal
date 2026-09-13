@@ -1,44 +1,60 @@
-Overview and Introduction
-=========================
+========
+Overview
+========
 
-Xcal is a Python package designed to accurately determine the spectral response of X-ray systems by solving the inverse problem using measurements from homogeneous samples with known composition and dimensions. Xcal stands out by leveraging advanced modeling techniques and providing a flexible, user-friendly approach to analyzing X-ray systems across various applications.
+What xcal does
+--------------
 
-User Inputs
------------
+A CT detector never records the X-ray spectrum directly.  The recorded
+intensity with no object present, called the effective spectrum, is
+shaped by the source, by any filters in the beam, and by the detector's
+scintillator.  Quantitative CT methods such as beam hardening
+correction need this effective spectrum, and it cannot be measured
+directly.
 
-- **Normalized Radiograph**: Users are required to provide a normalized radiograph for analysis.
-- **Component Information**: Basic knowledge of the source, filter, and scintillator components used in the setup is necessary. This includes:
+xcal estimates the effective spectrum from calibration scans of known
+homogeneous rods.  It models the spectrum as the product of three
+physical components:
 
-  - Source Types: Options include Transmission, Reflection, or Synchrotron, among others.
-  - Possible Filter Materials
-  - Possible Scintillator Materials
-  - The specific component used in each measurement.
+* the source spectrum, from Spekpy or Geant4 lookup tables,
+* each filter's transmission, from Beer's law and NIST data,
+* the scintillator's response, from NIST absorption data.
 
-- **Homogeneous Samples with known composition and dimensions** (Optional): Providing homogeneous samples, with their composition and dimensions known, is essential. If the user does not know the dimension of the sample, functions are provided to calibrate the dimension information from a 3D reconstruction.
+Each component has a small number of physical parameters, such as the
+takeoff angle, the filter material and thickness, and the scintillator
+material and thickness.  xcal estimates these parameters by fitting the
+measured transmission of the rods across all scans jointly.  Material
+choices are found by exhaustive search over candidates; continuous
+parameters are fit by gradient descent in PyTorch.
 
-Key Features and Strengths
---------------------------
+.. figure:: figs/effective_spectrum.png
+   :align: center
+   :width: 95%
 
-Based on a Parametric Model
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   The effective spectrum model.  The source spectrum passes through
+   the filters and the detector, and each block is controlled by the
+   user-adjustable settings (top) and by the parameters xcal
+   estimates (bottom).  The output R(E) is the effective spectrum.
 
-- **Robust to Ill-Conditioned Problems**: Solves problems effectively with a limited number of parameters.
-- **Physically Realistic**: Ensures that solutions are not only mathematically sound but also align with physical reality.
+Why parameters instead of spectra?
+----------------------------------
 
-Separable Model: Source, Filter, and Scintillator
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Because the estimated quantities are physical parameters of the
+instrument, they remain valid when the instrument settings change.
+After one calibration, the user can change the source voltage or swap
+a known filter and compute the new effective spectrum without
+recalibrating.  Estimating the spectrum bin by bin, in contrast, must
+be redone for every setting.
 
-- **Versatile Data Use**: Eliminates the need to acquire new data for every configuration change. Users can easily substitute components in the model.
+What the user provides
+----------------------
 
-Enables Joint Parameter Estimation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. Two or three CT scans of the rod target at different source
+   voltages or filtrations.
+2. The rod materials and nominal diameters.
+3. A description of the system: the source type, the possible filters,
+   and the possible scintillators.  Facts that are unknown are marked
+   as estimated or left as candidate lists.
 
-Given the ill-conditioned nature of the inverse problem, accurately estimating scintillator parameters can be challenging. Xcal enhances the precision of spectral estimation through joint parameter estimation, leveraging:
-
-- **Multi-Voltage Datasets**
-- **Multi-Filter Datasets**
-
-Modular Design
-~~~~~~~~~~~~~~
-
-- **Customizable Components**: Users can integrate their own models of sources, filters, and scintillators based on specific application needs. This modularity ensures that Xcal can be tailored to a wide range of X-ray analysis scenarios, accommodating the complexity and diversity of real-world applications.
+See :ref:`CalibrationScan` for guidance on the scans, and
+:ref:`QuickStart` for a complete script.

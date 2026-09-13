@@ -1,0 +1,35 @@
+# The xcal materials catalog.
+#
+# Each entry names a material a user can select, with the parameters
+# the software needs.  Densities are in g/cm^3, thickness ranges in mm.
+# The entries under each kind form the default candidate list that is
+# searched when the user omits the material.
+#
+# Users extend the catalog with their own file in this same layout,
+# loaded with xcal.add_materials(); this shipped file is never edited.
+# Any chemical formula of elements 1 through 92 is a legal material;
+# this catalog only provides the named defaults.
+
+filter_materials:
+  - {name: Al, formula: Al, density: 2.702, thickness_range: [0, 10]}
+  - {name: Cu, formula: Cu, density: 8.92,  thickness_range: [0, 1]}
+  - {name: Si, formula: Si, density: 2.329, thickness_range: [0, 5]}
+
+target_materials:
+  - {name: V,  formula: V,  density: 6.11, diameter_range: [0.1, 5]}
+  - {name: Ti, formula: Ti, density: 4.507, diameter_range: [0.1, 5]}
+  - {name: Al, formula: Al, density: 2.702, diameter_range: [0.1, 5]}
+  - {name: Mg, formula: Mg, density: 1.738, diameter_range: [0.1, 5]}
+
+scintillator_materials:
+  - {name: CsI,    formula: CsI,          density: 4.51, thickness_range: [0.001, 0.5]}
+  - {name: GAGG,   formula: Gd3Al2Ga3O12, density: 6.63, thickness_range: [0.001, 0.5]}
+  - {name: LuAG,   formula: Lu3Al5O12,    density: 6.73, thickness_range: [0.001, 0.5]}
+  - {name: CdWO4,  formula: CdWO4,        density: 7.90, thickness_range: [0.001, 0.5]}
+  - {name: YAG,    formula: Y3Al5O12,     density: 4.56, thickness_range: [0.001, 0.5]}
+  - {name: BGO,    formula: Bi4Ge3O12,    density: 7.13, thickness_range: [0.001, 0.5]}
+  - {name: GOS,    formula: Gd2O2S,       density: 7.32, thickness_range: [0.001, 0.5]}
+
+defaults:
+  takeoff_angle_range: [5, 45]       # degrees, reflection sources
+  energy_bin_width: 1.0              # keV
