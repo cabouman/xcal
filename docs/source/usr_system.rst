@@ -121,3 +121,20 @@ Putting it together
 -------------------
 
 .. autoclass:: xcal.System
+
+.. automethod:: xcal.System.effective_spectrum
+
+Saving and reading a system
+---------------------------
+
+A system saves to a small readable YAML file and loads back, whether
+fully specified or feasible:
+
+.. code-block:: python
+
+    est_system.save('est_system.yaml')
+    system = xcal.load_system('est_system.yaml')
+
+.. automethod:: xcal.System.save
+
+.. autofunction:: xcal.load_system

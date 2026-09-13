@@ -168,6 +168,7 @@ if __name__ == '__main__':
     fig.savefig(f'{OUTPUT_DIR}/spectra.png', dpi=130)
 
     fit_info.save(f'{OUTPUT_DIR}/calibration.h5')
+    est_system.save(f'{OUTPUT_DIR}/est_system.yaml')
 
     # ---------------- Reuse the estimated parts ----------------
     # The estimated components are ordinary values, so a new system

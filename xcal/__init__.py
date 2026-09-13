@@ -11,7 +11,8 @@ __version__ = '2.0.0.dev0'
 
 from .system import (estimate, Target, Filter, Scintillator,
                      ReflectionSource, TransmissionSource,
-                     SynchrotronSource, System)
+                     SynchrotronSource, System,
+                     load_system)
 from .calibrator import Calibrator, CalibrationResult
 from .catalog import list_materials, add_materials
 from .simulate import simulate_scan
@@ -20,7 +21,7 @@ from .segment import segment_targets, cylinder_masks
 __all__ = [
     'estimate', 'Target', 'Filter', 'Scintillator',
     'ReflectionSource', 'TransmissionSource', 'SynchrotronSource',
-    'System', 'Calibrator', 'CalibrationResult',
+    'System', 'load_system', 'Calibrator', 'CalibrationResult',
     'list_materials', 'add_materials', 'simulate_scan',
     'segment_targets', 'cylinder_masks',
 ]

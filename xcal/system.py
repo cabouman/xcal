@@ -18,7 +18,8 @@ from . import catalog
 from . import _materials
 
 __all__ = ['estimate', 'Target', 'Filter', 'Scintillator', 'ReflectionSource',
-           'TransmissionSource', 'SynchrotronSource', 'System']
+           'TransmissionSource', 'SynchrotronSource', 'System',
+           'load_system']
 
 
 class estimate:
@@ -353,6 +354,70 @@ class System:
         self.detector = detector
 
 
+
+    def save(self, filename):
+        """Save this system to a small readable YAML file.
+
+        The file uses the same value notation as the API: a plain
+        number is a given value, an ``estimate:`` entry carries
+        bounds, a list of materials is a candidate set, and a null
+        thickness means the catalog defaults.  Both fully specified
+        systems (such as a ground truth or an estimate) and feasible
+        systems save and load without loss.
+
+        Args:
+            filename (str): Output path, conventionally .yaml.
+        """
+        import yaml
+
+        def value(spec):
+            if isinstance(spec, estimate):
+                out = {'estimate': [spec.low, spec.high]}
+                if spec.initial != 0.5 * (spec.low + spec.high):
+                    out['initial'] = spec.initial
+                return out
+            return spec
+
+        def component(part):
+            out = {}
+            if len(part.materials) == 1:
+                m = part.materials[0]
+                out['material'] = {'name': m.name, 'formula': m.formula,
+                                   'density': m.density}
+            else:
+                out['material'] = [m.name for m in part.materials]
+            out['thickness'] = (None if part.thickness_per_candidate
+                                is not None else value(part.thickness))
+            if part.name:
+                out['name'] = part.name
+            return out
+
+        source = self.source
+        if isinstance(source, ReflectionSource):
+            src = {'type': 'reflection',
+                   'takeoff_angle': value(source.takeoff_angle)}
+        elif isinstance(source, TransmissionSource):
+            src = {'type': 'transmission',
+                   'target_thickness': value(source.target_thickness)}
+            if source.spectra_table:
+                src['spectra_table'] = source.spectra_table
+        else:
+            if isinstance(source.spectrum, str):
+                src = {'type': 'synchrotron',
+                       'spectrum': source.spectrum}
+            else:
+                energies, counts = source.spectrum
+                src = {'type': 'synchrotron',
+                       'energies': [float(x) for x in energies],
+                       'counts': [float(x) for x in counts]}
+
+        data = {'xcal_system': 1,
+                'source': src,
+                'filters': [component(f) for f in self.filters],
+                'detector': component(self.detector)}
+        with open(filename, 'w') as f:
+            yaml.safe_dump(data, f, sort_keys=False)
+
     def _require_fully_specified(self, what):
         parts = [('source', self.source)] + \
             [(self.filter_label(f), f) for f in self.filters] + \
@@ -455,3 +520,62 @@ class System:
         elif len(filt.materials) == 1:
             label += f" ({filt.materials[0].name})"
         return label
+
+
+def load_system(filename):
+    """Read a system saved by :meth:`System.save`.
+
+    Args:
+        filename (str): Path to a system YAML file.
+
+    Returns:
+        System: The system, with given values, estimates, and
+        candidate lists restored.
+    """
+    import yaml
+    with open(filename) as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or 'xcal_system' not in data:
+        raise ValueError(f"{filename} is not an xcal system file.")
+
+    def value(spec):
+        if isinstance(spec, dict) and 'estimate' in spec:
+            low, high = spec['estimate']
+            return estimate(low, high, initial=spec.get('initial'))
+        return spec
+
+    def component(cls, entry, kind_word):
+        mat = entry['material']
+        if isinstance(mat, dict):
+            return cls(material=mat['formula'],
+                       density=mat['density'],
+                       thickness=value(entry.get('thickness')),
+                       name=entry.get('name'))
+        return cls(material=list(mat),
+                   thickness=value(entry.get('thickness')),
+                   name=entry.get('name'))
+
+    src = data['source']
+    if src['type'] == 'reflection':
+        source = ReflectionSource(
+            takeoff_angle=value(src['takeoff_angle']))
+    elif src['type'] == 'transmission':
+        source = TransmissionSource(
+            target_thickness=value(src['target_thickness']),
+            spectra_table=src.get('spectra_table'))
+    elif src['type'] == 'synchrotron':
+        if 'spectrum' in src:
+            source = SynchrotronSource(src['spectrum'])
+        else:
+            source = SynchrotronSource((np.array(src['energies']),
+                                        np.array(src['counts'])))
+    else:
+        raise ValueError(f"unknown source type {src['type']!r} in "
+                         f"{filename}.")
+
+    return System(
+        source=source,
+        filters=[component(Filter, e, 'filter')
+                 for e in data.get('filters', [])],
+        detector=component(Scintillator, data['detector'],
+                           'scintillator'))

@@ -32,4 +32,3 @@ and estimate directly:
 
 .. autofunction:: xcal.simulate_scan
 
-.. automethod:: xcal.System.effective_spectrum
