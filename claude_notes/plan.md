@@ -21,68 +21,49 @@ system-dependent energy band for segmentation matching, demo 2
 specification, a measured-data (ALS) demo, CI, and the readthedocs
 cutover.
 
-## 1. Preserve the current version
+## 1. Preserve the current version — DONE
 
-- Tag the current main as v0.1.0.  (Done: tag pushed, GitHub release published.)
-- Note: setup.py says version 0.3.0 but xcal/__init__.py says 0.1.0.
-  The new version will keep the version number in one place.
+Tag v0.1.0 pushed and a GitHub release published, pinning the
+version that matches the Optics Express 2025 paper.
 
-## 2. Design the new user API, and agree on it before writing code
+## 2. Design the new user API — DONE
 
-- Provide one simple path for the common case: the user supplies the
-  normalized radiographs, the sample materials and masks, and lists of
-  candidate components.  The package returns the estimated spectrum
-  and parameters.
-- Generate the source spectrum table inside the package by wrapping
-  spekpy.  Today the user writes about 30 lines of loops to build it.
-- Compute the forward matrix using mbirtorch projectors directly.
-  Today the user must write a projector wrapper class.
-- Give every parameter a stable, readable name.  Today names include
-  an instance counter (for example Filter_2_material), so the name
-  depends on how many objects were created earlier.
-- Replace the (initial, lower, upper) tuple convention with a clearer
-  way to say fixed versus estimated with bounds.
-- Follow the mbirtorch convention: entry points accept numpy arrays
-  and return numpy arrays.
+Designed with Charlie through demo scripts before implementation.
+The result: a three-step workflow (reconstruct with mbirtorch,
+segment_targets for masks, Calibrator.add_scan then calibrate);
+System/Filter/Scintillator/Target objects with plain values for
+givens and xcal.estimate(low, high) for unknowns; scans enter as a
+sinogram plus an mbirtorch CT model; results return as est_system
+(a fully specified System) plus fit_info; every parameter has a
+stable readable name.  Refinement continues in the demo 1 walk.
 
-## 3. Restructure the package
+## 3. Restructure the package — DONE
 
-- Keep the physics core: source, filter, and scintillator models, the
-  NIST material constants, and the forward model.
-- Simplify estimation: review the multiprocessing pool, the per-process
-  logging, and the vendored L-BFGS optimizer, and keep only what earns
-  its complexity.
-- Decide the fate of the older dictionary-based method (dictSE.py,
-  about 1200 lines): keep, archive, or drop.
+Rewritten from scratch on xcal_lean.  The dictionary-based method,
+the vendored optimizer, the multiprocessing pool, and all other
+unused v1 material are gone (the old branch keeps everything).
+Estimation is a single torch Adam fit with exhaustive search over
+discrete material candidates.
 
-## 4. Rewrite the documentation
+## 4. Rewrite the documentation — DONE
 
-- Short README with a quick start that runs in minutes.
-- One basic demo and a small number of advanced tutorials.
-- Succinct docstrings that state what each function does and how to
-  call it.
+Short README with a quick start; sphinx_book_theme docs (overview,
+install, calibration scan, quick start, user API pages); docstrings
+state valid values for every argument.  Builds with no warnings.
+Note: sphinx-build is not on the default PATH; use the mbirtorch
+env's sphinx and rebuild from clean after docstring changes.
 
-## 5. Demos and tests
+## 5. Demos and tests — demo 1 DONE, more to come
 
-- One realistic end-to-end demo with mbirtorch whose plots and images
-  Charlie reviews.
-- A minimal, fast test suite that guards against major bugs.
+demo/demo_1_multi_voltage.py reproduces the paper's simulated
+experiment and is verified both with ground-truth masks and with
+reconstruction plus segmentation.  Tests: 46, about 11 s, guarding
+the pipeline rather than exact accuracy.  Remaining: demo 2 (to be
+specified after the demo 1 walk finishes) and a measured-data (ALS)
+demo; see demos.md.
 
-## 6. Modernize the packaging
+## 6. Modernize the packaging — mostly DONE
 
-- Move to pyproject.toml with a single source for the version number.
-- Add CI and keep readthedocs working.
-
-## Order of work
-
-Step 1 is done except for pushing the tag.  Step 2 is a design
-discussion with Charlie, and no code is written until he approves it.
-Steps 3 through 6 follow.
-
-## Decisions to discuss
-
-- Keep the package name xcal, or rename it.
-- Which use cases the simple path must cover: multi-voltage scans,
-  multi-filter scans, or both.
-- Whether spekpy becomes a required dependency or an optional one.
-- What happens to the dictionary-based method and the ALS demo.
+pyproject.toml with the version in one place (xcal/__init__.py);
+spekpy and docs/test extras are optional dependencies.  Remaining:
+CI and the readthedocs cutover.
