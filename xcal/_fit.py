@@ -160,8 +160,17 @@ class FitProblem:
                  stop_threshold):
         theta_s = _make_bounded(self.source_param
                                 if self.source_param is not None else 0.0)
-        filter_ts = [_make_bounded(f['thickness']) for f in self.filters]
-        detector_t = _make_bounded(self.detector['thickness'])
+        # A thickness given as a list holds one spec per material
+        # candidate; the combination picks which one applies.
+        filter_ts = [
+            _make_bounded(f['thickness'][combo[i]]
+                          if isinstance(f['thickness'], list)
+                          else f['thickness'])
+            for i, f in enumerate(self.filters)]
+        det_spec = self.detector['thickness']
+        detector_t = _make_bounded(det_spec[combo[-1]]
+                                   if isinstance(det_spec, list)
+                                   else det_spec)
         params = (theta_s.parameters()
                   + [p for t in filter_ts for p in t.parameters()]
                   + detector_t.parameters())

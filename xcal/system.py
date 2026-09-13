@@ -168,8 +168,24 @@ class Filter:
         self.materials = _resolve_candidates(material, self._kind, density,
                                              context=type(self).__name__)
         if thickness is None:
-            thickness = _default_thickness_estimate(self._kind,
-                                                    self.materials)
+            # With thickness omitted, each candidate material gets its
+            # own catalog range (copper's sensible range is not
+            # aluminum's); self.thickness keeps the envelope for
+            # display.  Candidates without a catalog range use the
+            # envelope.
+            envelope = _default_thickness_estimate(self._kind,
+                                                   self.materials)
+            per = []
+            for m in self.materials:
+                try:
+                    per.append(_default_thickness_estimate(self._kind,
+                                                           [m]))
+                except ValueError:
+                    per.append(envelope)
+            self.thickness_per_candidate = per
+            thickness = envelope
+        else:
+            self.thickness_per_candidate = None
         self.thickness = _check_scalar_or_estimate(thickness, 'thickness')
         self.name = name
 

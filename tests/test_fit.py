@@ -137,3 +137,52 @@ def test_multi_filtration_joint_fit():
     assert sol['filter_thicknesses'][0] == pytest.approx(2.0, abs=0.4)
     assert sol['filter_thicknesses'][1] == pytest.approx(8.0, abs=0.8)
     assert sol['detector_thickness'] == pytest.approx(0.05, abs=0.03)
+
+
+def test_per_candidate_thickness_bounds():
+    """A thickness list gives each material candidate its own bounds:
+    the copper candidate is capped at 1 mm even though aluminum may
+    range to 10 mm."""
+    import xcal
+    energies = _physics.default_energy_grid(80)
+    al = _materials.resolve('Al', 'filter')
+    cu = _materials.resolve('Cu', 'filter')
+    csi = _materials.resolve('CsI', 'scintillator')
+    ti = _materials.resolve('Ti', 'rod')
+    src = np.ones_like(energies)
+    gt = (src * _physics.filter_transmission(al, 6.0, energies)
+          * _physics.scintillator_response(csi, 0.2, energies))
+    gt_n = gt / np.trapezoid(gt, energies)
+    mu = _physics.attenuation_coefficients(ti, energies)
+    A = np.exp(-np.outer(np.linspace(0.1, 1.0, 100), mu))
+    y = np.trapezoid(A * gt_n, energies, axis=-1)
+
+    problem = _fit.FitProblem(
+        energies,
+        scans=[{'A': A, 'y': y, 'w': 1.0 / y,
+                'filter_indices': [0], 'source': ('fixed', src)}],
+        source_param=None,
+        filters=[{'mu_candidates':
+                  [_physics.attenuation_coefficients(al, energies),
+                   _physics.attenuation_coefficients(cu, energies)],
+                  'thickness': [xcal.estimate(0, 10),
+                                xcal.estimate(0, 1)]}],
+        detector={'curve_candidates':
+                  [_physics.scintillator_curves(csi, energies)],
+                  'thickness': 0.2})
+    sol = problem.solve(verbose=0)
+    assert sol['combo'][0] == 0
+    assert sol['filter_thicknesses'][0] == pytest.approx(6.0, abs=0.5)
+    # The copper attempt stayed within its own bounds.
+    cu_cost = dict((c, cost) for c, cost in sol['all'])[(1, 0)]
+    assert np.isfinite(cu_cost)
+
+
+def test_omitted_thickness_uses_per_candidate_catalog_ranges():
+    import xcal
+    f = xcal.Filter()      # everything omitted
+    assert f.thickness_per_candidate is not None
+    ranges = {m.name: (t.low, t.high)
+              for m, t in zip(f.materials, f.thickness_per_candidate)}
+    assert ranges['Cu'] == (0.0, 1.0)
+    assert ranges['Al'] == (0.0, 10.0)

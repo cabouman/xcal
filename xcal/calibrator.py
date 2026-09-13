@@ -306,13 +306,17 @@ class Calibrator:
         fit_filters = [{
             'mu_candidates': [_physics.attenuation_coefficients(m, energies)
                               for m in f.materials],
-            'thickness': f.thickness,
+            'thickness': (f.thickness_per_candidate
+                          if f.thickness_per_candidate is not None
+                          else f.thickness),
         } for f in filters]
         detector = self.system.detector
         fit_detector = {
             'curve_candidates': [_physics.scintillator_curves(m, energies)
                                  for m in detector.materials],
-            'thickness': detector.thickness,
+            'thickness': (detector.thickness_per_candidate
+                          if detector.thickness_per_candidate is not None
+                          else detector.thickness),
         }
 
         from . import _fit
