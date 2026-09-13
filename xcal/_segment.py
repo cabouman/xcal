@@ -1,12 +1,12 @@
-"""Internal rod segmentation.
+"""Internal target segmentation.
 
 The approach is Wenrui Li's from xcal 1 (phantom.py at tag v0.1.0),
 with the hand-chosen constants replaced by values derived from the
-declared rod diameters and the data:
+declared target diameters and the data:
 
-1. Find the rod circles with the Hough transform.
-2. Match circles to the declared rods by attenuation and diameter.
-3. Segment each rod's ACTUAL shape inside its own window: clip the
+1. Find the target circles with the Hough transform.
+2. Match circles to the declared targets by attenuation and diameter.
+3. Segment each target's ACTUAL shape inside its own window: clip the
    window to an automatically chosen value range, run Canny edge
    detection, and fill the closed edges (Wenrui's segment_object).
    The clip range comes from Otsu's threshold inside the window.
@@ -46,7 +46,7 @@ def _otsu(values):
 
 def _detect_circles(image, radius_range, min_dist):
     """Wenrui's Hough circle detection, with the value range chosen
-    automatically: the split between background and rods comes from
+    automatically: the split between background and targets comes from
     Otsu on the whole image, so the normalization does not amplify
     background noise.  Returns an array of (x, y, radius) or None."""
     import cv2
@@ -69,7 +69,7 @@ def _detect_circles(image, radius_range, min_dist):
 
 
 def _segment_window(image, center, half_width, canny_sigma):
-    """Wenrui's segment_object on one rod's window: clip to an Otsu
+    """Wenrui's segment_object on one target's window: clip to an Otsu
     derived range, Canny, fill.  Returns a full-size boolean mask of
     the component containing the center."""
     from skimage.feature import canny
@@ -80,7 +80,7 @@ def _segment_window(image, center, half_width, canny_sigma):
     window = image[r0:r1, c0:c1]
 
     # The clip range for edge detection: between the window's two
-    # populations (background and rod), found by Otsu.
+    # populations (background and target), found by Otsu.
     t = _otsu(window.ravel())
     background = window[window < t]
     foreground = window[window >= t]
@@ -107,22 +107,22 @@ def _segment_window(image, center, half_width, canny_sigma):
     return mask
 
 
-def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
-    """Segment the rods in a reconstruction.
+def segment_targets(recon, targets, mm_per_voxel, energies, verbose=1):
+    """Segment the targets in a reconstruction.
 
     Args:
         recon (numpy.ndarray): Volume with shape (rows, cols, slices),
             in 1/mm.
-        rods (list of Rod): The rods expected in this scan.
+        targets (list of Target): The targets expected in this scan.
         mm_per_voxel (float): Voxel size in mm.
         energies (numpy.ndarray): Fit energy grid in keV, used to rank
-            the rods by expected attenuation for matching.
+            the targets by expected attenuation for matching.
         verbose (int): 1 prints what was found.
 
     Returns:
         tuple: (labels, masks).  labels is a uint8 volume, 0 for
-        background and k+1 for the k-th rod.  masks is a list of
-        float32 volumes holding each rod's measured shape.
+        background and k+1 for the k-th target.  masks is a list of
+        float32 volumes holding each target's measured shape.
     """
     from . import _physics
     rows, cols, n_slices = recon.shape
@@ -133,18 +133,18 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
     image = np.nanmean(recon[:, :, lo:hi], axis=2)
     image = np.nan_to_num(image, nan=0.0, posinf=0.0, neginf=0.0)
 
-    radii_vox = [0.5 * r.diameter / mm_per_voxel for r in rods]
+    radii_vox = [0.5 * r.size / mm_per_voxel for r in targets]
     if min(radii_vox) < 3:
         raise ValueError(
-            f"the smallest rod is only {min(radii_vox):.1f} voxels in "
+            f"the smallest target is only {min(radii_vox):.1f} voxels in "
             f"radius at {mm_per_voxel:.4g} mm per voxel; the "
             f"reconstruction is too coarse to segment it.")
 
-    # Step 1: find the rod circles.  Rods can differ in brightness by
+    # Step 1: find the target circles.  Rods can differ in brightness by
     # more than a factor of ten, and one normalization cannot show
     # them all to the detector at once.  So detection repeats: find
     # circles, blank them to the background level, renormalize the
-    # remainder, and detect again, until every declared rod has a
+    # remainder, and detect again, until every declared target has a
     # circle or a round finds nothing new.
     radius_range = (0.6 * min(radii_vox), 1.5 * max(radii_vox))
     min_dist = max(2.0 * min(radii_vox), 8)
@@ -152,10 +152,10 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
     yy, xx = np.ogrid[:rows, :cols]
     circles = []
     # The background noise level, measured robustly, guards the later
-    # rounds: once every rod is blanked, only noise remains, and no
+    # rounds: once every target is blanked, only noise remains, and no
     # candidate circle may pass the contrast test.
     noise = 1.4826 * np.median(np.abs(image - np.median(image)))
-    for _ in range(len(rods)):
+    for _ in range(len(targets)):
         found = _detect_circles(remaining, radius_range, min_dist)
         if found is None or len(found) == 0:
             break
@@ -178,10 +178,10 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
         if not accepted:
             break
     # The Hough transform is unreliable for circles larger than about
-    # a quarter of the image, so any rods still missing are located
+    # a quarter of the image, so any targets still missing are located
     # by a matched filter: the peak of the image convolved with a
     # disk of the declared radius, under the same contrast test.
-    while len(circles) < len(rods):
+    while len(circles) < len(targets):
         r_vox = max(radii_vox)
         r_k = max(int(round(min(r_vox, 0.2 * min(rows, cols)))), 3)
         y_k, x_k = np.ogrid[-r_k:r_k + 1, -r_k:r_k + 1]
@@ -198,17 +198,17 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
         circles.append((x, y, r_vox))
         remaining[(yy - y) ** 2 + (xx - x) ** 2
                   <= (1.3 * r_vox) ** 2] = background_level
-    if len(circles) < len(rods):
+    if len(circles) < len(targets):
         raise ValueError(
             f"Segmentation failed: circle detection found "
-            f"{len(circles)} circle(s) but {len(rods)} rod(s) were "
+            f"{len(circles)} circle(s) but {len(targets)} target(s) were "
             f"declared, with radii searched between "
             f"{radius_range[0]:.0f} and {radius_range[1]:.0f} voxels.  "
             f"Check the declared diameters and the voxel size "
             f"({mm_per_voxel:.4g} mm/voxel).")
-    circles = np.array(circles[:max(len(rods) * 2, len(rods))])
+    circles = np.array(circles[:max(len(targets) * 2, len(targets))])
 
-    # Step 2: match circles to rods by attenuation and diameter.
+    # Step 2: match circles to targets by attenuation and diameter.
     # Both sides are normalized by their geometric means, because the
     # measured effective attenuation differs from the expected value
     # by a common spectrum-dependent scale.
@@ -224,23 +224,23 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
                     & (energies <= energies[(2 * len(energies)) // 3])]
     expected_mu = np.array([float(np.mean(
         _physics.attenuation_coefficients(r.material, band)))
-        for r in rods])
+        for r in targets])
     m_rel = np.log(measured_mu) - np.mean(np.log(measured_mu))
     e_rel = np.log(expected_mu) - np.mean(np.log(expected_mu))
-    cost = np.zeros((len(rods), len(circles)))
-    for i, rod in enumerate(rods):
+    cost = np.zeros((len(targets), len(circles)))
+    for i, target in enumerate(targets):
         for j in range(len(circles)):
             cost[i, j] = (abs(m_rel[j] - e_rel[i])
                           + 3.0 * abs(np.log(measured_diam[j]
-                                             / rod.diameter)))
+                                             / target.size)))
     from scipy.optimize import linear_sum_assignment
-    rod_idx, circle_idx = linear_sum_assignment(cost)
+    target_idx, circle_idx = linear_sum_assignment(cost)
 
-    # Step 3: segment each rod's actual shape in its own window.
+    # Step 3: segment each target's actual shape in its own window.
     labels3d = np.zeros(recon.shape, dtype=np.uint8)
-    masks = [None] * len(rods)
-    for i, j in zip(rod_idx, circle_idx):
-        rod = rods[i]
+    masks = [None] * len(targets)
+    for i, j in zip(target_idx, circle_idx):
+        target = targets[i]
         x, y, r_hough = circles[j]
         half_width = int(round(1.8 * max(r_hough, radii_vox[i])))
         sigma = max(2.0, radii_vox[i] / 50.0)
@@ -248,17 +248,17 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
         if shape2d is None or not shape2d.any():
             raise ValueError(
                 f"Segmentation failed: no closed shape was found for "
-                f"the {rod.material.name} rod near "
+                f"the {target.material.name} target near "
                 f"(row {y:.0f}, column {x:.0f}).")
 
         # Step 4: validate the measured shape against the declaration.
         diam = 2 * mm_per_voxel * np.sqrt(shape2d.sum() / np.pi)
-        if not 0.6 * rod.diameter <= diam <= 1.6 * rod.diameter:
+        if not 0.6 * target.size <= diam <= 1.6 * target.size:
             raise ValueError(
                 f"Segmentation failed: the shape matched to the "
-                f"{rod.material.name} rod measures {diam:.3g} mm "
+                f"{target.material.name} target measures {diam:.3g} mm "
                 f"across, but the declared diameter is "
-                f"{rod.diameter:.3g} mm.  Check the declared diameters "
+                f"{target.size:.3g} mm.  Check the declared diameters "
                 f"and the voxel size ({mm_per_voxel:.4g} mm/voxel).")
 
         mask = np.zeros(recon.shape, dtype=np.float32)
@@ -266,11 +266,11 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
         masks[i] = mask
         labels3d[shape2d, lo:hi] = i + 1
         if verbose:
-            print(f"xcal:   {rod.material.name} rod: measured "
-                  f"{diam:.3g} mm (declared {rod.diameter:.3g}), mean "
+            print(f"xcal:   {target.material.name} target: measured "
+                  f"{diam:.3g} mm (declared {target.size:.3g}), mean "
                   f"LAC {measured_mu[j]:.4g} 1/mm")
 
-    # Any rod outside the projector's circular region of
+    # Any target outside the projector's circular region of
     # reconstruction would be silently truncated by the forward
     # projection.
     ror = ((yy - (rows - 1) / 2) ** 2 / ((rows / 2 - 1) ** 2)
@@ -278,7 +278,7 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
     outside = (labels3d[:, :, (lo + hi) // 2] > 0) & ~ror
     if outside.any():
         raise ValueError(
-            "Segmentation failed: a rod extends outside the circular "
+            "Segmentation failed: a target extends outside the circular "
             "region of reconstruction, so its forward projection would "
             "be silently truncated.  Enlarge the reconstruction with "
             "ct_model.scale_recon_shape(...) and recalibrate.")

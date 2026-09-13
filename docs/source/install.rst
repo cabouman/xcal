@@ -36,6 +36,6 @@ known ground truth, run:
 
    python demo/demo_simulated_multi_voltage.py
 
-It simulates three scans of a rod target at different voltages,
+It simulates three scans of a calibration target set at different voltages,
 calibrates, and compares the estimated spectrum to the truth.  It
 takes about two minutes on a laptop CPU.

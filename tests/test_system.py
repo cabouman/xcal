@@ -14,10 +14,10 @@ def test_estimate_validation():
 
 
 def test_rod_validation():
-    rod = xcal.Rod(material='Ti', diameter=1.0)
+    rod = xcal.Target(material='Ti', size=1.0)
     assert rod.material.name == 'Ti'
     with pytest.raises(ValueError, match='positive'):
-        xcal.Rod(material='Ti', diameter=0)
+        xcal.Target(material='Ti', size=0)
 
 
 def test_filter_defaults_come_from_catalog():

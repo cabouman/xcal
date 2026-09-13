@@ -23,7 +23,7 @@ physical components:
 Each component has a small number of physical parameters, such as the
 takeoff angle, the filter material and thickness, and the scintillator
 material and thickness.  xcal estimates these parameters by fitting the
-measured transmission of the rods across all scans jointly.  Material
+measured transmission of the targets across all scans jointly.  Material
 choices are found by exhaustive search over candidates; continuous
 parameters are fit by gradient descent in PyTorch.
 

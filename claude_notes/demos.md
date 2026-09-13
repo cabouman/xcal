@@ -6,40 +6,42 @@ implemented and debugged as its own step.
 
 ## Demo 1: multi-voltage (demo_simulated_multi_voltage.py)
 
-A laboratory scanner with a reflection tube scans four rods at three
-voltages.  This is the most important demo: the common laboratory
-case, the paper's headline experiment, and the quick start example.
+Follows the simulated experiment of the paper (Table 2).  A
+reflection tube scans four rods at three voltages.  This is the most
+important demo and the quick start example.
 
-Ground truth to recover:
-- Source: reflection tube, tungsten anode, takeoff angle 13 degrees.
-- Filter: Al, 3.0 mm.
-- Scintillator: CsI, 0.33 mm.
+Ground truth to recover (fixed, inside the paper's ranges):
+- Source: reflection tube, tungsten anode, takeoff angle 20 degrees.
+- Filter: Al, 5.0 mm.
+- Scintillator: CsI, 0.25 mm.
 
 Scans:
-- Voltages 80, 130, 180 kV; one scan each.
+- Voltages 50, 100, 150 kV; one full scan each.
+- 360 views over 180 degrees (the paper used 15 measurement views;
+  a real user takes a full scan, and the fit uses a small subset).
+- One detector row, 1024 channels, 0.005 mm pixels.
 - 40,000 air photons per detector element, Poisson noise.
 
-Rods (all in every scan):
-- V 0.5 mm, Ti 0.5 mm, Al 1.0 mm, Mg 1.0 mm diameter.
-- Placed automatically on a circle inside the field of view.
+Calibration targets (all in every scan): cylinders of V, Ti, Al,
+Mg, each 1.0 mm diameter, placed on a circle inside the field of
+view.
 
-Geometry:
-- Parallel beam, 96 views over 180 degrees.
-- 4 detector rows, 384 channels, 0.025 mm pixels.
-- Reconstruction grid 385 x 385, 0.025 mm voxels, so the rod radii
-  are 10 to 20 voxels.
+Target masks (the third calibration input), two modes:
+- Ground truth masks (default): the ideal masks the simulation used.
+  Tests the fit alone, as the paper's simulated study did.
+- Segmented masks: reconstruct each scan and segment the rods.
+  Tests the whole measurement pipeline.
 
-Estimated by the calibration:
-- Takeoff angle, bounds 5 to 45 degrees.
-- Filter material from {Al, Cu}, thickness bounds 0 to 10 mm.
-- Scintillator material from the 7 catalog candidates, thickness
-  bounds 0.001 to 0.5 mm.
-- 2 x 7 = 14 material combinations searched.
+Estimated by the calibration (bounds from the catalog):
+- Takeoff angle, 5 to 45 degrees.
+- Filter material from {Al, Cu}; thickness Al 0 to 10 mm,
+  Cu 0 to 1 mm.
+- Scintillator from the 7 catalog candidates, 0.001 to 0.5 mm.
+- 14 material combinations searched.
 
-Fit settings:
-- Energy grid 1.5 to 179.5 keV in 1 keV bins.
-- Weights 1/transmission; Adam, rate 0.02, up to 5000 iterations.
+Quality target (paper Table 3, spectrum NRMSE): about 0.0017 at low,
+0.0010 at mid, 0.0008 at high voltage.
 
 ## Demo 2: multi-filtration (demo_simulated_multi_filtration.py)
 
-To be specified next.
+To be specified after demo 1 works.

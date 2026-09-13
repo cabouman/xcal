@@ -18,21 +18,21 @@ def _make_result():
     system = xcal.System(
         source=xcal.ReflectionSource(takeoff_angle=xcal.estimate(5, 45)),
         filters=[f1], detector=det)
-    rods = [xcal.Rod('Ti', 1.0)]
-    cal = xcal.Calibrator(system, rods)
-    cal.scans = [{'voltage': 80.0, 'filters': [f1], 'rods': rods,
+    targets = [xcal.Target('Ti', 1.0)]
+    cal = xcal.Calibrator(system, targets)
+    cal.scans = [{'voltage': 80.0, 'filters': [f1], 'targets': targets,
                   'weights': None}]
     energies = _physics.default_energy_grid(80)
     solution = {'combo': (0, 0), 'cost': 1e-5, 'source_value': 13.0,
                 'filter_thicknesses': [3.0], 'detector_thickness': 0.33,
                 'iterations': 100, 'all': [((0, 0), 1e-5)]}
-    mu = _physics.attenuation_coefficients(rods[0].material, energies)
+    mu = _physics.attenuation_coefficients(targets[0].material, energies)
     A = np.exp(-np.outer(np.linspace(0.1, 1, 20), mu))
     fit_scans = [{'A': A, 'y': np.linspace(0.2, 0.9, 20),
                   'w': np.ones(20), 'filter_indices': [0],
                   'source': ('fixed', np.ones_like(energies))}]
     return CalibrationResult(cal, energies, solution, [None], [None],
-                             [None], [None], fit_scans)
+                             fit_scans)
 
 
 def test_save_load_round_trip():
@@ -55,8 +55,6 @@ def test_save_load_round_trip():
         y, pred = loaded.transmission_fit(0)
         assert y.shape == pred.shape == (20,)
 
-        with pytest.raises(ValueError, match='not stored'):
-            loaded.reconstruction(0)
     finally:
         if os.path.exists(path):
             os.unlink(path)

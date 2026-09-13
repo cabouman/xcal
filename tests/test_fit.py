@@ -18,7 +18,7 @@ def test_fit_recovers_material_and_thickness():
     cu = _materials.resolve('Cu', 'filter')
     csi = _materials.resolve('CsI', 'scintillator')
     gos = _materials.resolve('GOS', 'scintillator')
-    ti = _materials.resolve('Ti', 'rod')
+    ti = _materials.resolve('Ti', 'target')
 
     # Ground truth: Al 2 mm filter, CsI 0.3 mm detector, flat source.
     src = np.exp(-0.5 * ((energies - 45) / 18) ** 2)
@@ -69,7 +69,7 @@ def test_fixed_parameters_are_not_optimized():
     gt = (src * _physics.filter_transmission(al, 1.0, energies)
           * _physics.scintillator_response(csi, 0.2, energies))
     gt_n = gt / np.trapezoid(gt, energies)
-    ti = _materials.resolve('Ti', 'rod')
+    ti = _materials.resolve('Ti', 'target')
     mu = _physics.attenuation_coefficients(ti, energies)
     paths = np.linspace(0.1, 1.0, 50)
     A = np.exp(-np.outer(paths, mu))
@@ -99,7 +99,7 @@ def test_multi_filtration_joint_fit():
     si = _materials.resolve('Si', 'filter')
     al = _materials.resolve('Al', 'filter')
     lu = _materials.resolve('LuAG', 'scintillator')
-    ti = _materials.resolve('Ti', 'rod')
+    ti = _materials.resolve('Ti', 'target')
 
     src = np.exp(-0.5 * ((energies - 40) / 15) ** 2)
     det_resp = _physics.scintillator_response(lu, 0.05, energies)
@@ -148,7 +148,7 @@ def test_per_candidate_thickness_bounds():
     al = _materials.resolve('Al', 'filter')
     cu = _materials.resolve('Cu', 'filter')
     csi = _materials.resolve('CsI', 'scintillator')
-    ti = _materials.resolve('Ti', 'rod')
+    ti = _materials.resolve('Ti', 'target')
     src = np.ones_like(energies)
     gt = (src * _physics.filter_transmission(al, 6.0, energies)
           * _physics.scintillator_response(csi, 0.2, energies))

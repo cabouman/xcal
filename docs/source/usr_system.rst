@@ -9,7 +9,7 @@ what xcal should figure out.
 
 This page has two parts.  The first part explains the notation: how
 to write a fact so that xcal knows whether it is known or unknown.
-The remaining parts describe each object you create: the rods, the
+The remaining parts describe each object you create: the targets, the
 source, the filters, the detector, and the
 :class:`~xcal.System` that collects them.
 
@@ -45,20 +45,21 @@ object is ``xcal.estimate``, the marker for form 2:
 The calibration object
 ----------------------
 
-Each rod is a homogeneous cylinder of a known material.  You state
-the material and the nominal diameter; xcal measures the actual
-shape from the reconstruction, so the diameter only guides the
-segmentation.
+Each calibration target is a homogeneous object of one known
+material; its shape can be anything regular, and the shape lives in
+the target's mask, not in this class.  You state the material and an
+approximate size; xcal measures the actual shape, so the size only
+guides the segmentation.
 
 .. code-block:: python
 
-    rods = [
-        xcal.Rod(material='Ti', diameter=1.0),   # mm
-        xcal.Rod(material='Al', diameter=0.5),
-        xcal.Rod(material='Mg', diameter=0.5),
+    targets = [
+        xcal.Target(material='Ti', size=1.0),   # mm
+        xcal.Target(material='Al', size=0.5),
+        xcal.Target(material='Mg', size=0.5),
     ]
 
-.. autoclass:: xcal.Rod
+.. autoclass:: xcal.Target
 
 The source
 ----------

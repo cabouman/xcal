@@ -1,8 +1,8 @@
 """Classes that describe the X-ray system and the calibration object.
 
 A user builds a :class:`System` from a source, a list of filters, and a
-detector, and describes the calibration object as a list of :class:`Rod`
-objects.  Every physical fact is stated in one of three forms:
+detector, and describes the calibration object as a list of
+:class:`Target` objects.  Every physical fact is stated in one of three forms:
 
 * a plain value means the fact is known and fixed,
 * :class:`estimate` means xcal estimates it within bounds,
@@ -17,7 +17,7 @@ import numpy as np
 from . import catalog
 from . import _materials
 
-__all__ = ['estimate', 'Rod', 'Filter', 'Scintillator', 'ReflectionSource',
+__all__ = ['estimate', 'Target', 'Filter', 'Scintillator', 'ReflectionSource',
            'TransmissionSource', 'SynchrotronSource', 'System']
 
 
@@ -112,32 +112,36 @@ def _default_thickness_estimate(kind, materials):
     return estimate(min(lows), max(highs))
 
 
-class Rod:
-    """One homogeneous rod in the calibration object.
+class Target:
+    """One calibration target: a homogeneous object of one material.
+
+    The calibration assumes only that the target is made of a single
+    known material.  Its shape is whatever its mask says; the shape
+    is measured by segmentation or, in simulation, built by a mask
+    builder such as :func:`~xcal.cylinder_masks`.
 
     Args:
-        material (str): The rod material: a catalog name or any
+        material (str): The target material: a catalog name or any
             chemical formula of elements 1 through 92, e.g. 'Ti'.
-        diameter (float): Rod diameter in mm, a manufactured dimension
-            the user knows.  The segmentation locates each rod,
-            validates this diameter against the reconstruction, and
-            uses it for the path length masks.
+        size (float): Approximate width of the target in mm.  Used
+            only to scale the segmentation search and validate its
+            result.
         density (float, optional): Density in g/cm^3.  Required only for
             compound formulas whose density is not in the catalog.
     """
 
-    def __init__(self, material, diameter, density=None):
-        self.material = _materials.resolve(material, 'rod', density,
-                                           context='Rod')
-        diameter = float(diameter)
-        if diameter <= 0:
-            raise ValueError(f"Rod diameter must be positive mm, got "
-                             f"{diameter}.")
-        self.diameter = diameter
+    def __init__(self, material, size, density=None):
+        self.material = _materials.resolve(material, 'target', density,
+                                           context='Target')
+        size = float(size)
+        if size <= 0:
+            raise ValueError(f"Target size must be positive mm, got "
+                             f"{size}.")
+        self.size = size
 
     def __repr__(self):
-        return (f"Rod(material='{self.material.name}', "
-                f"diameter={self.diameter})")
+        return (f"Target(material='{self.material.name}', "
+                f"size={self.size})")
 
 
 class Filter:

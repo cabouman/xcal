@@ -32,7 +32,7 @@ def test_calibrate_pipeline_recovers_thicknesses():
         filters=[xcal.Filter('Al', thickness=3.0)],
         detector=xcal.Scintillator('CsI', thickness=0.33),
     )
-    rods = [xcal.Rod('Ti', 1.0)]
+    targets = [xcal.Target('Ti', 1.0)]
     voltages = [60.0, 120.0]
 
     system = xcal.System(
@@ -41,13 +41,15 @@ def test_calibrate_pipeline_recovers_thicknesses():
         detector=xcal.Scintillator('CsI',
                                    thickness=xcal.estimate(0.01, 0.5)),
     )
-    cal = xcal.Calibrator(system, rods)
+    cal = xcal.Calibrator(system, targets)
+    centers = [(-0.15, 0.12)]
     for i, voltage in enumerate(voltages):
         model = _make_model()
-        sino = xcal.simulate_scan(truth, rods, model, voltage=voltage,
-                                  rod_centers=[(-0.15, 0.12)],
+        masks = xcal.cylinder_masks(targets, model, centers=centers)
+        sino = xcal.simulate_scan(truth, targets, model, voltage=voltage,
+                                  target_masks=masks,
                                   photons=100000, seed=5 + i)
-        cal.add_scan(sino, model, voltage=voltage)
+        cal.add_scan(sino, model, masks, voltage=voltage)
     result = cal.calibrate(verbose=0)
 
     # Wide tolerances: measured-shape segmentation carries a known

@@ -17,7 +17,7 @@ __all__ = ['list_materials', 'add_materials']
 
 _KIND_KEYS = {
     'filter': 'filter_materials',
-    'rod': 'rod_materials',
+    'target': 'target_materials',
     'scintillator': 'scintillator_materials',
 }
 
@@ -53,7 +53,7 @@ def list_materials(kind=None):
     """List the materials in the catalog.
 
     Args:
-        kind (str, optional): 'filter', 'rod', or 'scintillator' to
+        kind (str, optional): 'filter', 'target', or 'scintillator' to
             list one component type; None lists all.
 
     Returns:

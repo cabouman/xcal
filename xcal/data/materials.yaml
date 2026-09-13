@@ -15,11 +15,11 @@ filter_materials:
   - {name: Cu, formula: Cu, density: 8.92,  thickness_range: [0, 1]}
   - {name: Si, formula: Si, density: 2.329, thickness_range: [0, 5]}
 
-rod_materials:
-  - {name: V,  formula: V,  density: 6.11, diameter_range: [0.1, 5]}
-  - {name: Ti, formula: Ti, density: 4.507, diameter_range: [0.1, 5]}
-  - {name: Al, formula: Al, density: 2.702, diameter_range: [0.1, 5]}
-  - {name: Mg, formula: Mg, density: 1.738, diameter_range: [0.1, 5]}
+target_materials:
+  - {name: V,  formula: V,  density: 6.11, size_range: [0.1, 5]}
+  - {name: Ti, formula: Ti, density: 4.507, size_range: [0.1, 5]}
+  - {name: Al, formula: Al, density: 2.702, size_range: [0.1, 5]}
+  - {name: Mg, formula: Mg, density: 1.738, size_range: [0.1, 5]}
 
 scintillator_materials:
   - {name: CsI,    formula: CsI,          density: 4.51, thickness_range: [0.001, 0.5]}

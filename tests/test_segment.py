@@ -4,7 +4,7 @@ import pytest
 
 import xcal
 from xcal import _segment, _physics
-from xcal.simulate import _antialiased_disk
+from xcal.segment import _antialiased_disk
 
 
 def _make_volume(rows, cols, slices, rods_at, mm):
@@ -25,8 +25,8 @@ def test_two_rods_found_matched_and_shaped():
     vol = _make_volume(rows, cols, 4, rods_at, mm)
     vol += 0.003 * np.random.default_rng(0).standard_normal(vol.shape)
 
-    rods = [xcal.Rod('V', 0.5), xcal.Rod('Mg', 1.0)]
-    labels, masks = _segment.segment_rods(vol, rods, mm, energies,
+    targets = [xcal.Target('V', 0.5), xcal.Target('Mg', 1.0)]
+    labels, masks = _segment.segment_targets(vol, targets, mm, energies,
                                           verbose=0)
     assert labels.max() == 2
     ys, xs = np.where(labels[:, :, 2] == 1)
@@ -49,8 +49,8 @@ def test_actual_shape_is_captured_not_idealized():
     vol = np.zeros((rows, cols, 4))
     vol[:, :, :] = 0.3 * shape[:, :, None]
 
-    rods = [xcal.Rod('Al', 1.0)]
-    labels, masks = _segment.segment_rods(vol, rods, mm, energies,
+    targets = [xcal.Target('Al', 1.0)]
+    labels, masks = _segment.segment_targets(vol, targets, mm, energies,
                                           verbose=0)
     mask = masks[0][:, :, 2] > 0.5
     # The dent region is outside the mask.
@@ -63,14 +63,14 @@ def test_wrong_declared_diameter_raises():
     mm = 0.02
     energies = _physics.default_energy_grid(100)
     vol = _make_volume(192, 192, 4, [(96.0, 96.0, 0.25, 0.5)], mm)
-    rods = [xcal.Rod('Ti', 2.0)]     # declared 2 mm, actual 0.5 mm
+    targets = [xcal.Target('Ti', 2.0)]     # declared 2 mm, actual 0.5 mm
     with pytest.raises(ValueError, match='[Ss]egmentation failed'):
-        _segment.segment_rods(vol, rods, mm, energies, verbose=0)
+        _segment.segment_targets(vol, targets, mm, energies, verbose=0)
 
 
 def test_too_coarse_grid_raises():
     energies = _physics.default_energy_grid(100)
     vol = np.zeros((32, 32, 2))
-    rods = [xcal.Rod('Ti', 0.1)]
+    targets = [xcal.Target('Ti', 0.1)]
     with pytest.raises(ValueError, match='coarse'):
-        _segment.segment_rods(vol, rods, 0.1, energies, verbose=0)
+        _segment.segment_targets(vol, targets, 0.1, energies, verbose=0)

@@ -9,16 +9,18 @@ and detector parameters across all scans.
 
 __version__ = '2.0.0.dev0'
 
-from .system import (estimate, Rod, Filter, Scintillator,
+from .system import (estimate, Target, Filter, Scintillator,
                      ReflectionSource, TransmissionSource,
                      SynchrotronSource, System)
 from .calibrator import Calibrator, CalibrationResult
 from .catalog import list_materials, add_materials
 from .simulate import simulate_scan
+from .segment import segment_targets, cylinder_masks
 
 __all__ = [
-    'estimate', 'Rod', 'Filter', 'Scintillator',
+    'estimate', 'Target', 'Filter', 'Scintillator',
     'ReflectionSource', 'TransmissionSource', 'SynchrotronSource',
     'System', 'Calibrator', 'CalibrationResult',
     'list_materials', 'add_materials', 'simulate_scan',
+    'segment_targets', 'cylinder_masks',
 ]

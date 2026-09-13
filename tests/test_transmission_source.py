@@ -47,7 +47,7 @@ def test_fit_recovers_target_thickness():
           * _physics.scintillator_response(csi, 0.3, energies))
     gt_n = gt / np.trapezoid(gt, energies)
 
-    ti = _materials.resolve('Ti', 'rod')
+    ti = _materials.resolve('Ti', 'target')
     mu = _physics.attenuation_coefficients(ti, energies)
     paths = np.linspace(0.05, 1.5, 300)
     A = np.exp(-np.outer(paths, mu))

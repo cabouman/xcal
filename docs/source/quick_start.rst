@@ -22,10 +22,10 @@ xcal never touches scanner formats.
     sino_150, model_150 = mtp.zeiss.get_sino_and_model('scan_150kV.txrm')
 
     # The calibration object: rods of known materials.
-    rods = [
-        xcal.Rod(material='Ti', diameter=1.0),   # mm
-        xcal.Rod(material='Al', diameter=0.5),
-        xcal.Rod(material='Mg', diameter=0.5),
+    targets = [
+        xcal.Target(material='Ti', size=1.0),   # mm
+        xcal.Target(material='Al', diameter=0.5),
+        xcal.Target(material='Mg', diameter=0.5),
     ]
 
     # The system description.  A plain value is known; xcal.estimate
@@ -41,15 +41,19 @@ xcal never touches scanner formats.
             thickness=xcal.estimate(0.001, 0.5)),               # mm
     )
 
-    # Add the scans and calibrate.
+    # Reconstruct each scan and segment the targets.  Look at the
+    # masks before calibrating.
     cal = xcal.Calibrator(system, rods)
-    cal.add_scan(sino_40,  model_40,  voltage=40)    # kV
-    cal.add_scan(sino_80,  model_80,  voltage=80)
-    cal.add_scan(sino_150, model_150, voltage=150)
+    for sino, model, kv in [(sino_40, model_40, 40),
+                            (sino_80, model_80, 80),
+                            (sino_150, model_150, 150)]:
+        recon, _ = model.recon(sino)
+        masks = xcal.segment_targets(recon, targets, model)
+        cal.add_scan(sino, model, masks, voltage=kv)
     result = cal.calibrate()
 
-    # Review: opens the slice viewer on the segmentation, prints the
-    # parameter table, and opens the spectrum and fit plots.
+    # Review: prints the parameter table and plots the spectra and
+    # the transmission fit.
     result.show()
 
     # Save the calibration for later use.

@@ -1,7 +1,7 @@
 """The calibrator and its result.
 
 The :class:`Calibrator` is built from a :class:`~xcal.System` and a list
-of :class:`~xcal.Rod` objects.  Scans are added as (sinogram, model)
+of :class:`~xcal.Target` objects.  Scans are added as (sinogram, model)
 pairs produced by mbirtorch preprocessing, and :meth:`Calibrator.calibrate`
 returns a :class:`CalibrationResult`.
 """
@@ -11,7 +11,8 @@ import numpy as np
 from . import _physics
 from . import _segment
 from .system import (estimate, Filter, Scintillator, ReflectionSource,
-                     TransmissionSource, SynchrotronSource, System)
+                     TransmissionSource, SynchrotronSource, System,
+                     Target)
 
 __all__ = ['Calibrator', 'CalibrationResult']
 
@@ -31,31 +32,39 @@ class Calibrator:
 
     Args:
         system (System): The X-ray system description.
-        rods (list of Rod): The rods in the calibration object.
+        targets (list of Target): The calibration targets.
 
     Example:
-        >>> cal = xcal.Calibrator(system, rods)
-        >>> cal.add_scan(sino, ct_model, voltage=80)
+        >>> recon, _ = ct_model.recon(sino)
+        >>> masks = xcal.segment_targets(recon, targets, ct_model)
+        >>> cal = xcal.Calibrator(system, targets)
+        >>> cal.add_scan(sino, ct_model, masks, voltage=80)
         >>> result = cal.calibrate()
     """
 
-    def __init__(self, system, rods):
+    def __init__(self, system, targets):
         if not isinstance(system, System):
             raise TypeError(f"system must be an xcal.System, got "
                             f"{system!r}.")
-        rods = list(rods)
-        if not rods:
-            raise ValueError("rods must contain at least one Rod.")
+        targets = list(targets)
+        if not targets:
+            raise ValueError("targets must contain at least one "
+                             "Target.")
         self.system = system
-        self.rods = rods
+        self.targets = targets
         self.scans = []
 
-    def add_scan(self, sinogram, ct_model, voltage=None, rods=None,
-                 filters=None, weights=None):
+    def add_scan(self, sinogram, ct_model, target_masks,
+                 voltage=None, targets=None, filters=None,
+                 weights=None):
         """Add one calibration scan.
 
         The sinogram and model are the pair returned by mbirtorch
         preprocessing, for example ``mtp.zeiss.get_sino_and_model(...)``.
+        The target masks come from :func:`~xcal.segment_targets`
+        applied to a reconstruction, or from
+        :func:`~xcal.cylinder_masks` when the target geometry is
+        trusted.
         xcal recovers the transmission internally as exp(-sinogram).
         Two cautions.  Preprocessing corrections such as stripe or
         offset removal carry into the recovered transmission, which is
@@ -73,13 +82,18 @@ class Calibrator:
                 channels).  Non-finite entries are excluded from the
                 fit.
             ct_model (TomographyModel): The mbirtorch geometry model for
-                this scan.  Any supported geometry works; xcal uses only
-                its recon and forward projection methods.
+                this scan.  Any supported geometry works; xcal uses
+                only its forward projection method.
+            target_masks (list of numpy.ndarray): One float32 volume
+                per target of this scan, in target order, values in
+                [0, 1] meaning the fraction of each voxel the target
+                occupies.
             voltage (float, optional): Source voltage for this scan in
                 kV.  Required for tube sources, ignored for synchrotron
                 sources.
-            rods (list of Rod, optional): The rods present in this scan.
-                Defaults to all rods given to the constructor.
+            targets (list of Target, optional): The targets present
+                in this scan.  Defaults to all targets given to the
+                constructor.
             filters (list of Filter, optional): The filters in the beam
                 for this scan.  Defaults to all filters in the system.
             weights (numpy.ndarray, optional): Per-ray fit weights,
@@ -96,12 +110,13 @@ class Calibrator:
             if voltage is None:
                 raise ValueError("voltage is required for tube sources.")
             voltage = float(voltage)
-        scan_rods = list(rods) if rods is not None else list(self.rods)
-        for r in scan_rods:
-            if not any(r is rr for rr in self.rods):
+        scan_targets = (list(targets) if targets is not None
+                        else list(self.targets))
+        for tg in scan_targets:
+            if not any(tg is tt for tt in self.targets):
                 raise ValueError(
-                    f"{r!r} was not in the rods list given to the "
-                    f"Calibrator.")
+                    f"{tg!r} was not in the targets list given to "
+                    f"the Calibrator.")
         scan_filters = (list(filters) if filters is not None
                         else list(self.system.filters))
         for f in scan_filters:
@@ -114,37 +129,53 @@ class Calibrator:
                 raise ValueError(
                     f"weights shape {weights.shape} does not match the "
                     f"sinogram shape {sinogram.shape}.")
+        target_masks = [np.asarray(m, dtype=np.float32)
+                        for m in target_masks]
+        if len(target_masks) != len(scan_targets):
+            raise ValueError(
+                f"target_masks has {len(target_masks)} entries for "
+                f"{len(scan_targets)} targets in this scan.")
+        shape = tuple(ct_model.get_params('recon_shape'))
+        for k, m in enumerate(target_masks):
+            if m.shape != shape:
+                raise ValueError(
+                    f"target_masks[{k}] has shape {m.shape}; the "
+                    f"model's reconstruction shape is {shape}.")
+            if m.min() < 0 or m.max() > 1.001:
+                raise ValueError(
+                    f"target_masks[{k}] has values outside [0, 1].")
+        self._check_masks_inside_ror(target_masks, scan_targets)
         self.scans.append({
             'sinogram': sinogram,
             'ct_model': ct_model,
             'voltage': voltage,
-            'rods': scan_rods,
+            'targets': scan_targets,
             'filters': scan_filters,
             'weights': weights,
+            'target_masks': target_masks,
         })
 
     # -- internal helpers ---------------------------------------------------
 
     @staticmethod
-    def _mm_per_alu(ct_model):
-        """Return how many mm one of the model's length units (ALU)
-        represents, from the model's alu_unit and alu_value
-        parameters.  Warns when the model declares no unit, because
-        silent unit mistakes corrupt every path length."""
-        import warnings
-        unit, value = ct_model.get_params(['alu_unit', 'alu_value'])
-        if unit is None:
-            warnings.warn(
-                "the tomography model declares no alu_unit; xcal is "
-                "assuming 1 ALU = 1 mm.  Set alu_unit and alu_value "
-                "on the model to make the units explicit.")
-            return 1.0
-        factors = {'um': 1e-3, 'mm': 1.0, 'cm': 10.0, 'm': 1000.0}
-        if unit not in factors:
-            raise ValueError(
-                f"the model's alu_unit is {unit!r}; supported units "
-                f"are {sorted(factors)}.")
-        return float(value) * factors[unit]
+    def _check_masks_inside_ror(target_masks, targets):
+        """A mask outside the projector's circular region of
+        reconstruction would be silently truncated by the forward
+        projection; refuse it."""
+        rows, cols, _ = target_masks[0].shape
+        yy, xx = np.ogrid[:rows, :cols]
+        ror = ((yy - (rows - 1) / 2) ** 2 / ((rows / 2 - 1) ** 2)
+               + (xx - (cols - 1) / 2) ** 2
+               / ((cols / 2 - 1) ** 2)) <= 1.0
+        for tg, m in zip(targets, target_masks):
+            mid = m[:, :, m.shape[2] // 2] > 0.5
+            if (mid & ~ror).any():
+                raise ValueError(
+                    f"the {tg.material.name} target's mask extends "
+                    f"outside the circular region of reconstruction, "
+                    f"so its forward projection would be silently "
+                    f"truncated.  Enlarge the grid with "
+                    f"ct_model.scale_recon_shape(...).")
 
     def _energy_grid(self):
         source = self.system.source
@@ -205,7 +236,7 @@ class Calibrator:
 
     def _select_rays(self, scan, path_lengths, num_fit_views, num_fit_rows):
         """Choose the sinogram entries used in the fit: a subset of
-        views and center rows, rays that hit at least one rod, and
+        views and center rows, rays that hit at least one target, and
         finite positive transmission."""
         n_views, n_rows, n_chan = scan['sinogram'].shape
         view_idx = np.unique(np.linspace(0, n_views - 1,
@@ -221,9 +252,9 @@ class Calibrator:
         grazing = np.zeros(scan['sinogram'].shape, dtype=bool)
         for L in path_lengths:
             hits |= (L > 0)
-            # A ray that clips a rod's edge has a path length dominated
-            # by segmentation error; exclude rays below 30 percent of
-            # that rod's maximum path.
+            # A ray that clips a target's edge has a path length
+            # dominated by segmentation error; exclude rays below 30
+            # percent of that target's maximum path.
             grazing |= (L > 0) & (L < 0.3 * L.max())
         sel &= hits & ~grazing
         sel &= np.isfinite(trans) & (trans > 1e-6) & (trans < 1.5)
@@ -236,11 +267,11 @@ class Calibrator:
                   verbose=1):
         """Run the calibration and return the result.
 
-        The steps are: reconstruct each scan, segment the rods, forward
-        project the segmentation masks to get per-ray path lengths in
-        mm, then jointly fit the system parameters to all scans.
-        Candidate materials are searched exhaustively; continuous
-        parameters are fit with Adam within their bounds.
+        The steps are: forward project each scan's target masks to
+        get per-ray path lengths in mm, then jointly fit the system
+        parameters to all scans.  Candidate materials are searched
+        exhaustively; continuous parameters are fit with Adam within
+        their bounds.
 
         Args:
             learning_rate (float, optional): Adam step size.
@@ -249,8 +280,7 @@ class Calibrator:
             stop_threshold (float, optional): Stop when no normalized
                 parameter moves more than this in one iteration.
             num_fit_views (int, optional): Number of views per scan
-                used in the spectral fit.  The reconstruction and
-                segmentation always use all views.
+                used in the spectral fit.
             num_fit_rows (int, optional): Number of center detector
                 rows per scan used in the spectral fit.
             verbose (int, optional): 0 is silent, 1 prints progress.
@@ -270,28 +300,12 @@ class Calibrator:
 
         energies = self._energy_grid()
 
-        # Reconstruct, segment, and compute path lengths per scan.
-        recons, segmentations, all_paths = [], [], []
+        # Forward project each scan's masks for path lengths in mm.
+        all_paths = []
         for si, scan in enumerate(self.scans):
-            if verbose:
-                print(f"xcal: reconstructing scan {si} "
-                      f"({scan['sinogram'].shape[0]} views)")
-            mm_per_alu = self._mm_per_alu(scan['ct_model'])
-            recon, _ = scan['ct_model'].recon(scan['sinogram'])
-            # The reconstruction is in 1/ALU; convert to 1/mm so it is
-            # comparable with the NIST attenuation coefficients.
-            recon = _as_numpy(recon) / mm_per_alu
-            mm_per_voxel = (float(scan['ct_model'].get_params(
-                'delta_voxel')) * mm_per_alu)
-            labels, masks = _segment.segment_rods(
-                recon, scan['rods'], mm_per_voxel, energies,
-                verbose=verbose)
-            # Forward projection returns path lengths in ALU; convert
-            # to mm.
+            scale = _physics.mm_per_alu(scan['ct_model'])
             paths = [_as_numpy(scan['ct_model'].forward_project(m))
-                     * mm_per_alu for m in masks]
-            recons.append(recon)
-            segmentations.append(labels)
+                     * scale for m in scan['target_masks']]
             all_paths.append(paths)
 
         # Build the discretized fit problem.
@@ -303,11 +317,10 @@ class Calibrator:
                                     num_fit_rows)
             selections.append(sel)
             trans = np.exp(-scan['sinogram'])[sel]
-            mu_rods = [_physics.attenuation_coefficients(r.material,
-                                                         energies)
-                       for r in scan['rods']]
+            mu_targets = [_physics.attenuation_coefficients(
+                tg.material, energies) for tg in scan['targets']]
             total = np.zeros((trans.size, len(energies)))
-            for L, mu in zip(paths, mu_rods):
+            for L, mu in zip(paths, mu_targets):
                 total += np.outer(L[sel], mu)
             A = np.exp(-total)
             if scan['weights'] is not None:
@@ -355,9 +368,8 @@ class Calibrator:
                                  stop_threshold=stop_threshold,
                                  verbose=verbose)
 
-        return CalibrationResult(self, energies, solution, recons,
-                                 segmentations, all_paths, selections,
-                                 fit_scans)
+        return CalibrationResult(self, energies, solution, all_paths,
+                                 selections, fit_scans)
 
 
 class CalibrationResult:
@@ -366,21 +378,20 @@ class CalibrationResult:
     The result returns data and functions; it does not plot.  The
     spectral quantities are returned as functions of energy that the
     user evaluates and plots as they choose.  The one display
-    convenience is :meth:`show`.
+    convenience is :meth:`show`.  The target masks are reviewed before
+    calibration, at the segmentation step.
 
     The returned functions satisfy R(E) proportional to
     S(E) * product of filter transmissions * D(E), with the effective
     spectrum R normalized to integrate to one.
     """
 
-    def __init__(self, calibrator, energies, solution, recons,
-                 segmentations, paths, selections, fit_scans):
+    def __init__(self, calibrator, energies, solution, paths,
+                 selections, fit_scans):
         self._cal = calibrator
         self._system = calibrator.system
         self._energies = np.asarray(energies)
         self._solution = solution
-        self._recons = recons
-        self._segmentations = segmentations
         self._paths = paths
         self._selections = selections
         self._fit_scans = fit_scans
@@ -398,6 +409,94 @@ class CalibrationResult:
         self.candidates = sorted(solution['all'], key=lambda c: c[1])
 
     # -- parameters ---------------------------------------------------------
+
+    def parameters(self):
+        """Return the full parameter table with provenance.
+
+        One row per system parameter.  Each row is a dict with keys
+        'name', 'value', 'units', 'origin', 'low', 'high', and
+        'note'.  The origin is one of three words: 'given' (stated
+        by the user and held fixed), 'estimated' (fitted within the
+        bounds in 'low' and 'high'), or 'setting' (an instrument
+        knob such as the source voltage, which the result can
+        evaluate at any value).
+
+        Returns:
+            list of dict: The rows, in system order.
+        """
+        if getattr(self, '_loaded_rows', None) is not None:
+            return [dict(r) for r in self._loaded_rows]
+        rows = []
+        source = self._system.source
+
+        def row(name, value, units='', origin='given', low=None,
+                high=None, note=''):
+            rows.append({'name': name, 'value': value, 'units': units,
+                         'origin': origin, 'low': low, 'high': high,
+                         'note': note})
+
+        if isinstance(source, (ReflectionSource, TransmissionSource)):
+            voltages = sorted({s['voltage'] for s in self._cal.scans})
+            row('source voltage', ' '.join(f'{v:g}' for v in voltages),
+                'kV', 'setting',
+                note='the result evaluates any voltage in range')
+        if isinstance(source, ReflectionSource):
+            spec = source.takeoff_angle
+            if isinstance(spec, estimate):
+                row('source takeoff angle', self._source_value, 'deg',
+                    'estimated', spec.low, spec.high)
+            else:
+                row('source takeoff angle', spec, 'deg', 'given')
+        elif isinstance(source, TransmissionSource):
+            spec = source.target_thickness
+            if isinstance(spec, estimate):
+                row('source target thickness', self._source_value,
+                    'mm', 'estimated', spec.low, spec.high)
+            else:
+                row('source target thickness', spec, 'mm', 'given')
+        else:
+            name = (source.spectrum if isinstance(source.spectrum, str)
+                    else 'user table')
+            row('source spectrum', name, '', 'given')
+
+        combo = self._solution['combo']
+        for i, (f, mat, th) in enumerate(
+                zip(self.filters, self._filter_materials,
+                    self._filter_thicknesses)):
+            label = self._system.filter_label(f)
+            if len(f.materials) > 1:
+                row(f'{label} material', mat.name, '', 'estimated',
+                    note='chosen from ' + ', '.join(
+                        m.name for m in f.materials))
+            else:
+                row(f'{label} material', mat.name, '', 'given')
+            spec = f.thickness
+            if f.thickness_per_candidate is not None:
+                spec = f.thickness_per_candidate[combo[i]]
+            if isinstance(spec, estimate):
+                row(f'{label} thickness', th, 'mm', 'estimated',
+                    spec.low, spec.high)
+            else:
+                row(f'{label} thickness', th, 'mm', 'given')
+
+        det = self._system.detector
+        if len(det.materials) > 1:
+            row('detector material', self._detector_material.name, '',
+                'estimated', note='chosen from ' + ', '.join(
+                    m.name for m in det.materials))
+        else:
+            row('detector material', self._detector_material.name, '',
+                'given')
+        spec = det.thickness
+        if det.thickness_per_candidate is not None:
+            spec = det.thickness_per_candidate[combo[-1]]
+        if isinstance(spec, estimate):
+            row('detector thickness', self._detector_thickness, 'mm',
+                'estimated', spec.low, spec.high)
+        else:
+            row('detector thickness', self._detector_thickness, 'mm',
+                'given')
+        return rows
 
     @property
     def params(self):
@@ -423,13 +522,19 @@ class CalibrationResult:
         return out
 
     def summary(self):
-        """Return a table of the estimated parameters as a string."""
-        lines = ['Estimated parameters:']
-        for key, value in self.params.items():
-            if isinstance(value, float):
-                lines.append(f'  {key}: {value:.6g}')
-            else:
-                lines.append(f'  {key}: {value}')
+        """Return the parameter table as a string, one row per
+        parameter with its value, origin, and bounds."""
+        lines = ['System parameters:']
+        for r in self.parameters():
+            value = (f'{r["value"]:.6g}' if isinstance(r['value'], float)
+                     else str(r['value']))
+            units = f' {r["units"]}' if r['units'] else ''
+            tail = r['origin']
+            if r['origin'] == 'estimated' and r['low'] is not None:
+                tail += f', bounds {r["low"]:g} to {r["high"]:g}'
+            if r['note']:
+                tail += f'; {r["note"]}'
+            lines.append(f'  {r["name"]}: {value}{units}  [{tail}]')
         lines.append(f'Final cost: {self.cost:.6e}')
         runners = [c for c in self.candidates[1:4]]
         if runners:
@@ -586,32 +691,6 @@ class CalibrationResult:
 
     # -- per-scan data ----------------------------------------------------
 
-    def reconstruction(self, scan):
-        """Return the reconstruction of one scan as a numpy volume.
-
-        Args:
-            scan (int): Index of the scan, in the order added
-                (0 is the first).
-        """
-        if self._recons is None:
-            raise ValueError("reconstructions are not stored in a saved "
-                             "result; rerun the calibration to view them.")
-        return self._recons[scan]
-
-    def segmentation(self, scan):
-        """Return the rod segmentation of one scan as a numpy label
-        volume, 0 for background and k+1 for the k-th rod of that
-        scan.
-
-        Args:
-            scan (int): Index of the scan, in the order added
-                (0 is the first).
-        """
-        if self._segmentations is None:
-            raise ValueError("segmentations are not stored in a saved "
-                             "result; rerun the calibration to view them.")
-        return self._segmentations[scan]
-
     def transmission_fit(self, scan):
         """Return the measured and predicted transmission for the rays
         of one scan used in the fit.
@@ -662,6 +741,11 @@ class CalibrationResult:
             grp = f.create_group('params')
             for key, value in self.params.items():
                 grp.attrs[key] = value
+            table = f.create_group('parameter_table')
+            for idx, r in enumerate(self.parameters()):
+                g = table.create_group(f'row_{idx:02d}')
+                for key, value in r.items():
+                    g.attrs[key] = '' if value is None else value
             src = f.create_group('source')
             if isinstance(source, ReflectionSource):
                 src.attrs['type'] = 'reflection'
@@ -703,10 +787,7 @@ class CalibrationResult:
         The loaded result rebuilds the response functions from the
         stored parameters, and exposes the filters as
         ``result.filters`` so ``filter_response(result.filters[0])``
-        works in a new session.  The reconstructions and segmentations
-        are not stored, so :meth:`reconstruction`,
-        :meth:`segmentation`, and :meth:`show` are unavailable on a
-        loaded result.
+        works in a new session.
 
         Args:
             filename (str): Path to a saved result.
@@ -755,6 +836,15 @@ class CalibrationResult:
                               np.array(f[f'scan_{si}/predicted'])))
                 si += 1
             cost = float(f.attrs['cost'])
+            loaded_rows = []
+            if 'parameter_table' in f:
+                for key in sorted(f['parameter_table']):
+                    a = f['parameter_table'][key].attrs
+                    loaded_rows.append(
+                        {k: (None if isinstance(a[k], str) and a[k] == ''
+                             and k in ('low', 'high') else a[k])
+                         for k in ('name', 'value', 'units', 'origin',
+                                   'low', 'high', 'note')})
 
         system = System(source=source, filters=filters, detector=detector)
         solution = {
@@ -774,23 +864,20 @@ class CalibrationResult:
         cal.system = system
         cal.scans = [{'voltage': None, 'filters': list(filters)}
                      for _ in scans]
-        result = cls(cal, energies, solution, recons=None,
-                     segmentations=None, paths=None, selections=None,
-                     fit_scans=None)
+        result = cls(cal, energies, solution, paths=None,
+                     selections=None, fit_scans=None)
         result._loaded_scans = scans
+        result._loaded_rows = loaded_rows
         return result
 
     def show(self, block=True):
-        """Show the complete result for review.
-
-        Opens the slice viewer on the segmented rods, prints the
-        parameter table, and plots the effective spectra and the
-        transmission fit.  Everything shown here is also available as
-        data through the methods on this class.  On a machine without
-        a display, use the data methods and save figures yourself.
+        """Print the parameter table and plot the effective spectra
+        and the transmission fit.  Everything shown is also available
+        as data through the methods on this class.  Rod masks are
+        reviewed before calibration, at the segmentation step.
 
         Args:
-            block (bool, optional): Wait for the windows to be closed.
+            block (bool, optional): Wait for the window to be closed.
         """
         print(self.summary())
         import matplotlib.pyplot as plt
@@ -811,17 +898,4 @@ class CalibrationResult:
         axes[1].legend()
         axes[1].grid(True)
         fig.tight_layout()
-        plt.show(block=False)
-
-        try:
-            import mbirtorch as mt
-            for si, (recon, labels) in enumerate(
-                    zip(self._recons, self._segmentations)):
-                mt.slice_viewer(recon, labels.astype(np.float32),
-                                slice_axis=2, block=block and
-                                si == len(self._recons) - 1,
-                                title=f'Scan {si}: recon and segmentation')
-        except Exception as e:
-            print(f"(slice viewer unavailable: {e})")
-        if block:
-            plt.show(block=True)
+        plt.show(block=block)

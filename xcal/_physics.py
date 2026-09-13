@@ -81,6 +81,28 @@ def scintillator_response(material, thickness, energies):
     return ratio_e * (1.0 - np.exp(-mu * thickness))
 
 
+
+
+def mm_per_alu(ct_model):
+    """Return how many mm one of the model's length units (ALU)
+    represents, from its alu_unit and alu_value parameters.  Warns
+    when the model declares no unit, because silent unit mistakes
+    corrupt every path length."""
+    import warnings
+    unit, value = ct_model.get_params(['alu_unit', 'alu_value'])
+    if unit is None:
+        warnings.warn(
+            "the tomography model declares no alu_unit; xcal is "
+            "assuming 1 ALU = 1 mm.  Set alu_unit and alu_value on "
+            "the model to make the units explicit.")
+        return 1.0
+    factors = {'um': 1e-3, 'mm': 1.0, 'cm': 10.0, 'm': 1000.0}
+    if unit not in factors:
+        raise ValueError(
+            f"the model's alu_unit is {unit!r}; supported units are "
+            f"{sorted(factors)}.")
+    return float(value) * factors[unit]
+
 # ---------------------------------------------------------------------------
 # Source spectrum tables
 # ---------------------------------------------------------------------------

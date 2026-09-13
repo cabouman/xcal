@@ -5,7 +5,7 @@ Calibrator
 ==========
 
 The calibrator takes everything you have declared, the system
-description, the rods, and the scans, and produces the calibrated
+description, the targets, and the scans, and produces the calibrated
 result.
 
 This page has three parts: how to give the calibrator your scans,
@@ -14,31 +14,34 @@ what happens when you run it, and how to read the result.
 Adding the scans
 ----------------
 
-xcal does not read scanner files.  Each scan enters as two objects:
-the sinogram, and the tomography model that describes the scan
-geometry.  mbirtorch preprocessing produces exactly this pair from
-the scanner's own files:
+xcal does not read scanner files.  Each scan enters as three
+objects: the sinogram, the tomography model that describes the scan
+geometry, and the target masks.  mbirtorch preprocessing produces the
+first two from the scanner's own files, and the
+:ref:`segmentation step <SegmentDocs>` produces the masks from a
+reconstruction:
 
 .. code-block:: python
 
     import mbirtorch.preprocess as mtp
     sino, ct_model = mtp.zeiss.get_sino_and_model('scan_080kV.txrm')
+    recon, _ = ct_model.recon(sino)
+    masks = xcal.segment_targets(recon, targets, ct_model)
 
 The calibrator is constructed from the two things you declared on
 the :ref:`System Description <SystemDocs>` page: ``system``, the
 :class:`~xcal.System` holding the source, filters, and detector,
-and ``rods``, the list of :class:`~xcal.Rod` objects describing the
-calibration object.  You then add each scan pair together with the
-instrument settings for that scan:
+and ``targets``, the list of :class:`~xcal.Target` objects.  You then add each scan together with its masks
+and the instrument settings for that scan:
 
 .. code-block:: python
 
-    cal = xcal.Calibrator(system, rods)
-    cal.add_scan(sino, ct_model, voltage=80)
+    cal = xcal.Calibrator(system, targets)
+    cal.add_scan(sino, ct_model, masks, voltage=80)
 
-By default, a scan is assumed to contain every rod, with every
-filter in the beam.  If a scan held only some rods, or only some
-filters were in place, say so with the ``rods`` and ``filters``
+By default, a scan is assumed to contain every target, with every
+filter in the beam.  If a scan held only some targets, or only some
+filters were in place, say so with the ``targets`` and ``filters``
 arguments of :meth:`~xcal.Calibrator.add_scan`.
 
 Which filters are in the beam?
@@ -69,8 +72,10 @@ Each scan states which filters were in the beam for that scan:
 
 .. code-block:: python
 
-    cal.add_scan(sino_low,  model_low,  filters=[si_filter])
-    cal.add_scan(sino_high, model_high, filters=[si_filter, al_filter])
+    cal.add_scan(sino_low,  model_low,  masks_low,
+                 filters=[si_filter])
+    cal.add_scan(sino_high, model_high, masks_high,
+                 filters=[si_filter, al_filter])
 
 The shared filter objects are fitted jointly across every scan they
 appear in.  After calibration, you ask for a spectrum the same way:
@@ -100,11 +105,9 @@ One call runs the whole pipeline:
 
     result = cal.calibrate()
 
-Internally, calibrate does four things.  It reconstructs each scan
-geometry.  It segments the rods out of the reconstructions, so the
-rod shapes are measured rather than assumed.  It forward projects
-the segmented rods to get the path length of every ray through
-every rod.  Finally, it fits the system parameters so the predicted
+Internally, calibrate does two things.  It forward projects each
+scan's target masks to get the path length of every ray through every
+rod.  Then it fits the system parameters so the predicted
 transmission matches the measured transmission across all scans at
 once.  Candidate materials are tried exhaustively, and the
 continuous parameters are fit by gradient descent within their
@@ -140,21 +143,15 @@ response.
 
 The estimated parameters come from ``result.params``, a dictionary
 with readable names, or ``result.summary()``, a printable table.
-
-During calibration, xcal reconstructs each scan and segments the
-rods.  Those intermediate images come back as numpy arrays, indexed
-by scan in the order you added them: ``result.reconstruction(0)``
-is the reconstructed volume of the first scan, and
-``result.segmentation(0)`` labels which voxels belong to which rod.
 ``result.transmission_fit(0)`` returns the measured and predicted
-transmission arrays for that scan, for judging how well the model
-fits the data.
+transmission arrays for the first scan you added, for judging how
+well the model fits the data.
 
 For review there is one display convenience, ``result.show()``: it
-opens the slice viewer on the segmented rods, prints the parameter
-table, and plots the spectra and the fit.  Look at the segmentation
-before you trust any number: if the segmentation missed a rod,
-every estimate downstream of it is wrong.
+prints the parameter table and plots the spectra and the fit.  The
+target masks are reviewed earlier, at the segmentation step, before
+any fitting: if a mask is wrong, every estimate downstream of it is
+wrong.
 
 .. autoclass:: xcal.CalibrationResult
 
@@ -172,9 +169,6 @@ every estimate downstream of it is wrong.
 
 .. automethod:: xcal.CalibrationResult.detector_response
 
-.. automethod:: xcal.CalibrationResult.reconstruction
-
-.. automethod:: xcal.CalibrationResult.segmentation
 
 .. automethod:: xcal.CalibrationResult.transmission_fit
 

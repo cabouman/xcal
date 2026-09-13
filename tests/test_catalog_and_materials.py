@@ -17,7 +17,7 @@ def fresh_catalog():
 
 def test_shipped_catalog_contents():
     assert len(xcal.list_materials('filter')) == 3
-    assert len(xcal.list_materials('rod')) == 4
+    assert len(xcal.list_materials('target')) == 4
     assert len(xcal.list_materials('scintillator')) == 7
     names = {e['name'] for e in xcal.list_materials('scintillator')}
     assert 'CsI' in names and 'GOS' in names
@@ -59,7 +59,7 @@ def test_add_materials_rejects_bad_entries():
 
 
 def test_resolve_element_uses_builtin_density():
-    m = _materials.resolve('Ti', 'rod')
+    m = _materials.resolve('Ti', 'target')
     assert m.formula == 'Ti'
     assert m.density == pytest.approx(4.507, rel=0.01)
 
@@ -72,8 +72,8 @@ def test_resolve_catalog_compound():
 
 def test_resolve_unknown_compound_requires_density():
     with pytest.raises(ValueError, match='density'):
-        _materials.resolve('Gd2O2S', 'rod')
-    m = _materials.resolve('Gd2O2S', 'rod', density=7.32)
+        _materials.resolve('Gd2O2S', 'target')
+    m = _materials.resolve('Gd2O2S', 'target', density=7.32)
     assert m.density == 7.32
 
 
@@ -84,4 +84,4 @@ def test_resolve_rejects_unknown_element():
 
 def test_resolve_rejects_transuranic():
     with pytest.raises(ValueError, match='NIST'):
-        _materials.resolve('Pu', 'rod', density=19.8)
+        _materials.resolve('Pu', 'target', density=19.8)

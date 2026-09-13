@@ -17,8 +17,9 @@ geometry.  Its signature mirrors :meth:`~xcal.Calibrator.add_scan`.
         filters=[xcal.Filter('Al', thickness=3.0)],
         detector=xcal.Scintillator('CsI', thickness=0.33),
     )
-    sino = xcal.simulate_scan(truth, rods, ct_model, voltage=80)
-    cal.add_scan(sino, ct_model, voltage=80)
+    sino = xcal.simulate_scan(truth, targets, ct_model, voltage=80)
+    masks = xcal.cylinder_masks(targets, ct_model)   # ground truth
+    cal.add_scan(sino, ct_model, masks, voltage=80)
 
 A fully specified system also states its own effective spectrum, in
 the same form a calibration result uses, so a demo compares truth

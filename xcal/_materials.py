@@ -66,7 +66,7 @@ def resolve(spec, kind, density=None, context=''):
     Args:
         spec (str): A catalog name (for example 'GOS') or a chemical
             formula (for example 'Gd2O2S').
-        kind (str): 'filter', 'rod', or 'scintillator'; selects the
+        kind (str): 'filter', 'target', or 'scintillator'; selects the
             catalog section searched for a name match.
         density (float, optional): Density in g/cm^3, overriding the
             catalog or element value.
