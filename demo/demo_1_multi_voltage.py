@@ -96,7 +96,7 @@ if __name__ == '__main__':
         detector=xcal.Scintillator(),
     )
 
-    # ---------------- Simulate, get masks, calibrate ----------------
+    # ---------------- Simulate the scans ----------------
     cal = xcal.Calibrator(feasible_system, targets)
     for i, kv in enumerate(VOLTAGES):
         # One mbirtorch CT model per scan: real scans can differ in
@@ -124,6 +124,13 @@ if __name__ == '__main__':
                         dpi=120)
         cal.add_scan(sino, ct_model, masks, voltage=kv)
         print(f'{kv:.0f} kV scan ready ({time.time()-t0:.0f} s)')
+
+    # -------------------- Calibrate --------------------
+    # The central step of the whole demo.  The calibrator searches
+    # the feasible systems for the one whose predicted transmissions
+    # best match every scan, and returns two things: est_system, the
+    # estimated system with every value filled in, and fit_info,
+    # everything about how the fit went.
     est_system, fit_info = cal.calibrate()
 
     # ---------------- Report ----------------
