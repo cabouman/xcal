@@ -14,10 +14,11 @@ from .system import (estimate, Rod, Filter, Scintillator,
                      SynchrotronSource, System)
 from .calibrator import Calibrator, CalibrationResult
 from .catalog import list_materials, add_materials
+from .simulate import simulate_scan
 
 __all__ = [
     'estimate', 'Rod', 'Filter', 'Scintillator',
     'ReflectionSource', 'TransmissionSource', 'SynchrotronSource',
     'System', 'Calibrator', 'CalibrationResult',
-    'list_materials', 'add_materials',
+    'list_materials', 'add_materials', 'simulate_scan',
 ]

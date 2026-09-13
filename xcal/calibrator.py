@@ -125,6 +125,27 @@ class Calibrator:
 
     # -- internal helpers ---------------------------------------------------
 
+    @staticmethod
+    def _mm_per_alu(ct_model):
+        """Return how many mm one of the model's length units (ALU)
+        represents, from the model's alu_unit and alu_value
+        parameters.  Warns when the model declares no unit, because
+        silent unit mistakes corrupt every path length."""
+        import warnings
+        unit, value = ct_model.get_params(['alu_unit', 'alu_value'])
+        if unit is None:
+            warnings.warn(
+                "the tomography model declares no alu_unit; xcal is "
+                "assuming 1 ALU = 1 mm.  Set alu_unit and alu_value "
+                "on the model to make the units explicit.")
+            return 1.0
+        factors = {'um': 1e-3, 'mm': 1.0, 'cm': 10.0, 'm': 1000.0}
+        if unit not in factors:
+            raise ValueError(
+                f"the model's alu_unit is {unit!r}; supported units "
+                f"are {sorted(factors)}.")
+        return float(value) * factors[unit]
+
     def _energy_grid(self):
         source = self.system.source
         if isinstance(source, SynchrotronSource):
@@ -255,13 +276,20 @@ class Calibrator:
             if verbose:
                 print(f"xcal: reconstructing scan {si} "
                       f"({scan['sinogram'].shape[0]} views)")
+            mm_per_alu = self._mm_per_alu(scan['ct_model'])
             recon, _ = scan['ct_model'].recon(scan['sinogram'])
-            recon = _as_numpy(recon)
+            # The reconstruction is in 1/ALU; convert to 1/mm so it is
+            # comparable with the NIST attenuation coefficients.
+            recon = _as_numpy(recon) / mm_per_alu
+            mm_per_voxel = (float(scan['ct_model'].get_params(
+                'delta_voxel')) * mm_per_alu)
             labels, masks = _segment.segment_rods(
-                recon, scan['rods'], scan['ct_model'], energies,
+                recon, scan['rods'], mm_per_voxel, energies,
                 verbose=verbose)
+            # Forward projection returns path lengths in ALU; convert
+            # to mm.
             paths = [_as_numpy(scan['ct_model'].forward_project(m))
-                     for m in masks]
+                     * mm_per_alu for m in masks]
             recons.append(recon)
             segmentations.append(labels)
             all_paths.append(paths)

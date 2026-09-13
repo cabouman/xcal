@@ -348,6 +348,99 @@ class System:
         self.filters = filters
         self.detector = detector
 
+
+    def _require_fully_specified(self, what):
+        parts = [('source', self.source)] + \
+            [(self.filter_label(f), f) for f in self.filters] + \
+            [('detector', self.detector)]
+        for label, part in parts:
+            for attr in ('takeoff_angle', 'target_thickness',
+                         'thickness'):
+                if isinstance(getattr(part, attr, None), estimate):
+                    raise ValueError(
+                        f"{what} needs a fully specified System, but "
+                        f"the {label} {attr} is an estimate.  Give it "
+                        f"a plain value.")
+            if getattr(part, 'materials', None) is not None \
+                    and len(part.materials) > 1:
+                raise ValueError(
+                    f"{what} needs a fully specified System, but the "
+                    f"{label} has {len(part.materials)} candidate "
+                    f"materials.  Name one material.")
+
+    def effective_spectrum(self, voltage=None, filters=None):
+        """Return this system's effective spectrum as a function of
+        energy, for a fully specified System (no estimates, no
+        candidate lists).  The form matches
+        CalibrationResult.effective_spectrum, so a simulated truth
+        and a calibration result answer the same question the same
+        way.
+
+        Args:
+            voltage (float, optional): Source voltage in kV.  Required
+                for tube sources; ignored for synchrotron sources.
+            filters (list of Filter, optional): The filters in the
+                beam.  Defaults to all filters in the system.
+
+        Returns:
+            callable: A function R with R(energies) -> density in
+            1/keV, normalized to integrate to one.
+        """
+        from . import _physics
+        self._require_fully_specified('effective_spectrum')
+        filts = list(filters) if filters is not None else \
+            list(self.filters)
+        for f in filts:
+            if not any(f is ff for ff in self.filters):
+                raise ValueError(f"{f!r} is not one of this System's "
+                                 f"filters.")
+
+        if isinstance(self.source, SynchrotronSource):
+            if isinstance(self.source.spectrum, str):
+                e_tab, counts = _physics.load_als_spectrum()
+            else:
+                e_tab, counts = self.source.spectrum
+            grid = np.linspace(1.0, float(e_tab.max()),
+                               max(int(e_tab.max()) * 4, 64))
+            values = np.interp(grid, e_tab, counts, left=0.0, right=0.0)
+        else:
+            if voltage is None:
+                raise ValueError("voltage is required for tube "
+                                 "sources.")
+            grid = np.linspace(1.0, float(voltage),
+                               max(int(voltage) * 4, 64))
+            if isinstance(self.source, ReflectionSource):
+                values = _physics.reflection_source_table(
+                    voltage, [self.source.takeoff_angle], grid)[0]
+            else:
+                voltages, th_mm, e_tab, spectra = \
+                    _physics.transmission_source_table(
+                        self.source.spectra_table)
+                per_th = []
+                for ti in range(len(th_mm)):
+                    ext = _physics.prepare_for_interpolation(
+                        spectra[:, ti])
+                    row = _physics.interpolate_rows(voltages, ext,
+                                                    voltage)
+                    per_th.append(np.clip(row, 0.0, None))
+                row = _physics.interpolate_rows(
+                    th_mm, np.stack(per_th),
+                    self.source.target_thickness)
+                values = np.interp(grid, e_tab, row, left=0.0,
+                                   right=0.0)
+
+        for f in filts:
+            values = values * _physics.filter_transmission(
+                f.materials[0], f.thickness, grid)
+        values = values * _physics.scintillator_response(
+            self.detector.materials[0], self.detector.thickness, grid)
+        area = np.trapezoid(values, grid)
+        if area <= 0:
+            raise ValueError("the effective spectrum is zero "
+                             "everywhere; check the voltage and "
+                             "filters.")
+        return _physics.SpectralFunction(grid, values / area)
+
     def filter_label(self, filt):
         """Return the display label of one filter, for example
         'filter 1 (Si)'."""

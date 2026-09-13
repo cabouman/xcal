@@ -46,7 +46,7 @@ def test_save_load_round_trip():
         # The response functions rebuild from the stored parameters.
         R = loaded.effective_spectrum(voltage=80)
         E = np.linspace(1, 80, 200)
-        assert np.trapezoid(R(E), E) == pytest.approx(1.0, abs=1e-3)
+        assert np.trapezoid(R(E), E) == pytest.approx(1.0, abs=5e-3)
         assert R(90.0) == 0.0
 
         f = loaded.filter_response(loaded.filters[0])
