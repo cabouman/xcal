@@ -56,16 +56,17 @@ OUTPUT_DIR = './output/demo_1_multi_voltage'
 
 
 def make_model(n_views, n_det_rows, n_det_channels, pixel_mm):
-    """Build the parallel beam scan geometry, in mm units."""
+    """Build the mbirtorch CT model for one scan: the parallel beam
+    geometry, in mm units."""
     angles = np.linspace(0, np.pi, n_views,
                          endpoint=False).astype(np.float32)
-    model = mbirtorch.ParallelBeamModel(
+    ct_model = mbirtorch.ParallelBeamModel(
         (n_views, n_det_rows, n_det_channels), angles)
-    model.set_params(delta_det_channel=pixel_mm,
-                     delta_det_row=pixel_mm,
-                     alu_unit='mm', alu_value=1.0)
-    model.auto_set_recon_geometry()
-    return model
+    ct_model.set_params(delta_det_channel=pixel_mm,
+                        delta_det_row=pixel_mm,
+                        alu_unit='mm', alu_value=1.0)
+    ct_model.auto_set_recon_geometry()
+    return ct_model
 
 
 if __name__ == '__main__':
@@ -98,11 +99,12 @@ if __name__ == '__main__':
     # ---------------- Simulate, get masks, calibrate ----------------
     cal = xcal.Calibrator(feasible_system, targets)
     for i, kv in enumerate(VOLTAGES):
-        # One model per scan: real scans can differ in alignment.
-        model = make_model(N_VIEWS, N_DET_ROWS, N_DET_CHANNELS,
-                           PIXEL_MM)
-        true_masks = xcal.cylinder_masks(targets, model)
-        sino = xcal.simulate_scan(gt_system, targets, model,
+        # One mbirtorch CT model per scan: real scans can differ in
+        # alignment.
+        ct_model = make_model(N_VIEWS, N_DET_ROWS, N_DET_CHANNELS,
+                              PIXEL_MM)
+        true_masks = xcal.cylinder_masks(targets, ct_model)
+        sino = xcal.simulate_scan(gt_system, targets, ct_model,
                                   voltage=kv,
                                   target_masks=true_masks,
                                   photons=PHOTONS, seed=i)
@@ -110,8 +112,8 @@ if __name__ == '__main__':
             masks = true_masks
         else:
             print(f'reconstructing the {kv:.0f} kV scan...')
-            recon, _ = model.recon(sino)
-            masks = xcal.segment_targets(recon, targets, model)
+            recon, _ = ct_model.recon(sino)
+            masks = xcal.segment_targets(recon, targets, ct_model)
             fig, ax = plt.subplots(figsize=(6, 6))
             ax.imshow(np.asarray(recon)[:, :, 0], origin='lower')
             for m in masks:
@@ -120,7 +122,7 @@ if __name__ == '__main__':
             ax.set_title(f'{kv:.0f} kV reconstruction and masks')
             fig.savefig(f'{OUTPUT_DIR}/segmentation_{kv:.0f}kV.png',
                         dpi=120)
-        cal.add_scan(sino, model, masks, voltage=kv)
+        cal.add_scan(sino, ct_model, masks, voltage=kv)
         print(f'{kv:.0f} kV scan ready ({time.time()-t0:.0f} s)')
     est_system, fit_info = cal.calibrate()
 
