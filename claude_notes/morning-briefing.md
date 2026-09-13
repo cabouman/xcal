@@ -50,7 +50,9 @@ Their figures are also in claude_notes/e2e_output/.
   multiprocessing, no vendored L-BFGS.
 - xcal/calibrator.py: the pipeline and the CalibrationResult with
   function-valued spectra, params, summary, save/load, show.
-- tests/: 32 tests, about 6 seconds, all passing.
+- tests/: 41 tests, about 13 seconds, all passing, including
+  a miniature full-pipeline calibrate() run and per-candidate
+  thickness bounds.  CI workflow added (.github/workflows).
 - pyproject.toml replaces setup.py; requirements updated; docs build
   with zero warnings; README and install.rst rewritten.
 - v1 modules deleted from this branch (preserved at tag v0.1.0).
