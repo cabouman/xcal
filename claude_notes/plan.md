@@ -3,12 +3,23 @@
 Goal: make xcal much easier to use and understand, and move its CT
 dependency from mbirjax to mbirtorch.
 
-STATUS (2026-09-13): steps 1 and 2 are done.  Step 3 (the core
-implementation), step 5 (tests and two simulated demos), and most of
-step 6 (pyproject packaging) were implemented and verified on the
-night of Sep 12; see claude_notes/morning-briefing.md.  Remaining:
-Charlie's review, the open decisions in the briefing, a measured-data
-demo, CI, and the readthedocs cutover.
+STATUS (2026-09-13): steps 1 through 6 are done in first form on
+branch xcal_lean: the package is implemented, tested (46 tests,
+about 11 s), and documented.  Milestone reached today: demo 1 (the
+paper's simulated three-voltage experiment) runs end to end both
+ways — with ground-truth masks (88 s) and with reconstruction and
+segmentation (210 s) — with close results: correct materials in
+both; thicknesses within about 4% of truth; spectrum NRMSE
+0.012-0.014 (ground-truth masks) versus 0.015-0.016 (segmented).
+The line-by-line API refinement walk through demo 1 with Charlie is
+ongoing.  Latest decisions: package data reorganized into
+xcal/physical_params (universal physics, verified against NIST) and
+xcal/source_models (one readable CSV per source model, selected by
+a single name argument; users add models by adding files).
+Remaining: segmentation mask width bias (see improvements.md),
+system-dependent energy band for segmentation matching, demo 2
+specification, a measured-data (ALS) demo, CI, and the readthedocs
+cutover.
 
 ## 1. Preserve the current version
 
