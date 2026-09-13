@@ -55,7 +55,7 @@ OUTPUT_DIR = './output/demo_1_multi_voltage'
 # ===========================================================
 
 
-def simulate_scanner(gt_system, calibration_target, voltage,
+def simulate_scanner(gt_system, cal_target, voltage,
                      n_views,
                      n_det_rows, n_det_channels, pixel_mm, photons,
                      seed):
@@ -75,8 +75,8 @@ def simulate_scanner(gt_system, calibration_target, voltage,
                         alu_unit='mm', alu_value=1.0)
     ct_model.auto_set_recon_geometry()
 
-    gt_masks = xcal.cylinder_masks(calibration_target, ct_model)
-    sino = xcal.simulate_scan(gt_system, calibration_target, ct_model,
+    gt_masks = xcal.cylinder_masks(cal_target, ct_model)
+    sino = xcal.simulate_scan(gt_system, cal_target, ct_model,
                               voltage=voltage, target_masks=gt_masks,
                               photons=photons, seed=seed)
     return sino, ct_model, gt_masks
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     )
     # The calibration target: the physical object that is scanned.
     # Here it is a set of rods, one per specified material.
-    calibration_target = [xcal.Target(m, TARGET_DIAMETER)
+    cal_target = [xcal.Target(m, TARGET_DIAMETER)
                           for m in TARGET_MATERIALS]
 
     # ---------------- The feasible systems ----------------
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     scans = []
     for i, kv in enumerate(VOLTAGES):
         sino, ct_model, gt_masks = simulate_scanner(
-            gt_system, calibration_target, kv, N_VIEWS, N_DET_ROWS,
+            gt_system, cal_target, kv, N_VIEWS, N_DET_ROWS,
             N_DET_CHANNELS, PIXEL_MM, PHOTONS, seed=i)
         scans.append((kv, sino, ct_model, gt_masks))
         print(f'{kv:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
@@ -136,7 +136,7 @@ if __name__ == '__main__':
         else:
             print(f'reconstructing the {kv:.0f} kV scan...')
             recon, _ = ct_model.recon(sino)
-            masks = xcal.segment_targets(recon, calibration_target,
+            masks = xcal.segment_targets(recon, cal_target,
                                          ct_model)
             fig, ax = plt.subplots(figsize=(6, 6))
             ax.imshow(np.asarray(recon)[:, :, 0], origin='lower')
@@ -149,7 +149,7 @@ if __name__ == '__main__':
         masks_per_scan.append(masks)
 
     # ---------------- Add the scans to the calibrator ----------------
-    cal = xcal.Calibrator(feasible_system, calibration_target)
+    cal = xcal.Calibrator(feasible_system, cal_target)
     for (kv, sino, ct_model, _), masks in zip(scans, masks_per_scan):
         cal.add_scan(sino, ct_model, masks, voltage=kv)
 
