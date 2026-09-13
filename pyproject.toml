@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xcal"
+description = "X-ray CT spectral calibration"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+requires-python = ">=3.10"
+dynamic = ["version"]
+authors = [
+    { name = "XCal development team" },
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "torch",
+    "h5py",
+    "pyyaml",
+    "chemparse",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+# Reflection tube sources generate their lookup tables with Spekpy.
+spekpy = ["spekpy"]
+test = ["pytest"]
+docs = ["sphinx", "sphinx_book_theme", "sphinx-copybutton"]
+
+[project.urls]
+Homepage = "https://github.com/cabouman/xcal"
+Documentation = "https://xcal.readthedocs.io"
+
+[tool.setuptools]
+packages = ["xcal", "xcal.chem_consts"]
+
+[tool.setuptools.dynamic]
+version = { attr = "xcal.__version__" }
+
+[tool.setuptools.package-data]
+xcal = ["data/*.yaml", "data/*.csv"]
+"xcal.chem_consts" = ["*.h5"]

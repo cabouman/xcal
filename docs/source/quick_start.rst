@@ -31,13 +31,12 @@ xcal never touches scanner formats.
     # The system description.  A plain value is known; xcal.estimate
     # is fit within bounds; a list is searched; an omitted material is
     # searched over the catalog's standard candidates.
+    beam_filter = xcal.Filter(material=['Al', 'Cu'],
+                              thickness=xcal.estimate(0, 10))    # mm
     system = xcal.System(
         source=xcal.TransmissionSource(
             target_thickness=xcal.estimate(0.001, 0.007)),      # mm
-        filters=[
-            xcal.Filter(material=['Al', 'Cu'],
-                        thickness=xcal.estimate(0, 10)),        # mm
-        ],
+        filters=[beam_filter],
         detector=xcal.Scintillator(
             thickness=xcal.estimate(0.001, 0.5)),               # mm
     )
@@ -62,15 +61,14 @@ xcal never touches scanner formats.
     E = np.linspace(1, 80, 320)
     plt.plot(E, R(E))
 
-The three value forms
----------------------
+The four value forms
+--------------------
 
-Every physical fact in the system description takes one of three
+Every physical fact in the system description takes one of four
 forms:
 
 * a plain value means known and fixed: ``material='Al'``,
 * ``xcal.estimate(low, high)`` means estimated within bounds,
-* a list means candidates that xcal searches: ``material=['Al', 'Cu']``.
-
-A material may also be omitted entirely, which searches the standard
-candidate list from the :ref:`materials catalog <CatalogDocs>`.
+* a list means candidates that xcal searches: ``material=['Al', 'Cu']``,
+* an omitted material means xcal searches the standard candidate
+  list from the :ref:`materials catalog <CatalogDocs>`.

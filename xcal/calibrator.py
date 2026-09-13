@@ -8,7 +8,6 @@ returns a :class:`CalibrationResult`.
 
 import numpy as np
 
-from . import _fit
 from . import _physics
 from . import _segment
 from .system import (estimate, Filter, Scintillator, ReflectionSource,
@@ -316,6 +315,7 @@ class Calibrator:
             'thickness': detector.thickness,
         }
 
+        from . import _fit
         problem = _fit.FitProblem(energies, fit_scans, source_param,
                                   fit_filters, fit_detector)
         solution = problem.solve(learning_rate=learning_rate,
@@ -561,6 +561,9 @@ class CalibrationResult:
             scan (int): Index of the scan, in the order added
                 (0 is the first).
         """
+        if self._recons is None:
+            raise ValueError("reconstructions are not stored in a saved "
+                             "result; rerun the calibration to view them.")
         return self._recons[scan]
 
     def segmentation(self, scan):
@@ -572,6 +575,9 @@ class CalibrationResult:
             scan (int): Index of the scan, in the order added
                 (0 is the first).
         """
+        if self._segmentations is None:
+            raise ValueError("segmentations are not stored in a saved "
+                             "result; rerun the calibration to view them.")
         return self._segmentations[scan]
 
     def transmission_fit(self, scan):
@@ -586,6 +592,8 @@ class CalibrationResult:
             tuple: (measured, predicted) 1D numpy arrays, one entry per
             fit ray.
         """
+        if getattr(self, '_loaded_scans', None) is not None:
+            return self._loaded_scans[scan]
         fs = self._fit_scans[scan]
         spec = self._effective_values_for_scan(scan)
         predicted = np.trapezoid(fs['A'] * spec, self._energies, axis=-1)
@@ -605,26 +613,140 @@ class CalibrationResult:
     def save(self, filename):
         """Save the estimated parameters and fit data to an HDF5 file.
 
-        The file stores the parameter values, the chosen materials, the
-        energy grid, and the per-scan measured and predicted
-        transmissions.  The response functions are rebuilt from the
-        parameters on load.
+        The file stores the estimated values with the resolved
+        formulas and densities (never only catalog names), the energy
+        grid, and the per-scan measured and predicted transmissions.
+        The response functions are rebuilt from the parameters on
+        load.
 
         Args:
             filename (str): Output path.
         """
         import h5py
+        source = self._system.source
         with h5py.File(filename, 'w') as f:
             f.attrs['xcal_result_version'] = 1
+            f.attrs['cost'] = self.cost
             grp = f.create_group('params')
             for key, value in self.params.items():
                 grp.attrs[key] = value
+            src = f.create_group('source')
+            if isinstance(source, ReflectionSource):
+                src.attrs['type'] = 'reflection'
+                src.attrs['value'] = self._source_value
+            elif isinstance(source, TransmissionSource):
+                src.attrs['type'] = 'transmission'
+                src.attrs['value'] = self._source_value
+            else:
+                src.attrs['type'] = 'synchrotron'
+                e_grid = self._energies
+                src.create_dataset('energies', data=e_grid)
+                src.create_dataset(
+                    'counts',
+                    data=self._source_spectrum_values(e_grid, None))
+            for i, (filt, mat, th) in enumerate(
+                    zip(self.filters, self._filter_materials,
+                        self._filter_thicknesses)):
+                g = f.create_group(f'filter_{i}')
+                g.attrs['label'] = self._system.filter_label(filt)
+                g.attrs['name'] = filt.name or ''
+                g.attrs['formula'] = mat.formula
+                g.attrs['density'] = mat.density
+                g.attrs['thickness'] = th
+            det = f.create_group('detector')
+            det.attrs['formula'] = self._detector_material.formula
+            det.attrs['density'] = self._detector_material.density
+            det.attrs['thickness'] = self._detector_thickness
             f.create_dataset('energies', data=self._energies)
             for si in range(len(self._fit_scans)):
                 y, pred = self.transmission_fit(si)
                 g = f.create_group(f'scan_{si}')
                 g.create_dataset('measured', data=y)
                 g.create_dataset('predicted', data=pred)
+
+    @classmethod
+    def load(cls, filename):
+        """Load a result saved by :meth:`save`.
+
+        The loaded result rebuilds the response functions from the
+        stored parameters, and exposes the filters as
+        ``result.filters`` so ``filter_response(result.filters[0])``
+        works in a new session.  The reconstructions and segmentations
+        are not stored, so :meth:`reconstruction`,
+        :meth:`segmentation`, and :meth:`show` are unavailable on a
+        loaded result.
+
+        Args:
+            filename (str): Path to a saved result.
+
+        Returns:
+            CalibrationResult: The loaded result.
+        """
+        import h5py
+        from .system import System
+        with h5py.File(filename, 'r') as f:
+            src = f['source']
+            src_type = src.attrs['type']
+            if src_type == 'reflection':
+                source = ReflectionSource(
+                    takeoff_angle=float(src.attrs['value']))
+                source_value = float(src.attrs['value'])
+            elif src_type == 'transmission':
+                source = TransmissionSource(
+                    target_thickness=float(src.attrs['value']))
+                source_value = float(src.attrs['value'])
+            else:
+                source = SynchrotronSource(
+                    (np.array(src['energies']), np.array(src['counts'])))
+                source_value = 0.0
+            filters, filter_materials, filter_thicknesses = [], [], []
+            i = 0
+            while f'filter_{i}' in f:
+                g = f[f'filter_{i}']
+                filt = Filter(material=str(g.attrs['formula']),
+                              thickness=float(g.attrs['thickness']),
+                              name=str(g.attrs['name']) or None,
+                              density=float(g.attrs['density']))
+                filters.append(filt)
+                filter_materials.append(filt.materials[0])
+                filter_thicknesses.append(float(g.attrs['thickness']))
+                i += 1
+            det = f['detector']
+            detector = Scintillator(material=str(det.attrs['formula']),
+                                    thickness=float(det.attrs['thickness']),
+                                    density=float(det.attrs['density']))
+            energies = np.array(f['energies'])
+            scans = []
+            si = 0
+            while f'scan_{si}' in f:
+                scans.append((np.array(f[f'scan_{si}/measured']),
+                              np.array(f[f'scan_{si}/predicted'])))
+                si += 1
+            cost = float(f.attrs['cost'])
+
+        system = System(source=source, filters=filters, detector=detector)
+        solution = {
+            'combo': tuple([0] * len(filters) + [0]),
+            'cost': cost,
+            'source_value': source_value,
+            'filter_thicknesses': filter_thicknesses,
+            'detector_thickness': float(det_thickness
+                                        := detector.thickness),
+            'iterations': 0,
+            'all': [],
+        }
+
+        class _LoadedCal:
+            pass
+        cal = _LoadedCal()
+        cal.system = system
+        cal.scans = [{'voltage': None, 'filters': list(filters)}
+                     for _ in scans]
+        result = cls(cal, energies, solution, recons=None,
+                     segmentations=None, paths=None, selections=None,
+                     fit_scans=None)
+        result._loaded_scans = scans
+        return result
 
     def show(self, block=True):
         """Show the complete result for review.

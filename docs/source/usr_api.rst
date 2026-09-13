@@ -32,7 +32,7 @@ In outline, every calibration script looks like this:
     result = cal.calibrate()
 
     # 4. Review.
-    result.view_segmentation()
+    result.show()
     print(result.summary())
 
 The named materials you can use in step 1, and how to add your own,

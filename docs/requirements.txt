@@ -1,7 +1,3 @@
 sphinx
-nbsphinx
-sphinx-rtd-theme
-sphinxcontrib-bibtex
-ruamel.yaml
-myst-parser
-IPython
+sphinx_book_theme
+sphinx-copybutton
