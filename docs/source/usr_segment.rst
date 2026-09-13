@@ -24,3 +24,5 @@ reconstruction and check every target's shape:
 .. autofunction:: xcal.segment_targets
 
 .. autofunction:: xcal.cylinder_masks
+
+.. autofunction:: xcal.save_segmentation_plot

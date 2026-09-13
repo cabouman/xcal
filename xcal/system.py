@@ -509,6 +509,58 @@ class System:
                              "filters.")
         return _physics.SpectralFunction(grid, values / area)
 
+    def _filters_note(self):
+        """Short description of the filtration, e.g. 'Al 5 mm'."""
+        if not self.filters:
+            return 'no filter'
+        return ', '.join(f'{f.materials[0].name} {f.thickness:.3g} mm'
+                         for f in self.filters)
+
+    def save_plot(self, filename, voltage=None, compare_to=None):
+        """Write a plot of this system's effective spectrum.
+
+        One curve per voltage.  With ``compare_to``, that system's
+        spectrum is drawn dashed at the same voltages; the legend
+        names each system by its filtration.
+
+        Args:
+            filename (str): Output image path.
+            voltage (float or list of float, optional): Source
+                voltage(s) in kV.  Omit for a synchrotron source.
+            compare_to (System, optional): A second fully specified
+                system to draw for comparison.
+        """
+        import matplotlib.pyplot as plt
+        self._require_fully_specified('save_plot')
+        if voltage is None:
+            voltages = [None]
+        else:
+            voltages = list(np.atleast_1d(voltage))
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for v in voltages:
+            if v is not None:
+                grid = _physics.default_energy_grid(float(v))
+            else:
+                e_tab, _ = self.source.table()
+                grid = _physics.default_energy_grid(
+                    float(np.max(e_tab)))
+            setting = f'{v:g} kV, ' if v is not None else ''
+            ax.plot(grid, self.effective_spectrum(voltage=v)(grid),
+                    label=f'{setting}{self._filters_note()}')
+            if compare_to is not None:
+                ax.plot(grid,
+                        compare_to.effective_spectrum(voltage=v)(grid),
+                        '--',
+                        label=f'{setting}'
+                              f'{compare_to._filters_note()}')
+        ax.set_xlabel('Energy (keV)')
+        ax.set_ylabel('Effective spectrum (1/keV)')
+        ax.legend()
+        ax.grid(True)
+        fig.tight_layout()
+        fig.savefig(filename, dpi=130)
+        plt.close(fig)
+
     def filter_label(self, filt):
         """Return the display label of one filter, for example
         'filter 1 (Si)'."""

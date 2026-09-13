@@ -833,30 +833,62 @@ class CalibrationResult:
 
         self.save_plots(directory)
 
-    def save_plots(self, directory):
+    def _scan_spectrum(self, scan):
+        """Estimated effective spectrum of one scan, evaluated on
+        the fit energy grid, normalized to integrate to one."""
+        s = self._cal.scans[scan]
+        R = self.effective_spectrum(voltage=s.get('voltage'),
+                                    filters=s['filters'])
+        return R(self._energies)
+
+    def save_plots(self, directory, compare_to=None):
         """Write the calibration plots to <directory>/plots.
 
-        Two files: spectrum.png, the estimated effective spectrum of
-        each scan, and transmission_fit.png, the measured versus
-        predicted transmission of the fit rays.  :meth:`save` calls
-        this; call it directly to regenerate only the plots.
+        Two files.  spectrum.png: the estimated effective spectrum
+        of each scan; if ``compare_to`` is given, each scan's
+        estimate is drawn beside that system's spectrum with their
+        NRMSE.  transmission_fit.png: the measured versus predicted
+        transmission of the fit rays.  :meth:`save` calls this with
+        no comparison; call it directly to regenerate the plots.
 
         Args:
             directory (str): Output directory; its plots subfolder
                 is created if needed.
+            compare_to (System, optional): A fully specified
+                reference system, e.g. the ground truth of a
+                simulation.
         """
         import matplotlib.pyplot as plt
         plots_dir = os.path.join(directory, 'plots')
         os.makedirs(plots_dir, exist_ok=True)
-        fig, ax = plt.subplots(figsize=(6, 4))
-        for si in range(self._n_scans()):
-            ax.plot(self._energies,
-                    self._effective_values_for_scan(si),
-                    label=self._scan_label(si))
-        ax.set_xlabel('Energy (keV)')
-        ax.set_ylabel('Effective spectrum (1/keV)')
-        ax.legend()
-        ax.grid(True)
+        E = self._energies
+        if compare_to is None:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            for si in range(self._n_scans()):
+                ax.plot(E, self._scan_spectrum(si),
+                        label=self._scan_label(si))
+            ax.set_xlabel('Energy (keV)')
+            ax.set_ylabel('Effective spectrum (1/keV)')
+            ax.legend()
+            ax.grid(True)
+        else:
+            n = self._n_scans()
+            fig, axes = plt.subplots(1, n, figsize=(5 * n, 4),
+                                     squeeze=False)
+            for si, ax in enumerate(axes[0]):
+                v = self._cal.scans[si].get('voltage')
+                ref = compare_to.effective_spectrum(voltage=v)(E)
+                est = self._scan_spectrum(si)
+                nrmse = (np.linalg.norm(est - ref)
+                         / np.linalg.norm(ref))
+                ax.plot(E, ref, label='reference')
+                ax.plot(E, est, '--', label='estimate')
+                ax.set_title(f'{self._scan_label(si)},  '
+                             f'NRMSE {nrmse:.4f}')
+                ax.set_xlabel('Energy (keV)')
+                ax.legend()
+                ax.grid(True)
+            axes[0][0].set_ylabel('Effective spectrum (1/keV)')
         fig.tight_layout()
         fig.savefig(os.path.join(plots_dir, 'spectrum.png'), dpi=130)
         plt.close(fig)

@@ -60,6 +60,47 @@ def segment_targets(recon, targets, ct_model, verbose=1):
     return masks
 
 
+def save_segmentation_plot(recon, targets, masks, filename,
+                           title=None):
+    """Write a review image of a segmentation.
+
+    The center slice of the reconstruction with each target's mask
+    outlined in its own color; a legend outside the image names each
+    color's material and size, so the image itself stays clean.
+
+    Args:
+        recon (numpy.ndarray): Reconstructed volume with shape
+            (rows, cols, slices).
+        targets (list of Target): The targets, in mask order.
+        masks (list of numpy.ndarray): One mask volume per target,
+            from :func:`segment_targets` or a mask builder.
+        filename (str): Output image path.
+        title (str, optional): Title above the image.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    colors = ['red', 'cyan', 'orange', 'magenta', 'lime', 'yellow']
+    recon = np.asarray(recon)
+    s = recon.shape[2] // 2
+    fig, ax = plt.subplots(figsize=(7.4, 6))
+    ax.imshow(recon[:, :, s], origin='lower')
+    handles = []
+    for i, (tg, m) in enumerate(zip(targets, masks)):
+        c = colors[i % len(colors)]
+        ax.contour(np.asarray(m)[:, :, s], levels=[0.5], colors=[c],
+                   linewidths=0.9)
+        handles.append(Line2D([0], [0], color=c,
+                              label=f'{tg.material.name} '
+                                    f'({tg.size:g} mm)'))
+    ax.legend(handles=handles, loc='center left',
+              bbox_to_anchor=(1.02, 0.5))
+    if title:
+        ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(filename, dpi=120)
+    plt.close(fig)
+
+
 def cylinder_masks(targets, ct_model, diameters=None, centers=None):
     """Build ideal cylindrical masks for the targets.
 

@@ -18,7 +18,6 @@ import os
 import time
 
 import numpy as np
-import matplotlib.pyplot as plt
 import mbirtorch
 import xcal
 
@@ -137,14 +136,10 @@ if __name__ == '__main__':
             recon, _ = ct_model.recon(sino)
             masks = xcal.segment_targets(recon, cal_target,
                                          ct_model)
-            fig, ax = plt.subplots(figsize=(6, 6))
-            ax.imshow(np.asarray(recon)[:, :, 0], origin='lower')
-            for m in masks:
-                ax.contour(m[:, :, 0] > 0.5, levels=[0.5],
-                           colors='r', linewidths=0.7)
-            ax.set_title(f'{kv:.0f} kV reconstruction and masks')
-            fig.savefig(f'{OUTPUT_DIR}/plots/segmentation_{kv:.0f}kV.png',
-                        dpi=120)
+            xcal.save_segmentation_plot(
+                recon, cal_target, masks,
+                f'{OUTPUT_DIR}/plots/segmentation_{kv:.0f}kV.png',
+                title=f'{kv:.0f} kV reconstruction and masks')
         masks_per_scan.append(masks)
 
     # ---------------- Add the scans to the calibrator ----------------
@@ -173,22 +168,10 @@ if __name__ == '__main__':
     # estimated systems as YAML, the fit data as HDF5, and plots.
     cal_result.save(OUTPUT_DIR)
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-    for ax, kv in zip(axes, VOLTAGES):
-        E = np.linspace(1.5, kv - 0.5, 4 * int(kv))
-        gt = gt_system.effective_spectrum(voltage=kv)(E)
-        est = est_system.effective_spectrum(voltage=kv)(E)
-        nrmse = np.linalg.norm(est - gt) / np.linalg.norm(gt)
-        ax.plot(E, gt, label='ground truth')
-        ax.plot(E, est, '--', label='estimate')
-        ax.set_title(f'{kv:.0f} kV,  NRMSE {nrmse:.4f}')
-        ax.set_xlabel('Energy (keV)')
-        ax.legend()
-        ax.grid(True)
-    fig.suptitle('Effective spectrum: ground truth vs estimate '
-                 '(paper Table 3 NRMSE: 0.0017, 0.0010, 0.0008)')
-    fig.tight_layout()
-    fig.savefig(f'{OUTPUT_DIR}/plots/spectra.png', dpi=130)
+    # In a simulation the ground truth exists, so redraw the
+    # spectrum plot with it for comparison.  (Paper Table 3 NRMSE:
+    # 0.0017, 0.0010, 0.0008.)
+    cal_result.save_plots(OUTPUT_DIR, compare_to=gt_system)
 
     # ---------------- Reuse the estimated parts ----------------
     # The estimated components are ordinary values, so a new system
@@ -200,18 +183,8 @@ if __name__ == '__main__':
         filters=[xcal.Filter('Cu', thickness=0.5)],
         detector=est_system.detector,
     )
-    fig, ax = plt.subplots(figsize=(6, 4))
-    E = np.linspace(1.5, 99.5, 400)
-    ax.plot(E, est_system.effective_spectrum(voltage=100)(E),
-            label='estimated system (Al 5 mm)')
-    ax.plot(E, cu_system.effective_spectrum(voltage=100)(E), '--',
-            label='same source and detector, Cu 0.5 mm')
-    ax.set_xlabel('Energy (keV)')
-    ax.set_ylabel('Effective spectrum (1/keV)')
-    ax.set_title('Reconfigured filtration at 100 kV, no recalibration')
-    ax.legend()
-    ax.grid(True)
-    fig.tight_layout()
-    fig.savefig(f'{OUTPUT_DIR}/plots/reconfigured_spectrum.png', dpi=130)
+    cu_system.save_plot(
+        f'{OUTPUT_DIR}/plots/reconfigured_spectrum.png',
+        voltage=100, compare_to=est_system)
 
     print(f'total time {time.time()-t0:.0f} s; output in {OUTPUT_DIR}')

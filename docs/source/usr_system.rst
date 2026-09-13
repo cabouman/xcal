@@ -135,6 +135,8 @@ fully specified or feasible:
     est_system.save('est_system.yaml')
     system = xcal.load_system('est_system.yaml')
 
+.. automethod:: xcal.System.save_plot
+
 .. automethod:: xcal.System.save
 
 .. autofunction:: xcal.load_system
