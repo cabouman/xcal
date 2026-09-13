@@ -90,3 +90,50 @@ def test_fixed_parameters_are_not_optimized():
     assert sol['filter_thicknesses'][0] == 1.0
     assert sol['detector_thickness'] == 0.2
     assert sol['cost'] < 1e-10
+
+
+def test_multi_filtration_joint_fit():
+    """Two scans with different filter sets share the filter and
+    detector parameters, the ALS-style configuration."""
+    energies = _physics.default_energy_grid(100)
+    si = _materials.resolve('Si', 'filter')
+    al = _materials.resolve('Al', 'filter')
+    lu = _materials.resolve('LuAG', 'scintillator')
+    ti = _materials.resolve('Ti', 'rod')
+
+    src = np.exp(-0.5 * ((energies - 40) / 15) ** 2)
+    det_resp = _physics.scintillator_response(lu, 0.05, energies)
+    t_si = _physics.filter_transmission(si, 2.0, energies)
+    t_al = _physics.filter_transmission(al, 8.0, energies)
+
+    mu_ti = _physics.attenuation_coefficients(ti, energies)
+    paths = np.linspace(0.05, 1.0, 200)
+    A = np.exp(-np.outer(paths, mu_ti))
+
+    scans = []
+    for filts, trans_prod in [([0], t_si), ([0, 1], t_si * t_al)]:
+        gt = src * trans_prod * det_resp
+        gt_n = gt / np.trapezoid(gt, energies)
+        y = np.trapezoid(A * gt_n, energies, axis=-1)
+        scans.append({'A': A, 'y': y, 'w': 1.0 / y,
+                      'filter_indices': filts,
+                      'source': ('fixed', src)})
+
+    import xcal
+    problem = _fit.FitProblem(
+        energies, scans, source_param=None,
+        filters=[
+            {'mu_candidates':
+             [_physics.attenuation_coefficients(si, energies)],
+             'thickness': xcal.estimate(0, 5)},
+            {'mu_candidates':
+             [_physics.attenuation_coefficients(al, energies)],
+             'thickness': xcal.estimate(0, 10)},
+        ],
+        detector={'curve_candidates':
+                  [_physics.scintillator_curves(lu, energies)],
+                  'thickness': xcal.estimate(0.01, 0.5)})
+    sol = problem.solve(max_iterations=8000, verbose=0)
+    assert sol['filter_thicknesses'][0] == pytest.approx(2.0, abs=0.4)
+    assert sol['filter_thicknesses'][1] == pytest.approx(8.0, abs=0.8)
+    assert sol['detector_thickness'] == pytest.approx(0.05, abs=0.03)

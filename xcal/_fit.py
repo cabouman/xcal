@@ -195,7 +195,7 @@ class FitProblem:
             final = float(self._loss(combo, theta_s, filter_ts, detector_t))
         return final, theta_s, filter_ts, detector_t, it
 
-    def solve(self, learning_rate=0.02, max_iterations=2000,
+    def solve(self, learning_rate=0.02, max_iterations=5000,
               stop_threshold=1e-6, verbose=1):
         """Search all discrete combinations and return the best fit.
 

@@ -1,5 +1,14 @@
 # Metadata specification for xcal 2 (draft for discussion)
 
+STATUS NOTE (2026-09-13): the implemented xcal 2 API takes the whole
+description as Python objects, and the materials catalog YAML is
+implemented (xcal/data/materials.yaml, xcal.add_materials).  The
+session metadata YAML file, the create-metadata assistant, and the
+check-metadata validator described below are NOT implemented.  The
+open decision for Charlie: keep them as a later optional layer over
+the same schema, or drop them and rewrite this document as a
+reference for the option space.
+
 A calibration session is described by one metadata file.  The file
 names the scan data files and states everything xcal cannot learn
 from them: what the source, filters, and detector might be, and what
@@ -56,7 +65,7 @@ algorithm already works: a material is always found by exhaustive
 search over candidates, fitting the continuous parameters once per
 candidate and keeping the lowest cost.
 
-Units are fixed by the schema: keV for voltage, mm for thickness and
+Units are fixed by the schema: kV for voltage, keV for energy, mm for thickness and
 diameter, degrees for angles.  The schema rejects a file that omits
 a required field or uses an unknown one.
 

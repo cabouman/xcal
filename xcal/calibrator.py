@@ -210,7 +210,7 @@ class Calibrator:
 
     # -- the pipeline -------------------------------------------------------
 
-    def calibrate(self, learning_rate=0.02, max_iterations=2000,
+    def calibrate(self, learning_rate=0.02, max_iterations=5000,
                   stop_threshold=1e-6, num_fit_views=16, num_fit_rows=5,
                   verbose=1):
         """Run the calibration and return the result.

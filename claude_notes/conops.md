@@ -10,11 +10,11 @@ and returns the resulting spectrum.
 
 The user provides three things:
 
-1. The calibration scans, in the format the scanner wrote them.
-   xcal reads any format mbirtorch can read (Zeiss, NSI, pymbir).
-   For unsupported scanners there is a generic path: the user
-   supplies the object scan, the air scan, and the geometry as
-   plain arrays.
+1. The calibration scans.  The user's script loads each scan with
+   mbirtorch preprocessing (Zeiss, NSI, pymbir), which returns a
+   sinogram and a tomography model; those pairs are what xcal takes.
+   For unsupported scanners the script builds the pair from the
+   object scan, the air scan, and the geometry, in a few lines.
 2. The composition of the calibration object: which material each
    rod is made of.
 3. A description of the system components: which facts are known,
@@ -65,40 +65,40 @@ ParallelBeamModel.
 ## How the user describes the system
 
 The description is a short block of plain Python at the top of the
-user's script.  Each fact is stated in one of three forms:
+user's script.  Each fact is stated in one of four forms:
 
-- A plain value means the fact is known: `voltage=80`.
-- A range means the value is estimated:
-  `thickness=xcal.estimate(5, low=0, high=10)`.
+- A plain value means the fact is known: `thickness=2.0`.
+- `xcal.estimate(low, high)` means the value is estimated within
+  bounds.
 - A list means the value is one of several candidates, and xcal
   picks the best: `material=['Al', 'Cu']`.
+- An omitted material means xcal searches the standard candidate
+  list from the materials catalog.
 
 For example:
 
 ```python
 system = xcal.System(
-    source = xcal.Source(voltage=80,
-                         takeoff_angle=xcal.estimate(25, low=5, high=45)),
-    filter = xcal.Filter(material=['Al', 'Cu'],
-                         thickness=xcal.estimate(5, low=0, high=10)),
-    scintillator = xcal.Scintillator(material=xcal.common_scintillators,
-                                     thickness=xcal.estimate(0.25, low=0.01, high=0.5)),
+    source=xcal.ReflectionSource(takeoff_angle=xcal.estimate(5, 45)),
+    filters=[xcal.Filter(material=['Al', 'Cu'],
+                         thickness=xcal.estimate(0, 10))],
+    detector=xcal.Scintillator(thickness=xcal.estimate(0.001, 0.5)),
 )
 ```
 
-A material is a chemical formula plus a density, for example
-`'Gd2O2S'`.  Any formula covered by the NIST tables is allowed.  The
-package carries a built-in density table for elements and common
-compounds, and ships curated candidate lists such as
-`xcal.common_scintillators` for users who do not know what is inside
-their detector.
+The per-scan voltage goes to `Calibrator.add_scan`, not into the
+source object.  A material is a chemical formula plus a density, for
+example `'Gd2O2S'`.  Any formula of elements 1 through 92 is
+allowed.  The materials catalog carries densities for the elements
+and the common scintillators, and defines the default candidate
+lists used when a material is omitted.
 
 ## Workflow
 
 1. The user reads the calibration scan page, builds or buys the rod
    target, and does the scans.
-2. The user points xcal at the scanner files and writes the system
-   description and the rod compositions.
+2. The user loads each scan with mbirtorch preprocessing and writes
+   the system description and the rod compositions.
 3. The user calls the estimator.
 4. The user reviews the outputs: the estimated spectrum, the
    estimated parameters, and plots of measured versus predicted
@@ -106,15 +106,17 @@ their detector.
 
 ## Outputs
 
-The estimator returns the estimated spectrum as a numpy array over
-energy, a dictionary of estimated parameters with stable readable
-names, and a fit report the user can plot.  Entry points accept
-numpy arrays and return numpy arrays.
+The result returns the estimated parameters as a dictionary with
+readable names, and the spectral quantities as functions of energy:
+the user evaluates them at any energies in keV and plots them with
+their own tools.  The effective spectrum is a density in 1/keV that
+integrates to one.  Array-valued inputs and outputs are numpy.
 
 ## Open questions
 
-- Whether the segmentation step needs any user input, such as
-  approximate rod diameters, or can run fully automatically.
+- Whether the rod masks should use the declared diameter (current
+  choice: the measurement locates the center and validates the
+  diameter) or the measured radius.
 - Which candidate lists to curate and what goes in them.
 - What the demo dataset is.  The current measured demo uses ALS
   synchrotron files that were normalized and reconstructed offline.
