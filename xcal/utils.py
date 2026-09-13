@@ -1,0 +1,220 @@
+"""Utility functions: physical parameter access and data helpers.
+
+The physical parameters live as data files in xcal/physical_params
+(the periodic table, the NIST attenuation tables, the materials
+catalog) and xcal/source_models (source spectrum tables).  The
+functions here read them.
+"""
+
+import os
+
+import numpy as np
+
+_PHYSICAL_PARAMS_DIR = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), 'physical_params')
+_SOURCE_MODELS_DIR = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), 'source_models')
+
+_periodic_table_cache = None
+
+
+def periodic_table():
+    """Return the periodic table as {symbol: {'atomic_weight',
+    'density'}}, atomic weight in g/mol and density in g/cm^3, read
+    once from physical_params/periodic_table.yaml."""
+    global _periodic_table_cache
+    if _periodic_table_cache is None:
+        import yaml
+        path = os.path.join(_PHYSICAL_PARAMS_DIR, 'periodic_table.yaml')
+        with open(path) as f:
+            _periodic_table_cache = yaml.safe_load(f)['elements']
+    return _periodic_table_cache
+
+
+def atomic_weights():
+    """Return {element symbol: atomic weight in g/mol}."""
+    return {s: e['atomic_weight'] for s, e in periodic_table().items()}
+
+
+def element_densities():
+    """Return {element symbol: density in g/cm^3} for elements that
+    have one."""
+    return {s: e['density'] for s, e in periodic_table().items()
+            if 'density' in e}
+
+
+def nist_table_path():
+    """Return the path of the NIST attenuation table file."""
+    return os.path.join(_PHYSICAL_PARAMS_DIR, 'nist_attenuation.h5')
+
+
+_nist_symbols_cache = None
+
+
+def nist_element_symbols():
+    """Return the set of element symbols covered by the NIST tables
+    (hydrogen through uranium, plus 'Air')."""
+    global _nist_symbols_cache
+    if _nist_symbols_cache is None:
+        import h5py
+        with h5py.File(nist_table_path(), 'r') as f:
+            _nist_symbols_cache = set(f.keys())
+    return _nist_symbols_cache
+
+
+def interpret_formula(formula):
+    """Return a chemical formula as an {element: count} dict.  A dict
+    passes through unchanged."""
+    if isinstance(formula, dict):
+        return formula
+    import chemparse
+    return chemparse.parse_formula(formula)
+
+
+def molecular_mass(formula):
+    """Return the molecular mass of a formula in g/mol."""
+    weights = atomic_weights()
+    return sum(count * weights[element]
+               for element, count in interpret_formula(formula).items())
+
+
+def _mass_coefficient(formula, energies, column):
+    """Mass-weighted NIST coefficient curve for a compound, in
+    cm^2/g, log-log interpolated at the given energies in keV."""
+    import h5py
+    parsed = interpret_formula(formula)
+    weights = atomic_weights()
+    total_mass = molecular_mass(parsed)
+    out = np.zeros(len(energies), dtype=float)
+    with h5py.File(nist_table_path(), 'r') as f:
+        for element, count in parsed.items():
+            fraction = count * weights[element] / total_mass
+            table = np.array(f[f'/{element}/data'])
+            log_interp = np.interp(np.log(energies),
+                                   np.log(table[:, 0]),
+                                   np.log(table[:, column]))
+            out += fraction * np.exp(log_interp)
+    return out
+
+
+def get_lin_att_c_vs_E(density, formula, energies):
+    """Return the linear attenuation coefficient curve in 1/mm.
+
+    Args:
+        density (float): Material density in g/cm^3.
+        formula (str or dict): Chemical formula, e.g. 'Gd2O2S'.
+        energies (numpy.ndarray): Energies in keV, within the NIST
+            table range of 1 keV to 20 MeV.
+    """
+    energies = np.asarray(energies, dtype=float)
+    return density * _mass_coefficient(formula, energies, 1) / 10.0
+
+
+def get_lin_absp_c_vs_E(density, formula, energies):
+    """Return the linear energy-absorption coefficient curve in 1/mm.
+
+    Args:
+        density (float): Material density in g/cm^3.
+        formula (str or dict): Chemical formula.
+        energies (numpy.ndarray): Energies in keV, within the NIST
+            table range.
+    """
+    energies = np.asarray(energies, dtype=float)
+    return density * _mass_coefficient(formula, energies, 2) / 10.0
+
+
+# ---------------------------------------------------------------------------
+# The ALS Beamline 8.3.2 source spectrum
+# ---------------------------------------------------------------------------
+
+def als_bm832():
+    """Return the ALS Beamline 8.3.2 spectrum rebinned to uniform
+    1 keV bins.
+
+    Returns:
+        tuple: (energies, spectrum).  Bin center energies from 0.5 to
+        99.5 keV, and photon counts per bin, total counts preserved.
+    """
+    import h5py
+    path = os.path.join(_SOURCE_MODELS_DIR, 'als_bm832_spectrum.h5')
+    with h5py.File(path, 'r') as f:
+        energies = np.array(f['energies'])
+        spectrum = np.array(f['spectrum'])
+
+    edges = np.linspace(0, 100, num=101)
+    rebinned = np.zeros(len(edges) - 1)
+    for i in range(len(spectrum) - 1):
+        start, end = energies[i], energies[i + 1]
+        count = spectrum[i]
+        j0 = np.searchsorted(edges, start, side='right') - 1
+        j1 = np.searchsorted(edges, end, side='left')
+        for j in range(j0, j1):
+            overlap = ((min(end, edges[j + 1]) - max(start, edges[j]))
+                       / (end - start))
+            rebinned[j] += overlap * count
+    return edges[1:] - 0.5, rebinned
+
+
+# ---------------------------------------------------------------------------
+# Measurement masking helpers (used with the measured ALS data)
+# ---------------------------------------------------------------------------
+
+def detect_outliers(data, window_size, threshold_std=3):
+    """Mask outliers in a radiograph stack (Wenrui Li's method from
+    xcal 1).  Each value is compared with the mean of its channel
+    neighborhood; deviations beyond threshold_std standard
+    deviations of that row's deviations are outliers.
+
+    Args:
+        data (numpy.ndarray): Shape (views, rows, channels).
+        window_size (int): Width of the neighborhood.
+        threshold_std (float): Deviation threshold in standard
+            deviations.
+
+    Returns:
+        numpy.ndarray: Boolean array, False where a value is an
+        outlier.
+    """
+    from scipy.ndimage import convolve1d
+    kernel = np.full(window_size, -1 / (window_size - 1))
+    kernel[window_size // 2] = 1
+    mask = np.zeros_like(data, dtype=bool)
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            convolved = convolve1d(data[i, j, :], kernel,
+                                   mode='constant', cval=1.0)
+            threshold = np.std(convolved) * threshold_std
+            mask[i, j, :] = np.abs(convolved) < threshold
+    return mask
+
+
+def only_center_mask(data, window_size=None):
+    """Mask keeping, per view and row, a window of channels centered
+    on the darkest region, which is where the calibration target is
+    (Wenrui Li's method from xcal 1).
+
+    Args:
+        data (numpy.ndarray): Transmission data, shape (views, rows,
+            channels).
+        window_size (int, optional): Number of channels to keep.
+            Defaults to all channels.
+
+    Returns:
+        numpy.ndarray: Boolean array, True on the kept channels.
+    """
+    from scipy.ndimage import convolve1d
+    new_mask = np.ones_like(data, dtype=bool)
+    if window_size is None:
+        window_size = data.shape[2]
+    half_window = window_size // 2
+    kernel = np.ones(window_size)
+    for i in range(data.shape[0]):
+        for j in range(data.shape[1]):
+            window_sums = convolve1d(data[i, j, :], kernel,
+                                     mode='constant', cval=np.inf)
+            argmin = np.argmin(window_sums)
+            start = max(argmin - half_window, 0)
+            end = min(argmin + half_window + 1, data.shape[2])
+            new_mask[i, j, :start] = False
+            new_mask[i, j, end + 1:] = False
+    return new_mask

@@ -27,7 +27,7 @@ _catalog = None
 
 def _shipped_catalog_path():
     return os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'data', 'materials.yaml')
+                        'physical_params', 'materials.yaml')
 
 
 def _load():

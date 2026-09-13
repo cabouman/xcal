@@ -33,11 +33,10 @@ Homepage = "https://github.com/cabouman/xcal"
 Documentation = "https://xcal.readthedocs.io"
 
 [tool.setuptools]
-packages = ["xcal", "xcal.chem_consts"]
+packages = ["xcal"]
 
 [tool.setuptools.dynamic]
 version = { attr = "xcal.__version__" }
 
 [tool.setuptools.package-data]
-xcal = ["data/*.yaml", "data/*.csv"]
-"xcal.chem_consts" = ["*.h5"]
+xcal = ["physical_params/*", "source_models/*"]

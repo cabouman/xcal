@@ -10,8 +10,7 @@ import os
 
 import numpy as np
 
-from .chem_consts._consts_from_table import (get_lin_att_c_vs_E,
-                                             get_lin_absp_c_vs_E)
+from .utils import get_lin_att_c_vs_E, get_lin_absp_c_vs_E
 
 # Validity range of the NIST tables shipped in mu_en.h5, in keV.
 ENERGY_MIN_KEV = 1.0
@@ -132,14 +131,14 @@ def reflection_source_table(voltage, takeoff_angles, energies):
 
 
 _TRANSMISSION_TABLE = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), 'data',
+    os.path.dirname(os.path.realpath(__file__)), 'source_models',
     'Geant4_Transmission_Source_Spectra.csv')
 
 
 def transmission_source_table(csv_path=None, apex_angle='10deg',
                               physics_model='G4EmLivermorePhysics'):
     """Load the Geant4 transmission source lookup table shipped in
-    xcal/data.
+    xcal/source_models.
 
     The table holds simulated tungsten transmission target spectra at
     voltages 40, 80, and 150 kV and target thicknesses 1 to 7
@@ -269,6 +268,6 @@ def interpolate_rows(x_grid, table, x):
 def load_als_spectrum():
     """Return (energies_keV, counts) for the built-in ALS beamline
     8.3.2 spectrum, rebinned to 1 keV bins."""
-    from .chem_consts._als_utils import als_bm832
+    from .utils import als_bm832
     energies, counts = als_bm832()
     return np.asarray(energies, dtype=float), np.asarray(counts, dtype=float)
