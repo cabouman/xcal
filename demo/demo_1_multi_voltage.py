@@ -109,14 +109,26 @@ if __name__ == '__main__':
     )
 
     # ---------------- Acquire the scans ----------------
-    # A real user gets each scan's sinogram and CT model from
-    # mbirtorch preprocessing of a scanner file.  Here the scanner
-    # itself is simulated, one call per scan.
-    cal = xcal.Calibrator(feasible_system, targets)
+    # Data collection is its own phase, separate from everything
+    # after it.  A real user gets each scan's sinogram and CT model
+    # from mbirtorch preprocessing of a scanner file; here the
+    # scanner itself is simulated.  This phase produces one list:
+    # the N scans, each holding (voltage, sinogram, ct_model,
+    # gt_masks).
+    scans = []
     for i, kv in enumerate(VOLTAGES):
         sino, ct_model, gt_masks = simulate_scanner(
             gt_system, targets, kv, N_VIEWS, N_DET_ROWS,
             N_DET_CHANNELS, PIXEL_MM, PHOTONS, seed=i)
+        scans.append((kv, sino, ct_model, gt_masks))
+        print(f'{kv:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
+
+    # ---------------- Get the target masks ----------------
+    # The masks are the calibration's third input: either the gt
+    # masks from the simulation, or masks segmented from a
+    # reconstruction of each scan, as a real user must do.
+    masks_per_scan = []
+    for kv, sino, ct_model, gt_masks in scans:
         if USE_GROUND_TRUTH_MASKS:
             masks = gt_masks
         else:
@@ -131,8 +143,12 @@ if __name__ == '__main__':
             ax.set_title(f'{kv:.0f} kV reconstruction and masks')
             fig.savefig(f'{OUTPUT_DIR}/segmentation_{kv:.0f}kV.png',
                         dpi=120)
+        masks_per_scan.append(masks)
+
+    # ---------------- Add the scans to the calibrator ----------------
+    cal = xcal.Calibrator(feasible_system, targets)
+    for (kv, sino, ct_model, _), masks in zip(scans, masks_per_scan):
         cal.add_scan(sino, ct_model, masks, voltage=kv)
-        print(f'{kv:.0f} kV scan ready ({time.time()-t0:.0f} s)')
 
     # -------------------- Calibrate --------------------
     # The central step of the whole demo.  The calibrator searches
