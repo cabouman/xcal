@@ -1,22 +1,45 @@
 # Demos planned for xcal 2.0
 
-This is the planning list.  It covers every demo from xcal 1 and
-every dataset we currently have.
+Two simulation demos.  Real data demos are parked until the
+simulations are right and reconstruction from raw scans is
+implemented and debugged as its own step.
 
-## Simulation demos
+## Demo 1: multi-voltage (demo_simulated_multi_voltage.py)
 
-| Demo | What it shows | xcal 1 equivalent | Status |
-|---|---|---|---|
-| demo_simulated_multi_voltage.py | Reflection tube at 3 voltages, 4 rods.  Recovers takeoff angle, filter, and scintillator. | demo_spec_est_3_voltages, tutorials T01 and T02 | Done |
-| demo_simulated_multi_filtration.py | Synchrotron with 2 filtrations, 2 rods.  Recovers both filter thicknesses and the scintillator. | None (new; mirrors the ALS experiment) | Done |
-| demo_simulated_transmission.py | Transmission tube (Versa style) at 3 voltages.  Recovers the target thickness from the Geant4 table. | Tutorial T03 | To build |
+A laboratory scanner with a reflection tube scans four rods at three
+voltages.  This is the most important demo: the common laboratory
+case, the paper's headline experiment, and the quick start example.
 
-## Real data demos
+Ground truth to recover:
+- Source: reflection tube, tungsten anode, takeoff angle 13 degrees.
+- Filter: Al, 3.0 mm.
+- Scintillator: CsI, 0.33 mm.
 
-| Demo | Data | xcal 1 equivalent | Status |
-|---|---|---|---|
-| demo_als_measured.py | ALS Beamline 8.3.2, 8 scans in hand (data/README.md) | demo_als | To build |
+Scans:
+- Voltages 80, 130, 180 kV; one scan each.
+- 40,000 air photons per detector element, Poisson noise.
 
-Not planned for 2.0: tutorial T04 (the analytical source model was
-dropped) and the Zeiss Versa real-data demo (no data; Charlie will
-ask Aditya Mohan).
+Rods (all in every scan):
+- V 0.5 mm, Ti 0.5 mm, Al 1.0 mm, Mg 1.0 mm diameter.
+- Placed automatically on a circle inside the field of view.
+
+Geometry:
+- Parallel beam, 96 views over 180 degrees.
+- 4 detector rows, 384 channels, 0.025 mm pixels.
+- Reconstruction grid 385 x 385, 0.025 mm voxels, so the rod radii
+  are 10 to 20 voxels.
+
+Estimated by the calibration:
+- Takeoff angle, bounds 5 to 45 degrees.
+- Filter material from {Al, Cu}, thickness bounds 0 to 10 mm.
+- Scintillator material from the 7 catalog candidates, thickness
+  bounds 0.001 to 0.5 mm.
+- 2 x 7 = 14 material combinations searched.
+
+Fit settings:
+- Energy grid 1.5 to 179.5 keV in 1 keV bins.
+- Weights 1/transmission; Adam, rate 0.02, up to 5000 iterations.
+
+## Demo 2: multi-filtration (demo_simulated_multi_filtration.py)
+
+To be specified next.
