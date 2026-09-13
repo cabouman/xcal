@@ -55,9 +55,16 @@ OUTPUT_DIR = './output/demo_1_multi_voltage'
 # ===========================================================
 
 
-def make_model(n_views, n_det_rows, n_det_channels, pixel_mm):
-    """Build the mbirtorch CT model for one scan: the parallel beam
-    geometry, in mm units."""
+def simulate_scanner(gt_system, targets, voltage, n_views,
+                     n_det_rows, n_det_channels, pixel_mm, photons,
+                     seed):
+    """Stand in for the scanner and its preprocessing.
+
+    With real data, mbirtorch preprocessing reads the scanner file
+    and returns a sinogram and an mbirtorch CT model.  This function
+    returns the same pair for a simulated scan, plus the ground
+    truth (gt) masks, which only a simulation can know.
+    """
     angles = np.linspace(0, np.pi, n_views,
                          endpoint=False).astype(np.float32)
     ct_model = mbirtorch.ParallelBeamModel(
@@ -66,7 +73,12 @@ def make_model(n_views, n_det_rows, n_det_channels, pixel_mm):
                         delta_det_row=pixel_mm,
                         alu_unit='mm', alu_value=1.0)
     ct_model.auto_set_recon_geometry()
-    return ct_model
+
+    gt_masks = xcal.cylinder_masks(targets, ct_model)
+    sino = xcal.simulate_scan(gt_system, targets, ct_model,
+                              voltage=voltage, target_masks=gt_masks,
+                              photons=photons, seed=seed)
+    return sino, ct_model, gt_masks
 
 
 if __name__ == '__main__':
@@ -96,20 +108,17 @@ if __name__ == '__main__':
         detector=xcal.Scintillator(),
     )
 
-    # ---------------- Simulate the scans ----------------
+    # ---------------- Acquire the scans ----------------
+    # A real user gets each scan's sinogram and CT model from
+    # mbirtorch preprocessing of a scanner file.  Here the scanner
+    # itself is simulated, one call per scan.
     cal = xcal.Calibrator(feasible_system, targets)
     for i, kv in enumerate(VOLTAGES):
-        # One mbirtorch CT model per scan: real scans can differ in
-        # alignment.
-        ct_model = make_model(N_VIEWS, N_DET_ROWS, N_DET_CHANNELS,
-                              PIXEL_MM)
-        true_masks = xcal.cylinder_masks(targets, ct_model)
-        sino = xcal.simulate_scan(gt_system, targets, ct_model,
-                                  voltage=kv,
-                                  target_masks=true_masks,
-                                  photons=PHOTONS, seed=i)
+        sino, ct_model, gt_masks = simulate_scanner(
+            gt_system, targets, kv, N_VIEWS, N_DET_ROWS,
+            N_DET_CHANNELS, PIXEL_MM, PHOTONS, seed=i)
         if USE_GROUND_TRUTH_MASKS:
-            masks = true_masks
+            masks = gt_masks
         else:
             print(f'reconstructing the {kv:.0f} kV scan...')
             recon, _ = ct_model.recon(sino)
