@@ -30,7 +30,7 @@ scintillators at 0.046 mm (truth 0.05).  So both scan types you
 asked for, multi-voltage and multi-filtration, run end to end.
 
 Run them yourself (both verified tonight exactly as committed):
-`python demo/demo_1_multi-voltage.py` (about 3 minutes) and
+`python demo/demo_1_multi_voltage.py` (about 3 minutes) and
 `python demo/demo_simulated_multi_filtration.py` (about 1 minute).
 Their figures are also in claude_notes/review_figures/.
 

@@ -4,7 +4,7 @@ Two simulation demos.  Real data demos are parked until the
 simulations are right and reconstruction from raw scans is
 implemented and debugged as its own step.
 
-## Demo 1: multi-voltage (demo_1_multi-voltage.py)
+## Demo 1: multi-voltage (demo_1_multi_voltage.py)
 
 Follows the simulated experiment of the paper (Table 2).  A
 reflection tube scans four rods at three voltages.  This is the most
