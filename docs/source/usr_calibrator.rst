@@ -99,11 +99,12 @@ the beam, is always right.
 Running the calibration
 -----------------------
 
-One call runs the whole pipeline:
+One call runs the whole pipeline and returns two things, the
+estimated system and the information about how the fit went:
 
 .. code-block:: python
 
-    result = cal.calibrate()
+    est_system, fit_info = cal.calibrate()
 
 Internally, calibrate does two things.  It forward projects each
 scan's target masks to get the path length of every ray through every
@@ -118,15 +119,23 @@ bounds.
 Reading the result
 ------------------
 
-The result returns data and functions; it does not plot.  The
-spectral quantities come back as functions of energy, which you
-evaluate at any energies in keV and plot with your own tools:
+``est_system`` is a fully specified :class:`~xcal.System`: the same
+kind of object you described the system with, but with every value
+filled in.  Ask it for spectra, read its values, or reuse its parts
+in a new System:
 
 .. code-block:: python
 
-    R = result.effective_spectrum(voltage=80)   # a function of energy
-    E = np.linspace(1, 80, 320)                 # keV
+    R = est_system.effective_spectrum(voltage=80)   # a function of energy
+    E = np.linspace(1, 80, 320)                     # keV
     plt.plot(E, R(E))
+
+    est_system.filters[0].thickness                 # a number, in mm
+
+    new_system = xcal.System(          # different filters, same
+        source=est_system.source,      # estimated source and detector
+        filters=[xcal.Filter('Cu', thickness=0.5)],
+        detector=est_system.detector)
 
 ``R`` represents a continuous spectral density in units of 1/keV.
 It is zero above the source voltage and integrates to one, because
@@ -134,24 +143,20 @@ the air scan normalization makes the absolute scale unidentifiable.
 The voltage may be any value in the calibrated range, not only the
 scanned voltages, because the source model interpolates.
 
-The components are available the same way.
-``result.source_spectrum(voltage=80)`` returns the source density,
-``result.filter_response(al_filter)`` returns one filter's
-transmission (values between 0 and 1), and
-``result.detector_response()`` returns the detector's relative
-response.
+``fit_info`` holds everything about how the fit went.
+``fit_info.parameters()`` is the full parameter table with
+provenance (given, estimated with bounds, or setting), and
+``fit_info.summary()`` prints it.  ``fit_info.transmission_fit(0)``
+returns the measured and predicted transmission arrays for the
+first scan you added, for judging how well the model fits the data.
+``fit_info.candidates`` ranks every material combination by cost.
+``fit_info.save(path)`` stores the calibration.
 
-The estimated parameters come from ``result.params``, a dictionary
-with readable names, or ``result.summary()``, a printable table.
-``result.transmission_fit(0)`` returns the measured and predicted
-transmission arrays for the first scan you added, for judging how
-well the model fits the data.
-
-For review there is one display convenience, ``result.show()``: it
-prints the parameter table and plots the spectra and the fit.  The
-target masks are reviewed earlier, at the segmentation step, before
-any fitting: if a mask is wrong, every estimate downstream of it is
-wrong.
+For review there is one display convenience, ``fit_info.show()``:
+it prints the parameter table and plots the spectra and the fit.
+The target masks are reviewed earlier, at the segmentation step,
+before any fitting: if a mask is wrong, every estimate downstream
+of it is wrong.
 
 .. autoclass:: xcal.CalibrationResult
 

@@ -28,7 +28,7 @@ and estimate directly:
 .. code-block:: python
 
     R_true = truth.effective_spectrum(voltage=80)
-    R_est = result.effective_spectrum(voltage=80)
+    R_est = est_system.effective_spectrum(voltage=80)
 
 .. autofunction:: xcal.simulate_scan
 

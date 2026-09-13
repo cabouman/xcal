@@ -50,24 +50,24 @@ def test_calibrate_pipeline_recovers_thicknesses():
                                   target_masks=masks,
                                   photons=100000, seed=5 + i)
         cal.add_scan(sino, model, masks, voltage=voltage)
-    result = cal.calibrate(verbose=0)
+    est_system, fit_info = cal.calibrate(verbose=0)
 
     # Wide tolerances: measured-shape segmentation carries a known
     # few-percent path length bias that the fit absorbs into the
     # thicknesses (see claude_notes/improvements.md).  This test
     # guards the pipeline, not the accuracy.
-    p = result.params
+    p = fit_info.params
     assert p['filter 1 (Al) thickness (mm)'] == pytest.approx(3.0,
                                                               abs=2.0)
     assert p['detector thickness (mm)'] == pytest.approx(0.33, abs=0.2)
 
     voltage = voltages[-1]
-    R = result.effective_spectrum(voltage=voltage)
+    R = est_system.effective_spectrum(voltage=voltage)
     E = np.linspace(1, voltage, 200)
     assert np.trapezoid(R(E), E) == pytest.approx(1.0, abs=5e-3)
     truth_R = truth.effective_spectrum(voltage=voltage)
     nrmse = (np.linalg.norm(R(E) - truth_R(E))
              / np.linalg.norm(truth_R(E)))
     assert nrmse < 0.3
-    y, pred = result.transmission_fit(0)
+    y, pred = fit_info.transmission_fit(0)
     assert np.corrcoef(y, pred)[0, 1] > 0.99

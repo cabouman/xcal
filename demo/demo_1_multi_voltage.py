@@ -122,30 +122,30 @@ if __name__ == '__main__':
                         dpi=120)
         cal.add_scan(sino, model, masks, voltage=kv)
         print(f'{kv:.0f} kV scan ready ({time.time()-t0:.0f} s)')
-    result = cal.calibrate()
+    est_system, fit_info = cal.calibrate()
 
     # ---------------- Report ----------------
     print()
-    print(result.summary())
+    print(fit_info.summary())
     print()
     print(f'Ground truth: takeoff angle {GT_TAKEOFF_ANGLE} deg; '
           f'{GT_FILTER_MATERIAL} filter {GT_FILTER_THICKNESS} mm; '
           f'{GT_SCINT_MATERIAL} scintillator {GT_SCINT_THICKNESS} mm')
 
     with open(f'{OUTPUT_DIR}/summary.txt', 'w') as f:
-        f.write(result.summary() + '\n')
+        f.write(fit_info.summary() + '\n')
     with open(f'{OUTPUT_DIR}/parameters.csv', 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['name', 'value', 'units',
                                                'origin', 'low', 'high',
                                                'note'])
         writer.writeheader()
-        writer.writerows(result.parameters())
+        writer.writerows(fit_info.parameters())
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
     for ax, kv in zip(axes, VOLTAGES):
         E = np.linspace(1.5, kv - 0.5, 4 * int(kv))
         gt = gt_system.effective_spectrum(voltage=kv)(E)
-        est = result.est_system.effective_spectrum(voltage=kv)(E)
+        est = est_system.effective_spectrum(voltage=kv)(E)
         nrmse = np.linalg.norm(est - gt) / np.linalg.norm(gt)
         ax.plot(E, gt, label='ground truth')
         ax.plot(E, est, '--', label='estimate')
@@ -158,5 +158,30 @@ if __name__ == '__main__':
     fig.tight_layout()
     fig.savefig(f'{OUTPUT_DIR}/spectra.png', dpi=130)
 
-    result.save(f'{OUTPUT_DIR}/calibration.h5')
+    fit_info.save(f'{OUTPUT_DIR}/calibration.h5')
+
+    # ---------------- Reuse the estimated parts ----------------
+    # The estimated components are ordinary values, so a new system
+    # can mix them with a different filtration: here, the estimated
+    # source and detector behind a 0.5 mm Cu filter that was never
+    # scanned.
+    cu_system = xcal.System(
+        source=est_system.source,
+        filters=[xcal.Filter('Cu', thickness=0.5)],
+        detector=est_system.detector,
+    )
+    fig, ax = plt.subplots(figsize=(6, 4))
+    E = np.linspace(1.5, 99.5, 400)
+    ax.plot(E, est_system.effective_spectrum(voltage=100)(E),
+            label='estimated system (Al 5 mm)')
+    ax.plot(E, cu_system.effective_spectrum(voltage=100)(E), '--',
+            label='same source and detector, Cu 0.5 mm')
+    ax.set_xlabel('Energy (keV)')
+    ax.set_ylabel('Effective spectrum (1/keV)')
+    ax.set_title('Reconfigured filtration at 100 kV, no recalibration')
+    ax.legend()
+    ax.grid(True)
+    fig.tight_layout()
+    fig.savefig(f'{OUTPUT_DIR}/reconfigured_spectrum.png', dpi=130)
+
     print(f'total time {time.time()-t0:.0f} s; output in {OUTPUT_DIR}')

@@ -39,7 +39,7 @@ class Calibrator:
         >>> masks = xcal.segment_targets(recon, targets, ct_model)
         >>> cal = xcal.Calibrator(system, targets)
         >>> cal.add_scan(sino, ct_model, masks, voltage=80)
-        >>> result = cal.calibrate()
+        >>> est_system, fit_info = cal.calibrate()
     """
 
     def __init__(self, system, targets):
@@ -286,7 +286,13 @@ class Calibrator:
             verbose (int, optional): 0 is silent, 1 prints progress.
 
         Returns:
-            CalibrationResult: The estimated parameters and spectra.
+            tuple: (est_system, fit_info).  est_system is a fully
+            specified :class:`~xcal.System` holding the estimated
+            values.  fit_info is a :class:`CalibrationResult` holding
+            everything about how the fit went: the cost, the ranked
+            material combinations, the measured and predicted
+            transmissions, the parameter table with provenance, and
+            save().
         """
         if not self.scans:
             raise ValueError("no scans were added; call add_scan first.")
@@ -368,8 +374,9 @@ class Calibrator:
                                  stop_threshold=stop_threshold,
                                  verbose=verbose)
 
-        return CalibrationResult(self, energies, solution, all_paths,
-                                 selections, fit_scans)
+        fit_info = CalibrationResult(self, energies, solution,
+                                     all_paths, selections, fit_scans)
+        return fit_info.est_system, fit_info
 
 
 class CalibrationResult:
