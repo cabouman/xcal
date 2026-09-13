@@ -72,8 +72,8 @@ if __name__ == '__main__':
     t0 = time.time()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    # ---------------- The truth to recover ----------------
-    truth = xcal.System(
+    # ------------- The ground truth (gt) system -------------
+    gt_system = xcal.System(
         source=xcal.ReflectionSource(takeoff_angle=GT_TAKEOFF_ANGLE),
         filters=[xcal.Filter(GT_FILTER_MATERIAL,
                              thickness=GT_FILTER_THICKNESS)],
@@ -83,24 +83,27 @@ if __name__ == '__main__':
     targets = [xcal.Target(m, TARGET_DIAMETER)
                for m in TARGET_MATERIALS]
 
-    # ---------------- The unknowns to estimate ----------------
-    # Materials and thicknesses omitted: the candidates and their
-    # bounds come from the catalog (Al 0 to 10 mm, Cu 0 to 1 mm; the
-    # seven scintillators, 0.001 to 0.5 mm).
-    unknown_system = xcal.System(
+    # ---------------- The feasible systems ----------------
+    # The system with its unknowns marked: the set of systems the
+    # calibration may choose from.  Materials and thicknesses
+    # omitted: the candidates and their bounds come from the catalog
+    # (Al 0 to 10 mm, Cu 0 to 1 mm; the seven scintillators, 0.001
+    # to 0.5 mm).
+    feasible_system = xcal.System(
         source=xcal.ReflectionSource(takeoff_angle=xcal.estimate(5, 45)),
         filters=[xcal.Filter(material=['Al', 'Cu'])],
         detector=xcal.Scintillator(),
     )
 
     # ---------------- Simulate, get masks, calibrate ----------------
-    cal = xcal.Calibrator(unknown_system, targets)
+    cal = xcal.Calibrator(feasible_system, targets)
     for i, kv in enumerate(VOLTAGES):
         # One model per scan: real scans can differ in alignment.
         model = make_model(N_VIEWS, N_DET_ROWS, N_DET_CHANNELS,
                            PIXEL_MM)
         true_masks = xcal.cylinder_masks(targets, model)
-        sino = xcal.simulate_scan(truth, targets, model, voltage=kv,
+        sino = xcal.simulate_scan(gt_system, targets, model,
+                                  voltage=kv,
                                   target_masks=true_masks,
                                   photons=PHOTONS, seed=i)
         if USE_GROUND_TRUTH_MASKS:
@@ -141,8 +144,8 @@ if __name__ == '__main__':
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
     for ax, kv in zip(axes, VOLTAGES):
         E = np.linspace(1.5, kv - 0.5, 4 * int(kv))
-        gt = truth.effective_spectrum(voltage=kv)(E)
-        est = result.effective_spectrum(voltage=kv)(E)
+        gt = gt_system.effective_spectrum(voltage=kv)(E)
+        est = result.est_system.effective_spectrum(voltage=kv)(E)
         nrmse = np.linalg.norm(est - gt) / np.linalg.norm(gt)
         ax.plot(E, gt, label='ground truth')
         ax.plot(E, est, '--', label='estimate')

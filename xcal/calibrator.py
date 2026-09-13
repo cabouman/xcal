@@ -410,6 +410,35 @@ class CalibrationResult:
 
     # -- parameters ---------------------------------------------------------
 
+    @property
+    def est_system(self):
+        """System: the estimated system, fully specified.
+
+        A :class:`~xcal.System` with every estimated value filled
+        in, usable exactly like a ground truth system.  The three
+        stages of a calibration speak one language: a gt_system goes
+        into the simulation, a feasible_system goes into the
+        calibrator, and est_system comes out.
+        """
+        source = self._system.source
+        if isinstance(source, ReflectionSource):
+            src = ReflectionSource(takeoff_angle=self._source_value)
+        elif isinstance(source, TransmissionSource):
+            src = TransmissionSource(
+                target_thickness=self._source_value,
+                spectra_table=source.spectra_table)
+        else:
+            src = source
+        filters = [Filter(material=m.formula, thickness=th,
+                          name=f.name, density=m.density)
+                   for f, m, th in zip(self.filters,
+                                       self._filter_materials,
+                                       self._filter_thicknesses)]
+        det = Scintillator(material=self._detector_material.formula,
+                           thickness=self._detector_thickness,
+                           density=self._detector_material.density)
+        return System(source=src, filters=filters, detector=det)
+
     def parameters(self):
         """Return the full parameter table with provenance.
 
