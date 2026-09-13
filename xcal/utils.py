@@ -43,23 +43,35 @@ def element_densities():
             if 'density' in e}
 
 
-def nist_table_path():
-    """Return the path of the NIST attenuation table file."""
-    return os.path.join(_PHYSICAL_PARAMS_DIR, 'nist_attenuation.h5')
+_nist_tables_cache = None
 
 
-_nist_symbols_cache = None
+def nist_tables():
+    """Return the NIST tables as {element: array of shape (n, 3)}
+    with columns energy in keV, mass attenuation, and mass
+    energy-absorption in cm^2/g, read once from
+    physical_params/nist_attenuation.csv."""
+    global _nist_tables_cache
+    if _nist_tables_cache is None:
+        import csv
+        path = os.path.join(_PHYSICAL_PARAMS_DIR,
+                            'nist_attenuation.csv')
+        rows = {}
+        with open(path) as f:
+            for line in csv.reader(
+                    r for r in f if not r.startswith('#')):
+                if line[0] == 'element':
+                    continue
+                rows.setdefault(line[0], []).append(
+                    [float(x) for x in line[1:]])
+        _nist_tables_cache = {el: np.array(v) for el, v in rows.items()}
+    return _nist_tables_cache
 
 
 def nist_element_symbols():
     """Return the set of element symbols covered by the NIST tables
     (hydrogen through uranium, plus 'Air')."""
-    global _nist_symbols_cache
-    if _nist_symbols_cache is None:
-        import h5py
-        with h5py.File(nist_table_path(), 'r') as f:
-            _nist_symbols_cache = set(f.keys())
-    return _nist_symbols_cache
+    return set(nist_tables().keys())
 
 
 def interpret_formula(formula):
@@ -81,19 +93,18 @@ def molecular_mass(formula):
 def _mass_coefficient(formula, energies, column):
     """Mass-weighted NIST coefficient curve for a compound, in
     cm^2/g, log-log interpolated at the given energies in keV."""
-    import h5py
     parsed = interpret_formula(formula)
     weights = atomic_weights()
     total_mass = molecular_mass(parsed)
+    tables = nist_tables()
     out = np.zeros(len(energies), dtype=float)
-    with h5py.File(nist_table_path(), 'r') as f:
-        for element, count in parsed.items():
-            fraction = count * weights[element] / total_mass
-            table = np.array(f[f'/{element}/data'])
-            log_interp = np.interp(np.log(energies),
-                                   np.log(table[:, 0]),
-                                   np.log(table[:, column]))
-            out += fraction * np.exp(log_interp)
+    for element, count in parsed.items():
+        fraction = count * weights[element] / total_mass
+        table = tables[element]
+        log_interp = np.interp(np.log(energies),
+                               np.log(table[:, 0]),
+                               np.log(table[:, column]))
+        out += fraction * np.exp(log_interp)
     return out
 
 
@@ -135,11 +146,17 @@ def als_bm832():
         tuple: (energies, spectrum).  Bin center energies from 0.5 to
         99.5 keV, and photon counts per bin, total counts preserved.
     """
-    import h5py
-    path = os.path.join(_SOURCE_MODELS_DIR, 'als_bm832_spectrum.h5')
-    with h5py.File(path, 'r') as f:
-        energies = np.array(f['energies'])
-        spectrum = np.array(f['spectrum'])
+    import csv
+    path = os.path.join(_SOURCE_MODELS_DIR, 'als_bm832_spectrum.csv')
+    energies, spectrum = [], []
+    with open(path) as f:
+        for line in csv.reader(r for r in f if not r.startswith('#')):
+            if line[0] == 'energy_keV':
+                continue
+            energies.append(float(line[0]))
+            spectrum.append(float(line[1]))
+    energies = np.array(energies)
+    spectrum = np.array(spectrum)
 
     edges = np.linspace(0, 100, num=101)
     rebinned = np.zeros(len(edges) - 1)
