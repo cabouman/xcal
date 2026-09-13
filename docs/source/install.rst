@@ -34,7 +34,7 @@ known ground truth, run:
 
 .. code-block:: bash
 
-   python demo/demo_simulated_multi_voltage.py
+   python demo/demo_1_multi-voltage.py
 
 It simulates three scans of a calibration target set at different voltages,
 calibrates, and compares the estimated spectrum to the truth.  It
