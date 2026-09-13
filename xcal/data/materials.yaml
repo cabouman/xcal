@@ -15,7 +15,7 @@ filter_materials:
   - {name: Cu, formula: Cu, density: 8.92,  thickness_range: [0, 1]}
   - {name: Si, formula: Si, density: 2.329, thickness_range: [0, 5]}
 
-target_materials:
+rod_materials:
   - {name: V,  formula: V,  density: 6.11, diameter_range: [0.1, 5]}
   - {name: Ti, formula: Ti, density: 4.507, diameter_range: [0.1, 5]}
   - {name: Al, formula: Al, density: 2.702, diameter_range: [0.1, 5]}
