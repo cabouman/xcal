@@ -17,7 +17,7 @@ __all__ = ['list_materials', 'add_materials']
 
 _KIND_KEYS = {
     'filter': 'filter_materials',
-    'target': 'target_materials',
+    'target': 'calibration_target_materials',
     'scintillator': 'scintillator_materials',
 }
 
