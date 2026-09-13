@@ -177,6 +177,27 @@ def segment_rods(recon, rods, mm_per_voxel, energies, verbose=1):
             break
         if not accepted:
             break
+    # The Hough transform is unreliable for circles larger than about
+    # a quarter of the image, so any rods still missing are located
+    # by a matched filter: the peak of the image convolved with a
+    # disk of the declared radius, under the same contrast test.
+    while len(circles) < len(rods):
+        r_vox = max(radii_vox)
+        r_k = max(int(round(min(r_vox, 0.2 * min(rows, cols)))), 3)
+        y_k, x_k = np.ogrid[-r_k:r_k + 1, -r_k:r_k + 1]
+        kernel = (x_k * x_k + y_k * y_k <= r_k * r_k).astype(float)
+        kernel /= kernel.sum()
+        filtered = ndimage.convolve(remaining, kernel, mode='constant')
+        peak = np.unravel_index(np.argmax(filtered), filtered.shape)
+        y, x = float(peak[0]), float(peak[1])
+        inside = ((yy - y) ** 2 + (xx - x) ** 2) <= (0.7 * r_vox) ** 2
+        background_level = float(np.median(remaining))
+        if not inside.any() or (remaining[inside].mean()
+                                < background_level + 4 * noise):
+            break
+        circles.append((x, y, r_vox))
+        remaining[(yy - y) ** 2 + (xx - x) ** 2
+                  <= (1.3 * r_vox) ** 2] = background_level
     if len(circles) < len(rods):
         raise ValueError(
             f"Segmentation failed: circle detection found "

@@ -18,8 +18,7 @@ def _make_model():
     n_views, n_rows, n_chan = 48, 4, 144
     angles = np.linspace(0, np.pi, n_views,
                          endpoint=False).astype(np.float32)
-    m = mbirtorch.ParallelBeamModel((n_views, n_rows, n_chan), angles,
-                                    compile_mode='off')
+    m = mbirtorch.ParallelBeamModel((n_views, n_rows, n_chan), angles)
     m.set_params(delta_det_channel=0.02, delta_det_row=0.02,
                  alu_unit='mm', alu_value=1.0)
     m.auto_set_recon_geometry()

@@ -55,8 +55,7 @@ def load_scan(data_dir, filtration, rod_name):
     angles = -np.linspace(-0.5 * np.pi, 1.5 * np.pi, n_views,
                           endpoint=True)[::DOWNSAMPLE]
     model = mbirtorch.ParallelBeamModel(sino.shape,
-                                        angles.astype(np.float32),
-                                        compile_mode='off')
+                                        angles.astype(np.float32))
     pitch = PIXEL_MM * DOWNSAMPLE
     offset = CENTER_OFFSETS[(filtration, rod_name)] * PIXEL_MM
     model.set_params(delta_det_channel=pitch, delta_det_row=pitch,
