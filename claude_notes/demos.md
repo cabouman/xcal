@@ -1,8 +1,13 @@
 # Demos planned for xcal 2.0
 
-Two simulation demos.  Real data demos are parked until the
-simulations are right and reconstruction from raw scans is
-implemented and debugged as its own step.
+Two demos, matching the paper's two experiments: the simulated
+multi-voltage study (demo 1) and the measured ALS multi-filtration
+data (demo 2).  Demo 2 is parked until the simulations are right
+and reconstruction from raw scans is implemented and debugged as
+its own step.  A simulated multi-filtration demo existed briefly as
+a stand-in for demo 2 and was deleted: it demonstrated nothing the
+ALS demo will not show better with real data, and the multi-filter
+capability is guarded by tests/test_fit.py.
 
 ## Demo 1: multi-voltage (demo_1_multi_voltage.py)
 
@@ -42,6 +47,9 @@ Estimated by the calibration (bounds from the catalog):
 Quality target (paper Table 3, spectrum NRMSE): about 0.0017 at low,
 0.0010 at mid, 0.0008 at high voltage.
 
-## Demo 2: multi-filtration (demo_simulated_multi_filtration.py)
+## Demo 2: ALS measured data (demo_als_measured.py)
 
-To be specified after demo 1 works.
+The paper's real experiment: measured scans from ALS beamline
+8.3.2, a synchrotron source with no voltage knob, so the scans
+differ by filtration.  To be specified in detail after the demo 1
+walk finishes; the existing script is a stale draft.

@@ -111,7 +111,7 @@ def reflection_source_table(voltage, takeoff_angles, energies):
     over a grid of takeoff angles.
 
     Args:
-        voltage (float): Source voltage in kV.
+        voltage (float): Peak tube voltage (kVp) in kV.
         takeoff_angles (numpy.ndarray): Anode takeoff angles in degrees.
         energies (numpy.ndarray): Energy grid in keV, 1 keV spacing.
 

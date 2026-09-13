@@ -448,7 +448,7 @@ class System:
         way.
 
         Args:
-            voltage (float, optional): Source voltage in kV.  Required
+            voltage (float, optional): Peak tube voltage (kVp) in kV.  Required
                 for tube sources; ignored for synchrotron sources.
             filters (list of Filter, optional): The filters in the
                 beam.  Defaults to all filters in the system.
@@ -508,6 +508,31 @@ class System:
                              "everywhere; check the voltage and "
                              "filters.")
         return _physics.SpectralFunction(grid, values / area)
+
+    def energy_grid(self, voltage=None):
+        """Return the X-ray energies this system operates over.
+
+        The one rule that turns "system + setting" into an energy
+        grid, shared by the calibration and the segmentation.  For a
+        synchrotron source the spectrum table fixes the grid and
+        ``voltage`` is ignored; for a tube source the grid runs up
+        to the peak tube voltage, which must be given.
+
+        Args:
+            voltage (float, optional): Peak tube voltage (kVp) in
+                kV.  Required for tube sources.
+
+        Returns:
+            numpy.ndarray: Energies in keV, 1 keV spacing.
+        """
+        if isinstance(self.source, SynchrotronSource):
+            e_tab, _ = self.source.table()
+            return _physics.default_energy_grid(float(np.max(e_tab)))
+        if voltage is None:
+            raise ValueError(
+                "voltage is required: a tube source's energy range "
+                "runs up to the peak tube voltage (kVp).")
+        return _physics.default_energy_grid(float(voltage))
 
     def _filters_note(self):
         """Short description of the filtration, e.g. 'Al 5 mm'."""

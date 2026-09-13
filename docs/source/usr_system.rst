@@ -124,6 +124,8 @@ Putting it together
 
 .. automethod:: xcal.System.effective_spectrum
 
+.. automethod:: xcal.System.energy_grid
+
 Saving and reading a system
 ---------------------------
 

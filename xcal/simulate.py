@@ -33,7 +33,7 @@ def simulate_scan(system, targets, ct_model, voltage=None,
             scan.
         ct_model (TomographyModel): The scan geometry.  Its alu_unit
             and alu_value parameters state the physical units.
-        voltage (float, optional): Source voltage in kV.  Required
+        voltage (float, optional): Peak tube voltage (kVp) in kV.  Required
             for tube sources, ignored for synchrotron sources.
         filters (list of Filter, optional): The filters in the beam.
             Defaults to all filters in the system.

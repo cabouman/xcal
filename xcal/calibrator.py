@@ -93,9 +93,9 @@ class Calibrator:
                 per target of this scan, in target order, values in
                 [0, 1] meaning the fraction of each voxel the target
                 occupies.
-            voltage (float, optional): Source voltage for this scan in
-                kV.  Required for tube sources, ignored for synchrotron
-                sources.
+            voltage (float, optional): Peak tube voltage (kVp) of
+                this scan, in kV.  Required for tube sources,
+                ignored for synchrotron sources.
             targets (list of Target, optional): The targets present
                 in this scan.  Defaults to all targets given to the
                 constructor.
@@ -183,13 +183,10 @@ class Calibrator:
                     f"ct_model.scale_recon_shape(...).")
 
     def _energy_grid(self):
-        source = self.system.source
-        if isinstance(source, SynchrotronSource):
-            energies, _ = source.table()
-            max_e = float(np.max(energies))
-            return _physics.default_energy_grid(max_e)
-        max_v = max(s['voltage'] for s in self.scans)
-        return _physics.default_energy_grid(max_v)
+        if isinstance(self.system.source, SynchrotronSource):
+            return self.system.energy_grid()
+        return self.system.energy_grid(
+            max(s['voltage'] for s in self.scans))
 
     def _source_term(self, scan, energies):
         """Return the _fit source term for one scan: ('fixed', spec) or
@@ -631,7 +628,7 @@ class CalibrationResult:
         when the setting changes.
 
         Args:
-            voltage (float, optional): Source voltage in kV.  Required
+            voltage (float, optional): Peak tube voltage (kVp) in kV.  Required
                 for tube sources; ignored for synchrotron sources.
             filters (list of Filter, optional): The filters in the
                 beam.  Defaults to all filters in the system.
@@ -662,7 +659,7 @@ class CalibrationResult:
         in keV, normalized to unit area like the effective spectrum.
 
         Args:
-            voltage (float, optional): Source voltage in kV.  Required
+            voltage (float, optional): Peak tube voltage (kVp) in kV.  Required
                 for tube sources.
 
         Returns:

@@ -117,35 +117,36 @@ if __name__ == '__main__':
     # the N scans, each holding (voltage, sinogram, ct_model,
     # gt_masks).
     scans = []
-    for i, kv in enumerate(VOLTAGES):
+    for i, kvp in enumerate(VOLTAGES):
         sino, ct_model, gt_masks = simulate_scanner(
-            gt_system, cal_target, kv, N_VIEWS, N_DET_ROWS,
+            gt_system, cal_target, kvp, N_VIEWS, N_DET_ROWS,
             N_DET_CHANNELS, PIXEL_MM, PHOTONS, seed=i)
-        scans.append((kv, sino, ct_model, gt_masks))
-        print(f'{kv:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
+        scans.append((kvp, sino, ct_model, gt_masks))
+        print(f'{kvp:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
 
     # ---------------- Get the target masks ----------------
     # The masks are the calibration's third input. In this simulation, we can use the gt_mask.
     # However, in application, the masks must be obtained by segmenting a reconstruction of the calibration target.
     masks_per_scan = []
-    for kv, sino, ct_model, gt_masks in scans:
+    for kvp, sino, ct_model, gt_masks in scans:
         if USE_GROUND_TRUTH_MASKS:
             masks = gt_masks
         else:
-            print(f'reconstructing the {kv:.0f} kV scan...')
+            print(f'reconstructing the {kvp:.0f} kV scan...')
             recon, _ = ct_model.recon(sino)
-            masks = xcal.segment_targets(recon, cal_target,
-                                         ct_model)
+            masks = xcal.segment_targets(recon, cal_target, ct_model,
+                                         system=feasible_system,
+                                         voltage=kvp)
             xcal.save_segmentation_plot(
                 recon, cal_target, masks,
-                f'{OUTPUT_DIR}/plots/segmentation_{kv:.0f}kV.png',
-                title=f'{kv:.0f} kV reconstruction and masks')
+                f'{OUTPUT_DIR}/plots/segmentation_{kvp:.0f}kV.png',
+                title=f'{kvp:.0f} kV reconstruction and masks')
         masks_per_scan.append(masks)
 
     # ---------------- Add the scans to the calibrator ----------------
     cal = xcal.Calibrator(feasible_system, cal_target)
-    for (kv, sino, ct_model, _), masks in zip(scans, masks_per_scan):
-        cal.add_scan(sino, ct_model, masks, voltage=kv)
+    for (kvp, sino, ct_model, _), masks in zip(scans, masks_per_scan):
+        cal.add_scan(sino, ct_model, masks, voltage=kvp)
 
     # -------------------- Calibrate --------------------
     # The central step of the whole demo.  The calibrator searches

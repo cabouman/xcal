@@ -23,14 +23,15 @@ from . import _segment
 
 __all__ = ['segment_targets', 'cylinder_masks']
 
-# The energy band used only to rank targets by expected attenuation
-# when matching segmented shapes to declared targets.  The match is
-# scale invariant, so any band with the usual material ordering
-# works.
-_MATCH_BAND_KEV = (20.0, 100.0)
+# Fallback energy band when no system is given, used only to rank
+# targets by expected attenuation when matching segmented shapes to
+# declared targets.  The match is scale invariant, so any band with
+# the usual material ordering works.
+_DEFAULT_BAND_KEV = (20.0, 100.0)
 
 
-def segment_targets(recon, targets, ct_model, verbose=1):
+def segment_targets(recon, targets, ct_model, system=None,
+                    voltage=None, verbose=1):
     """Segment the calibration targets in a reconstruction and return
     their masks.
 
@@ -45,6 +46,13 @@ def segment_targets(recon, targets, ct_model, verbose=1):
         targets (list of Target): The targets expected in this scan.
         ct_model (TomographyModel): The model the reconstruction came
             from; provides the voxel size and units.
+        system (System, optional): The X-ray system.  With it, the
+            energies used to match shapes to target materials come
+            from :meth:`System.energy_grid` for this scan; without
+            it, a default band of 20 to 100 keV is assumed.
+        voltage (float, optional): Peak tube voltage (kVp) of this
+            scan, in kV.  Required with ``system`` for tube
+            sources, ignored for synchrotron sources.
         verbose (int, optional): 1 prints what was found.
 
     Returns:
@@ -54,7 +62,11 @@ def segment_targets(recon, targets, ct_model, verbose=1):
     scale = _physics.mm_per_alu(ct_model)
     mm_per_voxel = float(ct_model.get_params('delta_voxel')) * scale
     recon = np.asarray(recon) / scale       # to 1/mm
-    band = np.linspace(_MATCH_BAND_KEV[0], _MATCH_BAND_KEV[1], 81)
+    if system is not None:
+        band = system.energy_grid(voltage)
+    else:
+        band = np.linspace(_DEFAULT_BAND_KEV[0], _DEFAULT_BAND_KEV[1],
+                           81)
     _, masks = _segment.segment_targets(recon, targets, mm_per_voxel,
                                         band, verbose=verbose)
     return masks

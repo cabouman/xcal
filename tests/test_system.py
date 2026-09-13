@@ -65,3 +65,18 @@ def test_synchrotron_source_forms():
     assert energies.shape == counts.shape and counts.max() > 0
     with pytest.raises(ValueError, match='available'):
         xcal.SynchrotronSource('als_unknown')
+
+
+def test_energy_grid():
+    syn = xcal.System(source=xcal.SynchrotronSource(),
+                      detector=xcal.Scintillator('CsI', thickness=0.25))
+    E = syn.energy_grid()
+    assert E[0] == 1.5 and E[-1] == pytest.approx(99.5)
+
+    tube = xcal.System(
+        source=xcal.ReflectionSource(takeoff_angle=20.0),
+        detector=xcal.Scintillator('CsI', thickness=0.25))
+    E = tube.energy_grid(50)
+    assert E[-1] == pytest.approx(49.5)
+    with pytest.raises(ValueError, match='voltage'):
+        tube.energy_grid()
