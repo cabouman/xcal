@@ -61,9 +61,13 @@ Their figures are also in claude_notes/e2e_output/.
 
 The recon-segment-project chain was checked on a synthetic cylinder:
 reconstructed attenuation within 0.6 percent of NIST truth, path
-lengths within 2 percent (scratchpad smoke test).  The fit engine
-recovers known parameters on synthetic problems with and without
-noise (tests/test_fit.py).
+lengths within 2 percent (scratchpad smoke test).  The same chain
+was verified on a cone-beam model at magnification 2, confirming the
+pipeline is geometry independent.  The fit engine recovers known
+parameters on synthetic problems with and without noise, including
+the transmission source's off-grid voltage and thickness
+interpolation (tests/).  A pip install into a clean environment
+ships the catalog and the Geant4 table correctly.
 
 ## Bugs found and fixed along the way
 
