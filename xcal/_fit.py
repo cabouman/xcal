@@ -219,12 +219,14 @@ class FitProblem:
                       f"{combo}: cost {cost:.3e} after {iters} iterations")
         best = min(results, key=lambda r: r[1])
         combo, cost, theta_s, filter_ts, detector_t, iters = best
-        return {
-            'cost': cost,
-            'combo': combo,
-            'source_value': float(theta_s.value()),
-            'filter_thicknesses': [float(t.value()) for t in filter_ts],
-            'detector_thickness': float(detector_t.value()),
-            'iterations': iters,
-            'all': [(r[0], r[1]) for r in results],
-        }
+        with torch.no_grad():
+            return {
+                'cost': cost,
+                'combo': combo,
+                'source_value': float(theta_s.value()),
+                'filter_thicknesses': [float(t.value())
+                                       for t in filter_ts],
+                'detector_thickness': float(detector_t.value()),
+                'iterations': iters,
+                'all': [(r[0], r[1]) for r in results],
+            }

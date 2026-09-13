@@ -134,25 +134,41 @@ def segment_rods(recon, rods, ct_model, energies, verbose=1):
         blobs.append(blob)
 
     # Step 5: match blobs to rods by attenuation and diameter.
-    measured_mu = [float(image[b].mean()) for b in blobs]
-    measured_diam = [2 * mm_per_voxel * np.sqrt(b.sum() / np.pi)
-                     for b in blobs]
+    measured_mu = np.array([max(float(image[b].mean()), 1e-9)
+                            for b in blobs])
+    measured_diam = np.array([2 * mm_per_voxel * np.sqrt(b.sum() / np.pi)
+                              for b in blobs])
     band = energies[(energies >= energies[len(energies) // 3])
                     & (energies <= energies[(2 * len(energies)) // 3])]
-    expected_mu = [float(np.mean(
+    expected_mu = np.array([float(np.mean(
         _physics.attenuation_coefficients(r.material, band)))
-        for r in rods]
+        for r in rods])
+    # The measured effective attenuation differs from the expected
+    # single-band value by a common spectrum-dependent scale, so the
+    # match must be scale invariant: normalize both sides by their
+    # geometric mean before comparing.  Without this, swapping two
+    # rods changes the total log-ratio cost by exactly zero.
+    measured_rel = np.log(measured_mu) - np.mean(np.log(measured_mu))
+    expected_rel = np.log(expected_mu) - np.mean(np.log(expected_mu))
+    diam_rel = np.log(measured_diam)
+    declared_diam = np.log([r.diameter for r in rods])
     cost = np.zeros((len(rods), len(blobs)))
-    for i, r in enumerate(rods):
+    for i in range(len(rods)):
         for j in range(len(blobs)):
-            cost[i, j] = (abs(np.log(max(measured_mu[j], 1e-9)
-                                     / expected_mu[i]))
-                          + abs(np.log(measured_diam[j] / r.diameter)))
+            cost[i, j] = (abs(measured_rel[j] - expected_rel[i])
+                          + 3.0 * abs(diam_rel[j] - declared_diam[i]))
     from scipy.optimize import linear_sum_assignment
     rod_idx, blob_idx = linear_sum_assignment(cost)
 
-    # Step 6: validate, erode, extrude.
+    # Step 6: validate, refine to sub-voxel disks, extrude.
+    # The rods are circular by construction, so instead of the
+    # voxel-quantized blob, each rod's mask is an anti-aliased disk at
+    # the blob's centroid with a radius measured from the radial
+    # profile's half-maximum crossing.  Boundary voxels carry their
+    # coverage fraction, so the forward-projected path lengths are
+    # accurate to a fraction of a voxel.
     labels3d = np.zeros(recon.shape, dtype=np.uint8)
+    float_masks = []
     for i, j in zip(rod_idx, blob_idx):
         rod = rods[i]
         diam = measured_diam[j]
@@ -164,14 +180,34 @@ def segment_rods(recon, rods, ct_model, energies, verbose=1):
                 f"{rod.diameter:.3g} mm.  Check the declared diameters "
                 f"and the model's pixel size "
                 f"({mm_per_voxel:.4g} mm/voxel).")
-        blob = ndimage.binary_erosion(blobs[j])
-        if not blob.any():
-            blob = blobs[j]
-        labels3d[blob, lo:hi] = i + 1
+        blob = blobs[j]
+        weight = np.where(blob, image, 0.0)
+        yy3, xx3 = np.mgrid[:rows, :cols]
+        cy = float((yy3 * weight).sum() / weight.sum())
+        cx = float((xx3 * weight).sum() / weight.sum())
+        r_edge = _half_max_radius(image, cy, cx, radii_vox[i])
+        # The declared diameter is a manufactured dimension the user
+        # knows; the measured radius carries a few percent of bias
+        # from reconstruction blur and edge brightening.  So the mask
+        # uses the declared radius, and the measurement locates the
+        # center and validates the declaration.
+        if abs(r_edge - radii_vox[i]) > 0.15 * radii_vox[i]:
+            raise ValueError(
+                f"Segmentation failed: the {rod.material.name} rod "
+                f"measures {2 * r_edge * mm_per_voxel:.3g} mm across "
+                f"but is declared as {rod.diameter:.3g} mm.  Check the "
+                f"declared diameter and the model's pixel size "
+                f"({mm_per_voxel:.4g} mm/voxel).")
+        disk = _antialiased_disk(rows, cols, cy, cx, radii_vox[i])
+        mask = np.zeros(recon.shape, dtype=np.float32)
+        mask[:, :, lo:hi] = disk[:, :, None]
+        float_masks.append((i, mask))
+        labels3d[disk > 0.5, lo:hi] = i + 1
         if verbose:
             print(f"xcal:   {rod.material.name} rod: measured "
-                  f"{diam:.3g} mm (declared {rod.diameter:.3g}), mean "
-                  f"LAC {measured_mu[j]:.4g} 1/mm")
+                  f"{2 * r_edge * mm_per_voxel:.3g} mm (declared "
+                  f"{rod.diameter:.3g}), mean LAC "
+                  f"{measured_mu[j]:.4g} 1/mm")
 
     # Check the rods against the projector's region-of-reconstruction
     # mask: anything outside the inscribed circle is silently truncated
@@ -186,4 +222,59 @@ def segment_rods(recon, rods, ct_model, energies, verbose=1):
             "region of reconstruction, so its forward projection would "
             "be silently truncated.  Enlarge the reconstruction with "
             "ct_model.scale_recon_shape(...) and recalibrate.")
-    return labels3d
+    masks = [m for _, m in sorted(float_masks, key=lambda t: t[0])]
+    return labels3d, masks
+
+
+def _half_max_radius(image, cy, cx, r_guess):
+    """Estimate a rod's radius in voxels from the radial profile's
+    crossing of half the interior level."""
+    rows, cols = image.shape
+    yy, xx = np.mgrid[:rows, :cols]
+    r = np.sqrt((yy - cy) ** 2 + (xx - cx) ** 2)
+    interior = image[r <= 0.6 * r_guess]
+    level = float(interior.mean()) if interior.size else float(image.max())
+    step = 0.25
+    edges = np.arange(0.0, 2.0 * r_guess + step, step)
+    centers_list, profile_list = [], []
+    for k in range(len(edges) - 1):
+        ring = image[(r >= edges[k]) & (r < edges[k + 1])]
+        if ring.size:
+            # Thin rings with no pixel centers are skipped entirely;
+            # treating them as zero would fake a half-max crossing.
+            centers_list.append(0.5 * (edges[k] + edges[k + 1]))
+            profile_list.append(float(ring.mean()))
+    profile = np.array(profile_list)
+    centers = np.array(centers_list)
+    half = 0.5 * level
+    below = np.where((profile < half) & (centers > 0.5 * r_guess))[0]
+    if len(below) == 0:
+        return r_guess
+    k = below[0]
+    if k == 0:
+        return centers[0]
+    # Linear interpolation between the bracketing rings.
+    p0, p1 = profile[k - 1], profile[k]
+    c0, c1 = centers[k - 1], centers[k]
+    if p0 == p1:
+        return c0
+    return c0 + (p0 - half) / (p0 - p1) * (c1 - c0)
+
+
+def _antialiased_disk(rows, cols, cy, cx, radius_vox, supersample=4):
+    """A 2D float mask of a disk, boundary voxels holding coverage
+    fractions computed by supersampling."""
+    disk = np.zeros((rows, cols), dtype=np.float32)
+    r_out = int(np.ceil(radius_vox)) + 2
+    r0 = max(0, int(cy) - r_out)
+    r1 = min(rows, int(cy) + r_out + 1)
+    c0 = max(0, int(cx) - r_out)
+    c1 = min(cols, int(cx) + r_out + 1)
+    s = supersample
+    offs = (np.arange(s) + 0.5) / s - 0.5
+    oy, ox = np.meshgrid(offs, offs, indexing='ij')
+    for y in range(r0, r1):
+        for x in range(c0, c1):
+            d2 = (y + oy - cy) ** 2 + (x + ox - cx) ** 2
+            disk[y, x] = float((d2 <= radius_vox ** 2).mean())
+    return disk

@@ -198,9 +198,14 @@ class Calibrator:
 
         trans = np.exp(-scan['sinogram'])
         hits = np.zeros(scan['sinogram'].shape, dtype=bool)
+        grazing = np.zeros(scan['sinogram'].shape, dtype=bool)
         for L in path_lengths:
             hits |= (L > 0)
-        sel &= hits
+            # A ray that clips a rod's edge has a path length dominated
+            # by segmentation error; exclude rays below 30 percent of
+            # that rod's maximum path.
+            grazing |= (L > 0) & (L < 0.3 * L.max())
+        sel &= hits & ~grazing
         sel &= np.isfinite(trans) & (trans > 1e-6) & (trans < 1.5)
         return sel
 
@@ -253,14 +258,11 @@ class Calibrator:
                       f"({scan['sinogram'].shape[0]} views)")
             recon, _ = scan['ct_model'].recon(scan['sinogram'])
             recon = _as_numpy(recon)
-            labels = _segment.segment_rods(
+            labels, masks = _segment.segment_rods(
                 recon, scan['rods'], scan['ct_model'], energies,
                 verbose=verbose)
-            paths = []
-            for ri in range(len(scan['rods'])):
-                mask = (labels == ri + 1).astype(np.float32)
-                paths.append(_as_numpy(
-                    scan['ct_model'].forward_project(mask)))
+            paths = [_as_numpy(scan['ct_model'].forward_project(m))
+                     for m in masks]
             recons.append(recon)
             segmentations.append(labels)
             all_paths.append(paths)
