@@ -60,7 +60,7 @@ class Calibrator:
 
     def add_scan(self, sinogram, ct_model, target_masks,
                  voltage=None, targets=None, filters=None,
-                 weights=None):
+                 weights=None, fit_views=None):
         """Add one calibration scan.
 
         The sinogram and model are the pair returned by mbirtorch
@@ -113,6 +113,14 @@ class Calibrator:
                 approximation for photon counting noise (the paper's
                 Eq. 17).  Pass numpy.ones_like(sinogram) for equal
                 weighting.
+            fit_views (array of int, optional): Indices of the views
+                to use in the spectral fit for this scan.  Defaults
+                to evenly spaced views over the whole scan (the
+                num_fit_views argument of :meth:`calibrate`).  Which
+                views are informative is the scan's business: for
+                example, a 360 degree parallel-beam scan measures
+                every ray direction twice, so its unique views lie
+                in either half rotation.
         """
         sinogram = _as_numpy(sinogram).astype(float)
         if sinogram.ndim != 3:
@@ -143,6 +151,13 @@ class Calibrator:
                 raise ValueError(
                     f"weights shape {weights.shape} does not match the "
                     f"sinogram shape {sinogram.shape}.")
+        if fit_views is not None:
+            fit_views = np.unique(np.asarray(fit_views, dtype=int))
+            if (fit_views.size == 0 or fit_views[0] < 0
+                    or fit_views[-1] >= sinogram.shape[0]):
+                raise ValueError(
+                    f"fit_views must be view indices in [0, "
+                    f"{sinogram.shape[0] - 1}].")
         target_masks = [np.asarray(m, dtype=np.float32)
                         for m in target_masks]
         if len(target_masks) != len(scan_targets):
@@ -166,6 +181,7 @@ class Calibrator:
             'targets': scan_targets,
             'filters': scan_filters,
             'weights': weights,
+            'fit_views': fit_views,
             'target_masks': target_masks,
         })
 
@@ -245,9 +261,13 @@ class Calibrator:
         views and center rows, rays that hit at least one target, and
         finite positive transmission."""
         n_views, n_rows, n_chan = scan['sinogram'].shape
-        view_idx = np.unique(np.linspace(0, n_views - 1,
-                                         min(num_fit_views, n_views),
-                                         dtype=int))
+        if scan.get('fit_views') is not None:
+            view_idx = scan['fit_views']
+        else:
+            view_idx = np.unique(np.linspace(0, n_views - 1,
+                                             min(num_fit_views,
+                                                 n_views),
+                                             dtype=int))
         row_lo = max(0, n_rows // 2 - num_fit_rows // 2)
         row_idx = np.arange(row_lo, min(n_rows, row_lo + num_fit_rows))
         sel = np.zeros(scan['sinogram'].shape, dtype=bool)

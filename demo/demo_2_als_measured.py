@@ -131,8 +131,12 @@ if __name__ == '__main__':
             zip(scans, masks_per_scan):
         filters = ([si_filter] if filtration == 'low'
                    else [si_filter, al_filter])
+        # Fit on 16 views spread over the unique half rotation.
+        fit_views = np.linspace(0, sino.shape[0] // 2 - 1, 16,
+                                dtype=int)
         cal.add_scan(sino, ct_model, masks,
-                     targets=[cal_target[material]], filters=filters)
+                     targets=[cal_target[material]], filters=filters,
+                     fit_views=fit_views)
 
     # -------------------- Calibrate --------------------
     # The calibrator estimates the unknown scanner parameters by searching over the feasible parameter set
