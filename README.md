@@ -27,7 +27,14 @@ cd xcal
 pip install .
 ```
 
-mbirtorch must be installed separately (it is not on PyPI).
+mbirtorch is not on PyPI, so install it separately from
+[its repository](https://github.com/cabouman/mbirtorch), for
+example:
+
+```bash
+pip install git+https://github.com/cabouman/mbirtorch
+```
+
 Reflection tube sources also need Spekpy: `pip install spekpy`.
 
 ## Quick look
