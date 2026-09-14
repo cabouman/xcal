@@ -73,16 +73,16 @@ def add_reflection(img):
 
 
 BLACK = (20, 20, 20)
+LIGHT = (235, 235, 235)
 TORCH_RED = (238, 42, 74)
 
+# X in torch red ties xcal to the mbirtorch family.  "Cal" is dark
+# for the light-background logo and light for the dark-background
+# logo, so it stays visible in both documentation themes.
 variants = {
-    # 1. X in torch red, ties xcal to the mbirtorch family.
-    "logo_v1_red": [("X", ("solid", TORCH_RED)), ("Cal", ("solid", BLACK))],
-    # 2. X in a spectrum gradient, blue to green to red.
-    "logo_v2_spectrum": [("X", ("grad", [(0.0, (52, 108, 235)), (0.5, (38, 166, 122)), (1.0, (235, 52, 74))])),
-                          ("Cal", ("solid", BLACK))],
-    # 3. black X, "Cal" in torch red (suffix-colored like MBIRTorch).
-    "logo_v3_calred": [("X", ("solid", BLACK)), ("Cal", ("solid", TORCH_RED))],
+    "logo": [("X", ("solid", TORCH_RED)), ("Cal", ("solid", BLACK))],
+    "logo_dark": [("X", ("solid", TORCH_RED)),
+                  ("Cal", ("solid", LIGHT))],
 }
 
 for name, spec in variants.items():
