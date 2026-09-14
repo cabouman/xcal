@@ -7,11 +7,13 @@ from scipy import ndimage
 def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
     """Segment the calibration targets in a reconstruction.
 
-    Three methods.  'quantile': threshold at the image quantile of
-    the declared total target area, take the N largest connected
-    regions, fill holes, and pair regions with targets in order of
-    increasing material density.  'otsu': 2-level Otsu threshold,
-    largest connected region, holes filled; single target only.
+    Three methods.  'quantile': locate the N targets as the N
+    largest connected regions above the image quantile of the
+    declared total target area, re-measure each boundary with a
+    2-level Otsu threshold in a window around the region, and pair
+    regions with targets in order of increasing material density.
+    'otsu': 2-level Otsu threshold, largest connected region, holes
+    filled; single target only.
     'disk': a disk of the declared diameter at the position where
     the image is brightest under it (a matched filter); single
     target only.
@@ -59,7 +61,32 @@ def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
                 opened = pieces == int(np.argmax(counts)) + 1
             return ndimage.binary_fill_holes(opened)
 
-        shapes = [clean(cc == k) for k in keep]
+        # A single global threshold biases the boundaries: the
+        # bright targets' skirts lie above it and the dim targets'
+        # edges below it.  Re-measure each boundary with a local
+        # 2-level Otsu threshold in a window around the region.
+        from mbirtorch.preprocess import multi_threshold_otsu
+        shapes = []
+        for k in keep:
+            comp = ndimage.binary_fill_holes(cc == k)
+            rows_any = np.where(np.any(comp, axis=1))[0]
+            cols_any = np.where(np.any(comp, axis=0))[0]
+            r0, r1 = rows_any[0], rows_any[-1]
+            c0, c1 = cols_any[0], cols_any[-1]
+            mr, mc = (r1 - r0 + 1) // 2, (c1 - c0 + 1) // 2
+            r0 = max(0, r0 - mr)
+            r1 = min(img.shape[0], r1 + mr + 1)
+            c0 = max(0, c0 - mc)
+            c1 = min(img.shape[1], c1 + mc + 1)
+            window = img[r0:r1, c0:c1]
+            local_t = multi_threshold_otsu(window, classes=2)[0]
+            wcc, wn = ndimage.label(window >= local_t)
+            wsizes = ndimage.sum(window >= local_t, wcc,
+                                 range(1, wn + 1))
+            wshape = clean(wcc == int(np.argmax(wsizes)) + 1)
+            shape = np.zeros_like(comp)
+            shape[r0:r1, c0:c1] = wshape
+            shapes.append(shape)
         shapes.sort(key=lambda s: float(img[s].mean()))
         order = np.argsort([t.material.density for t in targets])
     elif method == 'otsu':

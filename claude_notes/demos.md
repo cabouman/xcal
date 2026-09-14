@@ -36,10 +36,12 @@ Target masks (the third calibration input), two modes:
   Tests the fit alone, as the paper's simulated study did.
 - Segmented masks: reconstruct each scan and segment the rods.
   Tests the whole measurement pipeline.
-  KNOWN OPEN ISSUE (2026-09-13): the segmented mode's masks verify
-  well against ground truth (0.97 to 1.04 mm, correct material
-  pairing), yet the calibration from them picks the wrong filter
-  material.  The contradiction is not yet diagnosed.
+  RESOLVED 2026-09-13: a single global threshold biased bright and
+  dim rods in opposite directions and the fit picked the wrong
+  filter material.  Each rod's boundary is now re-measured with a
+  local 2-level Otsu threshold; masks come out at the declared
+  1.00 mm and the calibration recovers Al 5.05 mm, CsI 0.262 mm,
+  takeoff 22.7 deg (truth: 5.0, 0.25, 20).
 
 Estimated by the calibration (bounds from the catalog):
 - Takeoff angle, 5 to 45 degrees.
