@@ -110,21 +110,31 @@ if __name__ == '__main__':
 
     # ---------------- Compute the masks for the calibration targets ----------------
     # The masks identify where the calibration target is and must
-    # be provided to xcal.
+    # be provided to xcal.  A computed mask is cached; a later run
+    # loads it instead of reconstructing and segmenting again.
+    # Delete OUTPUT_DIR/masks to recompute the masks.
+    os.makedirs(f'{OUTPUT_DIR}/masks', exist_ok=True)
     masks_per_scan = []
     for filtration, material, sino, ct_model in scans:
-        print(f'reconstructing the {filtration} filtration, '
-              f'{material} rod scan...')
-        recon, _ = ct_model.recon(sino, print_logs=False)
-        masks = segment_targets(
-            recon, [cal_target[material]],
-            float(ct_model.get_params('delta_voxel')),
-            method='otsu')
-        save_segmentation_plot(
-            recon, [cal_target[material]], masks,
-            f'{OUTPUT_DIR}/plots/'
-            f'segmentation_{filtration}_{material}.png',
-            title=f'{filtration} filtration, {material} rod')
+        cache = f'{OUTPUT_DIR}/masks/{filtration}_{material}.npy'
+        if os.path.exists(cache):
+            masks = [np.load(cache)]
+            print(f'{filtration} filtration, {material} rod: '
+                  f'mask loaded from cache')
+        else:
+            print(f'reconstructing the {filtration} filtration, '
+                  f'{material} rod scan...')
+            recon, _ = ct_model.recon(sino, print_logs=False)
+            masks = segment_targets(
+                recon, [cal_target[material]],
+                float(ct_model.get_params('delta_voxel')),
+                method='otsu')
+            save_segmentation_plot(
+                recon, [cal_target[material]], masks,
+                f'{OUTPUT_DIR}/plots/'
+                f'segmentation_{filtration}_{material}.png',
+                title=f'{filtration} filtration, {material} rod')
+            np.save(cache, masks[0])
         masks_per_scan.append(masks)
 
     # ---------------- Add the scans to the calibrator ----------------
