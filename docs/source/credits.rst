@@ -21,7 +21,8 @@ XCAL Sponsors
 
 We would like to thank the following sponsors for their financial support in the development of this python package:
 
-    * The Laboratory Directed Research and Development program of Lawrence Livermore National Laboratory under project number
+    * The Laboratory Directed Research and Development program of Lawrence Livermore National Laboratory under project number 22-ERD-011.
+    * The Ralph W. and Grace M. Showalter Research Trust Fund.
 
 
 Citation
@@ -32,7 +33,7 @@ Please use the following Bibtex citation when referencing this software.
 
     @Misc {xcal-2025,
     author = {XCAL Development Team},
-    title =	{{X-ray Spectrum Calibration},
+    title =	{{X-ray Spectrum Calibration}},
     howpublished = {Software library available from \url{https://github.com/cabouman/xcal}},
     year = 2025
     }

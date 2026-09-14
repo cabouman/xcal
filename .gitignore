@@ -1,7 +1,7 @@
 # Additional things to ignore in this package
 demo/output/*
 demo/output_3_source_voltages/
-data/*
+demo/input/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -138,3 +138,6 @@ dmypy.json
 
 # Mac
 *.DS_Store
+
+# xcal 2 review outputs kept out of the repository
+claude_notes/review_figures/

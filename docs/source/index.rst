@@ -1,51 +1,29 @@
-.. xcal documentation master file, created by
-   sphinx-quickstart on Thu Dec  1 22:51:42 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+xcal: X-ray CT Spectral Calibration
+===================================
 
-XCAL -- Calibrate X-ray System Spectrum
-========================================
-XCAL provides a comprehensive solution for X-ray system spectral estimation, leveraging calibration data with known materials and dimensions. Key features and benefits include:
+xcal estimates the spectral response of an X-ray CT system from
+calibration scans of known rods.  The response is modeled as the
+product of the source spectrum, the filter responses, and the detector
+response, and the physical parameters of each component are estimated
+jointly from scans at two or three instrument settings.
 
-- **Parametric-Based Method**: Utilizes a parametric approach to accurately estimate X-ray system spectrum.
+xcal is built on `mbirtorch <https://github.com/cabouman/mbirtorch>`_.
+Scans enter as a sinogram plus a tomography model, the pair produced by
+mbirtorch preprocessing, so xcal works with any scanner and geometry
+mbirtorch supports.
 
-- **Flexibility Across X-Ray Systems**: Designed to be adaptable, the software can be employed with a wide range of X-ray systems, accommodating different parameters and constraints.
-
-- **Built on PyTorch**: Incorporates PyTorch for automatic differentiation, facilitating the use of standard optimization algorithms for more efficient and accurate estimations.
-
-- **Ease of Use**: While focusing on technical robustness, XCAL also aims to provide a user-friendly interface and comprehensive documentation, making it accessible to a broad audience.
-
-Target Audience
-----------------
-
-The software is intended for:
-
-- Medical imaging and radiology professionals seeking precise spectral estimation of X-ray systems.
-- Industrial users who rely on X-ray technology for material analysis and quality control.
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+For details of the method, see the
+`XCal paper <https://opg.optica.org/oe/fulltext.cfm?uri=oe-33-15-30875>`_
+in Optics Express.
 
 .. toctree::
    :hidden:
-   :maxdepth: 5
+   :maxdepth: 2
    :caption: User Guide
 
    overview
    install
-   demo
-   examples
-   api
+   calibration_scan
+   quick_start
+   usr_api
    credits
-
-.. toctree::
-   :hidden:
-   :maxdepth: 5
-   :caption: Developer Guide
-
-   docs

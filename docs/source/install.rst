@@ -2,52 +2,44 @@
 Installation
 ============
 
-The ``xcal`` package is currently only available to download and install from source available from `XCAL <https://github.com/cabouman/xcal>`_.
-
-Step 1: Clone repository
-------------------------
+xcal is installed from source:
 
 .. code-block:: bash
 
    git clone git@github.com:cabouman/xcal.git
    cd xcal
+   pip install .
 
-Step 2: Install xcal
----------------------
+This installs the Python dependencies (numpy, scipy, torch, h5py,
+pyyaml, chemparse, matplotlib) automatically.
 
-Two options are listed below for installing xcal.
-Option 1 only requires that a bash script be run, but it is less flexible.
-Option 2 explains how to perform manual installation.
+Two dependencies are separate:
 
-Option 1: Clean install from dev_scripts
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+* **mbirtorch** reads the scanner data and provides the tomography
+  models.  It is not on PyPI; install it from
+  `its repository <https://github.com/cabouman/mbirtorch>`_.
+* **Spekpy** generates reflection tube source spectra.  It is needed
+  only for :class:`~xcal.ReflectionSource`:
+  ``pip install spekpy``.
 
-To do a clean install, use the command:
+To verify the installation, run the test suite:
 
 .. code-block:: bash
 
-   cd dev_scripts
-   source ./clean_install_all.sh
-   cd ..
+   pip install pytest
+   pytest tests/
 
-Option 2: Manual install
-^^^^^^^^^^^^^^^^^^^^^^^^
+The tests take a few seconds.  For a complete runnable example with a
+known ground truth, run:
 
-1. **Create conda environment:**
-   Create a new conda environment named ``xcal`` using the following commands:
+.. code-block:: bash
 
-   .. code-block:: bash
+   python demo/demo_1_multi_voltage.py
 
-      conda remove env --name xcal --all
-      conda create --name xcal python=3.10
-      conda activate xcal
-      conda install ipykernel
-      python -m ipykernel install --user --name xcal --display-name xcal
+It simulates three scans of a calibration target set at different voltages,
+calibrates, and compares the estimated spectrum to the truth.  It
+takes about two minutes on a laptop.
 
-2. **Install package:**
-
-   .. code-block:: bash
-
-      pip install -r requirements.txt
-      pip install .
-
+A second demo, ``demo/demo_2_als_measured.py``, calibrates measured
+synchrotron data from the XCal paper.  On first run it downloads the
+1.1 GB dataset; it takes about six minutes.

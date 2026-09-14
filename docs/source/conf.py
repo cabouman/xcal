@@ -3,49 +3,47 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-# -- Project information -----------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
+import os
+import sys
 
-import sphinx_rtd_theme
+sys.path.insert(0, os.path.abspath('../..'))
+
+# -- Project information -----------------------------------------------------
 
 project = 'xcal'
-copyright = '2022-2023, Xcal Development Team'
-author = 'Xcal Development Team'
-release = '0.1.0'
+copyright = '2025, XCal development team'
+author = 'XCal development team'
+
+import xcal
+release = xcal.__version__
 
 # -- General configuration ---------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'IPython.sphinxext.ipython_console_highlighting',
-    'IPython.sphinxext.ipython_directive',
     'sphinx.ext.autodoc',
-    'sphinx.ext.mathjax',
-    'sphinx.ext.todo',
-    'sphinx.ext.autosummary',
     'sphinx.ext.napoleon',
-    'nbsphinx',
-    'sphinxcontrib.bibtex',
+    'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
-    'myst_parser',
+    'sphinx_copybutton',
 ]
-bibtex_bibfiles = [] # 'refs.bib'
-autoclass_content = 'both'
-templates_path = ['_templates']
 
-source_suffix = {
-    '.rst': 'restructuredtext',
-    '.txt': 'markdown',
-    '.md': 'markdown',
-}
-pygments_style = 'sphinx'
+templates_path = ['_templates']
+exclude_patterns = []
+
+# Google-style docstrings only.
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False
 
 # -- Options for HTML output -------------------------------------------------
-# https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+html_theme = 'sphinx_book_theme'
 html_theme_options = {
-    'style_nav_header_background': '#4f8fb8ff',
-    'collapse_navigation': False,
+    'repository_url': 'https://github.com/cabouman/xcal',
+    'use_repository_button': True,
+    'logo': {
+        'image_light': '_static/logo.png',
+        'image_dark': '_static/logo_dark.png',
+    },
 }
+html_title = 'xcal'
+html_static_path = ['_static']
