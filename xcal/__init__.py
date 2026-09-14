@@ -7,7 +7,7 @@ the rods, computes path lengths, and jointly fits the source, filter,
 and detector parameters across all scans.
 """
 
-__version__ = '2.0.0.dev0'
+__version__ = '0.2.0'
 
 from .system import (estimate, Target, Filter, Scintillator,
                      ReflectionSource, TransmissionSource,
