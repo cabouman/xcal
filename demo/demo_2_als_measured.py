@@ -41,6 +41,12 @@ FILTRATIONS = ['low', 'high']       # low: Si only; high: Si + Al
 PIXEL_MM = 0.00065              # detector pixel pitch
 MASK_SUBSAMPLING_FACTOR = 4     # mask voxel / detector pitch
 
+# Outlier detection: a pixel is kept when its value is within
+# OUTLIER_THRESHOLD_STD standard deviations of the mean of its
+# OUTLIER_WINDOW channel neighbors (Wenrui Li's method).
+OUTLIER_WINDOW = 51
+OUTLIER_THRESHOLD_STD = 0.1
+
 # Scan metadata: detector center offset of each scan in original
 # channels.  A real instrument provides these with the data.
 CENTER_OFFSETS = {
@@ -146,9 +152,13 @@ if __name__ == '__main__':
         # Fit on 16 views spread over the unique half rotation.
         fit_views = np.linspace(0, sino.shape[0] // 2 - 1, 16,
                                 dtype=int)
+        # Keep only inlier pixels, those close to their channel
+        # neighbors, so bad detector pixels do not enter the fit.
+        valid_mask = xcal.utils.detect_outliers(
+            np.exp(-sino), OUTLIER_WINDOW, OUTLIER_THRESHOLD_STD)
         cal.add_scan(sino, ct_model, masks,
                      targets=[cal_target[material]], filters=filters,
-                     fit_views=fit_views)
+                     fit_views=fit_views, valid_mask=valid_mask)
 
     # -------------------- Calibrate --------------------
     # The calibrator estimates the unknown scanner parameters by searching over the feasible parameter set

@@ -60,7 +60,7 @@ class Calibrator:
 
     def add_scan(self, sinogram, ct_model, target_masks,
                  voltage=None, targets=None, filters=None,
-                 weights=None, fit_views=None):
+                 weights=None, fit_views=None, valid_mask=None):
         """Add one calibration scan.
 
         The sinogram and model are the pair returned by mbirtorch
@@ -121,6 +121,12 @@ class Calibrator:
                 example, a 360 degree parallel-beam scan measures
                 every ray direction twice, so its unique views lie
                 in either half rotation.
+            valid_mask (numpy.ndarray, optional): Boolean array
+                shaped like the sinogram, True on entries the fit
+                may use.  The fit uses an entry only where this is
+                True, so an application can exclude outlier or dead
+                detector pixels it has identified.  Defaults to all
+                True.
         """
         sinogram = _as_numpy(sinogram).astype(float)
         if sinogram.ndim != 3:
@@ -158,6 +164,12 @@ class Calibrator:
                 raise ValueError(
                     f"fit_views must be view indices in [0, "
                     f"{sinogram.shape[0] - 1}].")
+        if valid_mask is not None:
+            valid_mask = _as_numpy(valid_mask).astype(bool)
+            if valid_mask.shape != sinogram.shape:
+                raise ValueError(
+                    f"valid_mask shape {valid_mask.shape} does not "
+                    f"match the sinogram shape {sinogram.shape}.")
         target_masks = [np.asarray(m, dtype=np.float32)
                         for m in target_masks]
         if len(target_masks) != len(scan_targets):
@@ -182,6 +194,7 @@ class Calibrator:
             'filters': scan_filters,
             'weights': weights,
             'fit_views': fit_views,
+            'valid_mask': valid_mask,
             'target_masks': target_masks,
         })
 
@@ -256,10 +269,17 @@ class Calibrator:
             return ('table', th_mm, table)
         return ('fixed', _physics.interpolate_rows(th_mm, table, thickness))
 
-    def _select_rays(self, scan, path_lengths, num_fit_views, num_fit_rows):
+    def _select_rays(self, scan, path_lengths, num_fit_views,
+                     num_fit_rows, edge_trim_percent):
         """Choose the sinogram entries used in the fit: a subset of
-        views and center rows, rays that hit at least one target, and
-        finite positive transmission."""
+        views and center rows, rays through the target shadow with
+        its edges trimmed, and finite positive transmission.
+
+        The shadow is where a forward-projected mask has positive
+        path length.  In each view and row it is a contiguous span
+        of channels; edge_trim_percent of that span's width is
+        dropped from each end, because a ray near the shadow edge
+        has a path length dominated by segmentation error."""
         n_views, n_rows, n_chan = scan['sinogram'].shape
         if scan.get('fit_views') is not None:
             view_idx = scan['fit_views']
@@ -273,24 +293,41 @@ class Calibrator:
         sel = np.zeros(scan['sinogram'].shape, dtype=bool)
         sel[np.ix_(view_idx, row_idx, np.arange(n_chan))] = True
 
-        trans = np.exp(-scan['sinogram'])
         hits = np.zeros(scan['sinogram'].shape, dtype=bool)
-        grazing = np.zeros(scan['sinogram'].shape, dtype=bool)
         for L in path_lengths:
             hits |= (L > 0)
-            # A ray that clips a target's edge has a path length
-            # dominated by segmentation error; exclude rays below 30
-            # percent of that target's maximum path.
-            grazing |= (L > 0) & (L < 0.3 * L.max())
-        sel &= hits & ~grazing
+        hits = self._trim_shadow_edges(hits, edge_trim_percent)
+
+        trans = np.exp(-scan['sinogram'])
+        sel &= hits
         sel &= np.isfinite(trans) & (trans > 1e-6) & (trans < 1.5)
+        if scan.get('valid_mask') is not None:
+            sel &= scan['valid_mask']
         return sel
+
+    @staticmethod
+    def _trim_shadow_edges(hits, edge_trim_percent):
+        """Erode each view-row's contiguous shadow span by
+        edge_trim_percent of its width at each end."""
+        if edge_trim_percent <= 0:
+            return hits
+        out = np.zeros_like(hits)
+        for vi in range(hits.shape[0]):
+            for ri in range(hits.shape[1]):
+                cols = np.nonzero(hits[vi, ri])[0]
+                if cols.size == 0:
+                    continue
+                width = cols[-1] - cols[0] + 1
+                trim = int(round(edge_trim_percent / 100.0 * width))
+                out[vi, ri, cols[0] + trim:cols[-1] - trim + 1] = \
+                    hits[vi, ri, cols[0] + trim:cols[-1] - trim + 1]
+        return out
 
     # -- the pipeline -------------------------------------------------------
 
     def calibrate(self, learning_rate=0.02, max_iterations=5000,
                   stop_threshold=1e-6, num_fit_views=16, num_fit_rows=5,
-                  verbose=1):
+                  edge_trim_percent=5.0, verbose=1):
         """Run the calibration and return the result.
 
         The steps are: forward project each scan's target masks to
@@ -309,6 +346,10 @@ class Calibrator:
                 used in the spectral fit.
             num_fit_rows (int, optional): Number of center detector
                 rows per scan used in the spectral fit.
+            edge_trim_percent (float, optional): Percent of each
+                target shadow's width dropped from each edge before
+                fitting, since edge rays carry the most segmentation
+                error.  Default 5.
             verbose (int, optional): 0 is silent, 1 prints progress.
 
         Returns:
@@ -346,7 +387,7 @@ class Calibrator:
         selections = []
         for scan, paths in zip(self.scans, all_paths):
             sel = self._select_rays(scan, paths, num_fit_views,
-                                    num_fit_rows)
+                                    num_fit_rows, edge_trim_percent)
             selections.append(sel)
             trans = np.exp(-scan['sinogram'])[sel]
             mu_targets = [_physics.attenuation_coefficients(
