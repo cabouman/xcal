@@ -102,9 +102,17 @@ class Calibrator:
                 constructor.
             filters (list of Filter, optional): The filters in the beam
                 for this scan.  Defaults to all filters in the system.
-            weights (numpy.ndarray, optional): Per-ray fit weights,
-                shaped like the sinogram.  Defaults to 1/transmission,
-                which approximates photon counting noise.
+            weights (numpy.ndarray, optional): Fit weights, one per
+                sinogram entry, shaped like the sinogram.  The
+                calibration minimizes the weighted sum of squared
+                transmission errors, so a ray with twice the weight
+                counts twice as much in the fit.  When omitted, xcal
+                computes weights = exp(sinogram), that is, one over
+                each ray's measured transmission: rays through more
+                attenuating material count more, the standard
+                approximation for photon counting noise (the paper's
+                Eq. 17).  Pass numpy.ones_like(sinogram) for equal
+                weighting.
         """
         sinogram = _as_numpy(sinogram).astype(float)
         if sinogram.ndim != 3:
