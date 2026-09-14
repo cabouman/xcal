@@ -126,6 +126,93 @@ def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
     return masks
 
 
+def remove_stripes(sino, row_smooth=10):
+    """Remove per-channel stripe offsets from a log-domain sinogram.
+
+    The view average of each channel gives a per-channel profile.
+    A linear ramp through the profile's two ends is removed, the
+    remainder is high-pass filtered along channels with a
+    reflective boundary, and the high-pass part is subtracted from
+    every view.  Only fine-scale per-channel structure is removed;
+    the object's broad profile is untouched.
+
+    Args:
+        sino (numpy.ndarray): Log-domain sinogram with shape
+            (views, rows, channels).
+        row_smooth (float): Standard deviation in channels of the
+            Gaussian low-pass that defines the high-pass split.
+            Profile structure narrower than about this many
+            channels is treated as stripes.
+
+    Returns:
+        numpy.ndarray: The destriped sinogram, float32.
+    """
+    sino = np.asarray(sino, dtype=np.float64).copy()
+    n_chan = sino.shape[2]
+    n = np.arange(n_chan)
+    k = max(4, n_chan // 64)        # samples averaged at each end
+    for r in range(sino.shape[1]):
+        # Per-channel profile: the view average of each channel.
+        profile = sino[:, r, :].mean(axis=0)
+        # Linear ramp through the two ends of the profile.
+        end0 = profile[:k].mean()
+        end1 = profile[-k:].mean()
+        c0, c1 = 0.5 * (k - 1), n_chan - 1 - 0.5 * (k - 1)
+        ramp = end0 + (end1 - end0) * (n - c0) / (c1 - c0)
+        residual = profile - ramp
+        # High pass: the residual minus its Gaussian smoothing.
+        low = ndimage.gaussian_filter1d(residual, row_smooth,
+                                        mode='reflect')
+        stripes = residual - low
+        # Subtract the stripe estimate from every view.
+        sino[:, r, :] -= stripes[None, :]
+    return sino.astype(np.float32)
+
+
+def remove_stripes_2d(sino, row_smooth=10, col_smooth=50):
+    """Remove stripe offsets that drift slowly across views.
+
+    Generalizes :func:`remove_stripes`: instead of one stripe
+    profile from the average over all views, the stripe estimate
+    varies slowly with view.  The sinogram is smoothed along views,
+    each view of the smoothed sinogram is reduced to its channel
+    high pass (end ramp removed), and that estimate, fine-scale
+    along channels but low-frequency along views, is subtracted
+    from the original sinogram.
+
+    Args:
+        sino (numpy.ndarray): Log-domain sinogram with shape
+            (views, rows, channels).
+        row_smooth (float): Standard deviation in channels of the
+            Gaussian defining the high-pass split within each view.
+        col_smooth (float): Standard deviation in views of the
+            Gaussian smoothing along the view direction.
+
+    Returns:
+        numpy.ndarray: The destriped sinogram, float32.
+    """
+    sino = np.asarray(sino, dtype=np.float64).copy()
+    n_chan = sino.shape[2]
+    n = np.arange(n_chan)
+    k = max(4, n_chan // 64)        # samples averaged at each end
+    c0, c1 = 0.5 * (k - 1), n_chan - 1 - 0.5 * (k - 1)
+    for r in range(sino.shape[1]):
+        plane = sino[:, r, :]                       # (views, channels)
+        # Smooth along views so the estimate is low-frequency there.
+        smooth = ndimage.gaussian_filter1d(plane, col_smooth, axis=0,
+                                           mode='reflect')
+        # Per view: linear ramp through the two ends.
+        end0 = smooth[:, :k].mean(axis=1, keepdims=True)
+        end1 = smooth[:, -k:].mean(axis=1, keepdims=True)
+        ramp = end0 + (end1 - end0) * (n[None, :] - c0) / (c1 - c0)
+        residual = smooth - ramp
+        # High pass along channels: residual minus its smoothing.
+        low = ndimage.gaussian_filter1d(residual, row_smooth, axis=1,
+                                        mode='reflect')
+        sino[:, r, :] -= residual - low
+    return sino.astype(np.float32)
+
+
 def simulate_scanner(gt_system, cal_target, voltage,
                      n_views,
                      n_det_rows, n_det_channels, pixel_mm, photons,
@@ -155,11 +242,12 @@ def simulate_scanner(gt_system, cal_target, voltage,
     return sino, ct_model, gt_masks
 
 
-def load_als_scan(path, center_offset_channels, ring_snr, snr_db,
+def load_als_scan(path, center_offset_channels, snr_db,
                   pixel_mm, downsample):
     """Stand in for mbirtorch preprocessing of one ALS scan file.
 
-    Reads the normalized transmission, removes ring artifacts, and
+    Reads the normalized transmission, removes stripes with
+    remove_stripes_2d, removes each view's background offset, and
     returns the sinogram and the mbirtorch CT model with the given
     reconstruction parameters applied, downsampled for speed.
 
@@ -167,8 +255,6 @@ def load_als_scan(path, center_offset_channels, ring_snr, snr_db,
         path (str): The HDF5 scan file.
         center_offset_channels (float): Detector center offset in
             original channels.
-        ring_snr (float): Stripe detection threshold of
-            remove_all_stripe.
         snr_db (float): mbirtorch regularization parameter.
         pixel_mm (float): Detector pixel pitch in mm.
         downsample (int): Channel and view downsampling factor.
@@ -178,7 +264,6 @@ def load_als_scan(path, center_offset_channels, ring_snr, snr_db,
     """
     import h5py
     import mbirtorch
-    import mbirtorch.preprocess as mtp
     with h5py.File(path, 'r') as f:
         trans = f['data_norm'][()]          # (views, 1, channels)
 
@@ -189,10 +274,14 @@ def load_als_scan(path, center_offset_channels, ring_snr, snr_db,
     trans = trans.mean(axis=3)[::downsample]
     sino = -np.log(np.clip(trans, 1e-6, None))
 
-    # The detector's fixed per-channel gain error (about 6%)
-    # reconstructs as ring artifacts.  Remove it in the sinogram.
-    sino = mtp.remove_all_stripe(sino, snr=ring_snr)
-    sino = sino.astype(np.float32)
+    # The detector's per-channel gain error (about 6%) reconstructs
+    # as ring artifacts.  Remove it in the sinogram, then remove
+    # each view's background offset, estimated from 20 object-free
+    # channels at each detector edge.
+    import mbirtorch.preprocess as mtp
+    sino = remove_stripes_2d(sino)
+    sino = mtp.correct_background_offset(sino, edge_width=20,
+                                         option='per_view')
 
     angles = -np.linspace(-0.5 * np.pi, 1.5 * np.pi, n_views,
                           endpoint=True)[::downsample]

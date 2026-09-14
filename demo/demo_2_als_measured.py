@@ -48,20 +48,19 @@ CENTER_OFFSETS = {
     ('high', 'Mg'): 128, ('high', 'Al'): 140,
 }
 
-# Per-scan reconstruction and segmentation parameters, chosen by
-# inspecting each reconstruction.  ring_snr is the stripe detection
-# threshold of remove_all_stripe.  snr_db is the mbirtorch
-# regularization parameter.  seg is the segmentation method,
-# 'otsu' or 'disk' (see segment_rod).
-RECON_SEG_PARAMS = {
-    ('low', 'V'):   {'ring_snr': 3, 'snr_db': 30, 'seg': 'otsu'},
-    ('low', 'Ti'):  {'ring_snr': 3, 'snr_db': 30, 'seg': 'otsu'},
-    ('low', 'Al'):  {'ring_snr': 3, 'snr_db': 25, 'seg': 'otsu'},
-    ('low', 'Mg'):  {'ring_snr': 3, 'snr_db': 25, 'seg': 'otsu'},
-    ('high', 'V'):  {'ring_snr': 1, 'snr_db': 20, 'seg': 'otsu'},
-    ('high', 'Ti'): {'ring_snr': 1, 'snr_db': 20, 'seg': 'otsu'},
-    ('high', 'Al'): {'ring_snr': 3, 'snr_db': 15, 'seg': 'otsu'},
-    ('high', 'Mg'): {'ring_snr': 0, 'snr_db': 10, 'seg': 'disk'},
+# Per-scan reconstruction parameters, chosen by inspecting each
+# reconstruction.  snr_db is the mbirtorch regularization
+# parameter.  Stripes are removed with demo_utils.remove_stripes_2d
+# and every scan is segmented with the 2-level Otsu method.
+RECON_PARAMS = {
+    ('low', 'V'):   {'snr_db': 30},
+    ('low', 'Ti'):  {'snr_db': 30},
+    ('low', 'Al'):  {'snr_db': 25},
+    ('low', 'Mg'):  {'snr_db': 25},
+    ('high', 'V'):  {'snr_db': 20},
+    ('high', 'Ti'): {'snr_db': 20},
+    ('high', 'Al'): {'snr_db': 15},
+    ('high', 'Mg'): {'snr_db': 10},
 }
 
 OUTPUT_DIR = './output/demo_2_als_measured'
@@ -97,13 +96,12 @@ if __name__ == '__main__':
     scans = []
     for filtration in FILTRATIONS:
         for material in TARGET_MATERIALS:
-            params = RECON_SEG_PARAMS[(filtration, material)]
+            params = RECON_PARAMS[(filtration, material)]
             sino, ct_model = load_als_scan(
                 os.path.join(data_dir,
                              f'{filtration}_fltr_{material}.h5'),
                 CENTER_OFFSETS[(filtration, material)],
-                params['ring_snr'], params['snr_db'],
-                PIXEL_MM, DOWNSAMPLE)
+                params['snr_db'], PIXEL_MM, DOWNSAMPLE)
             scans.append((filtration, material, sino, ct_model))
             print(f'{filtration} filtration, {material} rod loaded '
                   f'({time.time()-t0:.0f} s)')
@@ -119,7 +117,7 @@ if __name__ == '__main__':
         masks = segment_targets(
             recon, [cal_target[material]],
             float(ct_model.get_params('delta_voxel')),
-            method=RECON_SEG_PARAMS[(filtration, material)]['seg'])
+            method='otsu')
         save_segmentation_plot(
             recon, [cal_target[material]], masks,
             f'{OUTPUT_DIR}/plots/'
