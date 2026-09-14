@@ -26,7 +26,7 @@ reconstruction:
     import mbirtorch.preprocess as mtp
     sino, ct_model = mtp.zeiss.get_sino_and_model('scan_080kV.txrm')
     recon, _ = ct_model.recon(sino)
-    masks = xcal.segment_targets(recon, targets, ct_model)
+    masks = segment(recon)   # your segmentation; see Target Masks
 
 The calibrator is constructed from the two things you declared on
 the :ref:`System Description <SystemDocs>` page: ``system``, the

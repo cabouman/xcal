@@ -13,7 +13,6 @@ import os
 import numpy as np
 
 from . import _physics
-from . import _segment
 from .system import (estimate, Filter, Scintillator, ReflectionSource,
                      TransmissionSource, SynchrotronSource, System,
                      Target)
@@ -40,7 +39,7 @@ class Calibrator:
 
     Example:
         >>> recon, _ = ct_model.recon(sino)
-        >>> masks = xcal.segment_targets(recon, targets, ct_model)
+        >>> masks = my_segmentation(recon)     # the application's job
         >>> cal = xcal.Calibrator(system, targets)
         >>> cal.add_scan(sino, ct_model, masks, voltage=80)
         >>> cal_result = cal.calibrate()
@@ -66,10 +65,12 @@ class Calibrator:
 
         The sinogram and model are the pair returned by mbirtorch
         preprocessing, for example ``mtp.zeiss.get_sino_and_model(...)``.
-        The target masks come from :func:`~xcal.segment_targets`
-        applied to a reconstruction, or from
+        The target masks are segmented from a reconstruction by the
+        application (see the demos, which use mbirtorch's
+        segmentation utilities), or built by
         :func:`~xcal.cylinder_masks` when the target geometry is
-        trusted.
+        trusted.  Order the masks like the targets: masks[k]
+        belongs to targets[k].
         xcal recovers the transmission internally as exp(-sinogram).
         Two cautions.  Preprocessing corrections such as stripe or
         offset removal carry into the recovered transmission, which is

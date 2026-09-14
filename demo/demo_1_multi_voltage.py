@@ -125,8 +125,50 @@ if __name__ == '__main__':
         print(f'{kvp:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
 
     # ---------------- Get the target masks ----------------
-    # The masks are the calibration's third input. In this simulation, we can use the gt_mask.
-    # However, in application, the masks must be obtained by segmenting a reconstruction of the calibration target.
+    # The masks are the calibration's third input, and making them
+    # is the application's job, not xcal's.  In this simulation the
+    # ground truth masks are available; with USE_GROUND_TRUTH_MASKS
+    # False, each scan is instead reconstructed and segmented here,
+    # in demo code, with mbirtorch's segmentation utility.
+    def segment_rods(recon, kvp):
+        """Multi-level Otsu segmentation of the N rods: N+1
+        intensity classes (background plus one per rod); the k-th
+        dimmest class is the rod with the k-th smallest attenuation
+        over this scan's energies.  Fails loudly when a class's
+        largest region is far from the declared rod size."""
+        import mbirtorch.preprocess as mtp
+        from scipy import ndimage
+        img = np.asarray(recon)[:, :, 0]
+        thresholds = mtp.multi_threshold_otsu(
+            img, classes=len(cal_target) + 1)
+        energies = feasible_system.energy_grid(kvp)
+        mu = [np.mean(xcal.utils.get_lin_att_c_vs_E(
+                  t.material.density, t.material.formula, energies))
+              for t in cal_target]
+        order = np.argsort(mu)          # target index, dimmest first
+        mm_per_voxel = float(ct_model.get_params('delta_voxel'))
+        masks = [None] * len(cal_target)
+        for k, ti in enumerate(order):
+            low = thresholds[k]
+            high = (thresholds[k + 1] if k + 1 < len(thresholds)
+                    else np.inf)
+            binary = (img >= low) & (img < high)
+            cc, n = ndimage.label(binary)
+            sizes = ndimage.sum(binary, cc, range(1, n + 1))
+            shape = ndimage.binary_fill_holes(
+                cc == int(np.argmax(sizes)) + 1)
+            diam = 2 * mm_per_voxel * np.sqrt(shape.sum() / np.pi)
+            name = cal_target[ti].material.name
+            if not 0.6 <= diam / cal_target[ti].size <= 1.6:
+                raise ValueError(
+                    f"segmentation failed: the class for {name} "
+                    f"yields a {diam:.3g} mm shape (declared "
+                    f"{cal_target[ti].size:g} mm).")
+            mask = np.zeros(np.asarray(recon).shape, np.float32)
+            mask[:, :, :] = shape[:, :, None]
+            masks[ti] = mask
+        return masks
+
     masks_per_scan = []
     for kvp, sino, ct_model, gt_masks in scans:
         if USE_GROUND_TRUTH_MASKS:
@@ -134,9 +176,7 @@ if __name__ == '__main__':
         else:
             print(f'reconstructing the {kvp:.0f} kV scan...')
             recon, _ = ct_model.recon(sino)
-            masks = xcal.segment_targets(recon, cal_target, ct_model,
-                                         system=feasible_system,
-                                         voltage=kvp)
+            masks = segment_rods(recon, kvp)
             xcal.save_segmentation_plot(
                 recon, cal_target, masks,
                 f'{OUTPUT_DIR}/plots/segmentation_{kvp:.0f}kV.png',

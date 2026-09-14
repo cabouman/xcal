@@ -1,5 +1,4 @@
-"""Calibration target masks: segmented from a reconstruction, or
-built as ideal shapes.
+"""Calibration target masks.
 
 A mask set is a Python list with one float32 volume per calibration
 target, ordered like the targets list, so masks[k] belongs to
@@ -7,69 +6,19 @@ targets[k].  Values lie in [0, 1] and mean the fraction of the voxel
 occupied by the target; forward projection of a mask gives the
 target's path length along every ray.
 
-Masks come from one of two places:
-
-* :func:`segment_targets` measures them from a reconstruction, which
-  is what real calibrations use.  The targets may be any regular
-  shape; the mask records what is there.
-* :func:`cylinder_masks` builds ideal cylindrical masks, which
-  simulations use as ground truth.
+Segmenting targets from a reconstruction is the application's job,
+not xcal's: it depends on the scan, and the user must see and judge
+it.  The demos show how, using mbirtorch's segmentation utilities;
+:func:`save_segmentation_plot` writes the review image.  For
+simulations, :func:`cylinder_masks` builds ideal cylindrical masks
+as ground truth.
 """
 
 import numpy as np
 
 from . import _physics
-from . import _segment
 
-__all__ = ['segment_targets', 'cylinder_masks']
-
-# Fallback energy band when no system is given, used only to rank
-# targets by expected attenuation when matching segmented shapes to
-# declared targets.  The match is scale invariant, so any band with
-# the usual material ordering works.
-_DEFAULT_BAND_KEV = (20.0, 100.0)
-
-
-def segment_targets(recon, targets, ct_model, system=None,
-                    voltage=None, verbose=1):
-    """Segment the calibration targets in a reconstruction and return
-    their masks.
-
-    Look at the returned masks before calibrating: overlay them on
-    the reconstruction and check that every target's shape is
-    sensible.
-
-    Args:
-        recon (numpy.ndarray): Reconstructed volume with shape
-            (rows, cols, slices), from the model's recon method, in
-            the model's units (1/ALU).
-        targets (list of Target): The targets expected in this scan.
-        ct_model (TomographyModel): The model the reconstruction came
-            from; provides the voxel size and units.
-        system (System, optional): The X-ray system.  With it, the
-            energies used to match shapes to target materials come
-            from :meth:`System.energy_grid` for this scan; without
-            it, a default band of 20 to 100 keV is assumed.
-        voltage (float, optional): Peak tube voltage (kVp) of this
-            scan, in kV.  Required with ``system`` for tube
-            sources, ignored for synchrotron sources.
-        verbose (int, optional): 1 prints what was found.
-
-    Returns:
-        list of numpy.ndarray: One float32 mask volume per target, in
-        target order, values 0 or 1 (measured shapes).
-    """
-    scale = _physics.mm_per_alu(ct_model)
-    mm_per_voxel = float(ct_model.get_params('delta_voxel')) * scale
-    recon = np.asarray(recon) / scale       # to 1/mm
-    if system is not None:
-        band = system.energy_grid(voltage)
-    else:
-        band = np.linspace(_DEFAULT_BAND_KEV[0], _DEFAULT_BAND_KEV[1],
-                           81)
-    _, masks = _segment.segment_targets(recon, targets, mm_per_voxel,
-                                        band, verbose=verbose)
-    return masks
+__all__ = ['cylinder_masks', 'save_segmentation_plot']
 
 
 def save_segmentation_plot(recon, targets, masks, filename,

@@ -9,7 +9,7 @@ A calibration is four steps, and the API has one part for each step:
 1. **Describe** what you scanned and what the system might be, using
    :class:`~xcal.Target` and :class:`~xcal.System` (:ref:`SystemDocs`).
 2. **Reconstruct and segment** each scan: mbirtorch reconstructs,
-   and :func:`~xcal.segment_targets` measures the target masks, which you
+   and your application segments the target masks, which you
    inspect (:ref:`SegmentDocs`).
 3. **Calibrate**: add each scan with its masks to a
    :class:`~xcal.Calibrator` and call
@@ -28,7 +28,7 @@ In outline, every calibration script looks like this:
     # 2. Reconstruct, segment, and add each scan.
     cal = xcal.Calibrator(system, rods)
     recon, _ = ct_model.recon(sino)
-    masks = xcal.segment_targets(recon, targets, ct_model)
+    masks = segment(recon)   # your segmentation; see Target Masks
     cal.add_scan(sino, ct_model, masks, voltage=80)
     ...
 

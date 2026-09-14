@@ -47,9 +47,50 @@ Estimated by the calibration (bounds from the catalog):
 Quality target (paper Table 3, spectrum NRMSE): about 0.0017 at low,
 0.0010 at mid, 0.0008 at high voltage.
 
-## Demo 2: ALS measured data (demo_als_measured.py)
+## Demo 2: ALS measured data (demo_2_als_measured.py)
 
 The paper's real experiment: measured scans from ALS beamline
-8.3.2, a synchrotron source with no voltage knob, so the scans
-differ by filtration.  To be specified in detail after the demo 1
-walk finishes; the existing script is a stale draft.
+8.3.2.  A synchrotron has no voltage knob, so the scans differ by
+filtration.  Same structure and standard as demo 1; nothing is
+carried over from the xcal 1 demo without earning its place.
+
+Data (1.1 GB, auto-downloaded to data/, already on this machine):
+- 8 scans: rods of V, Ti, Al, Mg, each scanned alone under low
+  filtration (Si only) and high filtration (Si plus Al).
+- Each scan is a full CT scan: 2625 views over 360 degrees, one
+  detector row, 2560 channels, 0.65 um pixels (1.66 mm field of
+  view; the 1 mm rod fills most of it).
+- Files hold normalized transmission; the sinogram is its negative
+  log.  Each file also carries Wenrui's reconstruction, used only
+  as a reference for checking ours.
+
+Known: the source (SynchrotronSource, the measured als_bm832
+spectrum, no parameters, no per-scan voltage).
+
+No ground truth exists.  Nominal values: Si 2.0 mm, Al 8.0 mm,
+LuAG 50 um.  Quality target, the paper's estimates (Table 9):
+Si 2.557 mm, Al 9.494 mm, LuAG 50.6 um.
+
+Feasible system:
+- Filter 1: Si, thickness estimated (in every scan).
+- Filter 2: Al, thickness estimated (in the high-filtration scans
+  only, via the per-scan filters argument of add_scan).
+- Detector: scintillator searched over the catalog candidates,
+  thickness estimated.
+
+Masks: reconstruct each scan with mbirtorch (float32 on Metal;
+xcal's fit stays float64 on CPU), segment with
+segment_targets(..., system=feasible_system) so the matching band
+comes from the synchrotron spectrum, one rod per scan, review
+images from save_segmentation_plot.
+
+Output: cal_result.save() directory, same layout as demo 1.
+
+Open questions to settle during the build:
+- Detector center offset: the xcal 1 demo hardwired one measured
+  offset per scan; decide whether mbirtorch preprocessing can
+  determine it instead.
+- Downsampling: the draft averaged 4x over channels and views for
+  a 10 minute runtime; decide full resolution or not.
+- Wenrui's radiograph cleanup (outlier masking, center-window
+  masking in utils.py): keep only if the fit needs it.

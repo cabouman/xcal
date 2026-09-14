@@ -46,7 +46,7 @@ system = xcal.System(
 )
 
 recon, _ = model_80.recon(sino_80)
-masks = xcal.segment_targets(recon, targets, model_80)
+masks = segment(recon)   # your segmentation; see the demos
 
 cal = xcal.Calibrator(system, targets)
 cal.add_scan(sino_80, model_80, masks, voltage=80)

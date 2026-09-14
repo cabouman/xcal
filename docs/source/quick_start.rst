@@ -48,7 +48,7 @@ xcal never touches scanner formats.
                             (sino_80, model_80, 80),
                             (sino_150, model_150, 150)]:
         recon, _ = model.recon(sino)
-        masks = xcal.segment_targets(recon, targets, model)
+        masks = segment(recon)   # your segmentation; see Target Masks
         cal.add_scan(sino, model, masks, voltage=kv)
     cal_result = cal.calibrate()
     est_system = cal_result.est_system
