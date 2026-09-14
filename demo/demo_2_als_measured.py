@@ -20,7 +20,7 @@ import time
 import numpy as np
 import mbirtorch
 import xcal
-from demo_utils import (load_als_scan, segment_targets,
+from demo_utils import (get_sino_and_model, segment_targets,
                         save_segmentation_plot)
 
 # ===================== User parameters =====================
@@ -35,9 +35,11 @@ TARGET_DIAMETER = 1.0       # mm
 # The two filtration conditions and which filters each scan saw.
 FILTRATIONS = ['low', 'high']       # low: Si only; high: Si + Al
 
-# Scan geometry and preprocessing.
-PIXEL_MM = 0.00065          # detector pixel pitch
-DOWNSAMPLE = 4              # channel and view downsampling factor
+# Scan geometry.  One full-resolution sinogram per scan; the
+# reconstruction that makes the masks uses voxels
+# MASK_SUBSAMPLING_FACTOR times the detector pitch, for speed.
+PIXEL_MM = 0.00065              # detector pixel pitch
+MASK_SUBSAMPLING_FACTOR = 4     # mask voxel / detector pitch
 
 # Scan metadata: detector center offset of each scan in original
 # channels.  A real instrument provides these with the data.
@@ -97,11 +99,11 @@ if __name__ == '__main__':
     for filtration in FILTRATIONS:
         for material in TARGET_MATERIALS:
             params = RECON_PARAMS[(filtration, material)]
-            sino, ct_model = load_als_scan(
-                os.path.join(data_dir,
-                             f'{filtration}_fltr_{material}.h5'),
-                CENTER_OFFSETS[(filtration, material)],
-                params['snr_db'], PIXEL_MM, DOWNSAMPLE)
+            path = os.path.join(data_dir,
+                                f'{filtration}_fltr_{material}.h5')
+            sino, ct_model = get_sino_and_model(
+                path, CENTER_OFFSETS[(filtration, material)],
+                params['snr_db'], PIXEL_MM, MASK_SUBSAMPLING_FACTOR)
             scans.append((filtration, material, sino, ct_model))
             print(f'{filtration} filtration, {material} rod loaded '
                   f'({time.time()-t0:.0f} s)')

@@ -242,58 +242,67 @@ def simulate_scanner(gt_system, cal_target, voltage,
     return sino, ct_model, gt_masks
 
 
-def load_als_scan(path, center_offset_channels, snr_db,
-                  pixel_mm, downsample):
+def get_sino_and_model(path, center_offset_channels, snr_db, pixel_mm,
+                  mask_subsampling_factor=1):
     """Stand in for mbirtorch preprocessing of one ALS scan file.
 
-    Reads the normalized transmission, removes stripes with
-    remove_stripes_2d, removes each view's background offset, and
-    returns the sinogram and the mbirtorch CT model with the given
-    reconstruction parameters applied, downsampled for speed.
+    Reads the full-resolution normalized transmission, removes
+    stripes with remove_stripes_2d, removes each view's background
+    offset, and returns the sinogram and the mbirtorch CT model.
+    The model's reconstruction grid uses voxels mask_subsampling_factor
+    times the detector pitch, so the reconstruction that makes the
+    masks runs fast while the calibration fits the full-resolution
+    sinogram.
 
     Args:
         path (str): The HDF5 scan file.
         center_offset_channels (float): Detector center offset in
-            original channels.
+            channels.
         snr_db (float): mbirtorch regularization parameter.
         pixel_mm (float): Detector pixel pitch in mm.
-        downsample (int): Channel and view downsampling factor.
+        mask_subsampling_factor (int): Reconstruction voxel size as a
+            multiple of the detector pitch.
 
     Returns:
         tuple: (sinogram, ct_model).
     """
     import h5py
     import mbirtorch
+    import mbirtorch.preprocess as mtp
     with h5py.File(path, 'r') as f:
         trans = f['data_norm'][()]          # (views, 1, channels)
-
-    # Average transmission over channel blocks; subsample views.
-    n_views, _, n_chan = trans.shape
-    n_chan -= n_chan % downsample
-    trans = trans[:, :, :n_chan].reshape(n_views, 1, -1, downsample)
-    trans = trans.mean(axis=3)[::downsample]
+    n_views = trans.shape[0]
     sino = -np.log(np.clip(trans, 1e-6, None))
 
     # The detector's per-channel gain error (about 6%) reconstructs
     # as ring artifacts.  Remove it in the sinogram, then remove
-    # each view's background offset, estimated from 20 object-free
-    # channels at each detector edge.
-    import mbirtorch.preprocess as mtp
-    sino = remove_stripes_2d(sino)
-    sino = mtp.correct_background_offset(sino, edge_width=20,
-                                         option='per_view')
+    # each view's background offset, estimated from the outer
+    # 0.05 mm of object-free channels at each detector edge.  The
+    # destriper's smoothing widths are in samples: 40 channels is
+    # 0.026 mm, and 200 views is about 27 degrees of rotation.
+    sino = remove_stripes_2d(sino, row_smooth=40, col_smooth=200)
+    sino = mtp.correct_background_offset(
+        sino, edge_width=int(round(0.052 / pixel_mm)),
+        option='per_view')
+    sino = np.asarray(sino).astype(np.float32)
 
     angles = -np.linspace(-0.5 * np.pi, 1.5 * np.pi, n_views,
-                          endpoint=True)[::downsample]
+                          endpoint=True)
     ct_model = mbirtorch.ParallelBeamModel(sino.shape,
                                            angles.astype(np.float32))
-    ct_model.set_params(delta_det_channel=pixel_mm * downsample,
-                        delta_det_row=pixel_mm * downsample,
+    ct_model.set_params(delta_det_channel=pixel_mm,
+                        delta_det_row=pixel_mm,
                         det_channel_offset=center_offset_channels
                         * pixel_mm,
                         snr_db=snr_db,
                         alu_unit='mm', alu_value=1.0)
     ct_model.auto_set_recon_geometry()
+    if mask_subsampling_factor != 1:
+        rows, cols, slices = ct_model.get_params('recon_shape')
+        ct_model.set_params(
+            delta_voxel=mask_subsampling_factor * pixel_mm,
+            recon_shape=(rows // mask_subsampling_factor,
+                         cols // mask_subsampling_factor, slices))
     return sino, ct_model
 
 
