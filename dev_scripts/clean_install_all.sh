@@ -41,6 +41,9 @@ conda activate $NAME
 pip install -e ..
 pip install -e "..[test]"
 pip install -e "..[docs]"
+# Reflection tube sources need Spekpy; installing it lets the
+# reflection tests run instead of skipping.
+pip install -e "..[spekpy]"
 
 source build_docs.sh
 

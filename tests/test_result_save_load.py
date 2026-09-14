@@ -37,6 +37,7 @@ def _make_result():
 
 def test_save_load_round_trip():
     import shutil
+    pytest.importorskip('spekpy')       # ReflectionSource spectrum
     res = _make_result()
     path = tempfile.mkdtemp()
     try:

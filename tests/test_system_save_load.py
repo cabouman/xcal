@@ -19,6 +19,7 @@ def _round_trip(system):
 
 
 def test_fully_specified_round_trip():
+    pytest.importorskip('spekpy')       # ReflectionSource spectrum
     gt = xcal.System(
         source=xcal.ReflectionSource(takeoff_angle=20.0),
         filters=[xcal.Filter('Al', thickness=5.0, name='beam')],
