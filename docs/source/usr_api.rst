@@ -26,7 +26,7 @@ In outline, every calibration script looks like this:
     system = xcal.System(source=..., filters=[...], detector=...)
 
     # 2. Reconstruct, segment, and add each scan.
-    cal = xcal.Calibrator(system, rods)
+    cal = xcal.Calibrator(system, targets)
     recon, _ = ct_model.recon(sino)
     masks = segment(recon)   # your segmentation; see Target Masks
     cal.add_scan(sino, ct_model, masks, voltage=80)

@@ -36,6 +36,10 @@ Target masks (the third calibration input), two modes:
   Tests the fit alone, as the paper's simulated study did.
 - Segmented masks: reconstruct each scan and segment the rods.
   Tests the whole measurement pipeline.
+  KNOWN OPEN ISSUE (2026-09-13): the segmented mode's masks verify
+  well against ground truth (0.97 to 1.04 mm, correct material
+  pairing), yet the calibration from them picks the wrong filter
+  material.  The contradiction is not yet diagnosed.
 
 Estimated by the calibration (bounds from the catalog):
 - Takeoff angle, 5 to 45 degrees.

@@ -24,6 +24,9 @@ Guidelines:
   that blacks out the detector contributes nothing.
 * Mount the targets parallel to the rotation axis, spaced so they do not
   overlap in most views.
+* The targets may be scanned together in one field of view or one at
+  a time in separate scans.  The XCal paper's measured experiment
+  scanned one rod per scan.
 
 The scans
 ---------
@@ -42,8 +45,8 @@ less reliable estimate.
 
 Each scan should be a normal tomographic acquisition with its air scan
 (and dark scan where the scanner uses one).  Full angular coverage is
-needed for at least one scan per target arrangement, so that xcal can
-reconstruct and segment the targets.  Additional scans can use sparse
+needed for at least one scan per target arrangement, so the targets
+can be reconstructed and segmented.  Additional scans can use sparse
 views; the spectral fit itself uses only a small subset of views.
 
 .. figure:: figs/path_lengths.png

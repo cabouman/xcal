@@ -28,15 +28,12 @@ The pattern the demos use, for one rod per scan:
     mask = np.zeros(recon.shape, np.float32)
     mask[:, :, :] = shape[:, :, None]
 
-With N targets in one scan, use ``classes=N + 1`` and pair the
-intensity classes with the targets in order of increasing
-attenuation.  Order the mask list like the targets list —
-``masks[k]`` belongs to ``targets[k]`` — and review the result:
-
-.. code-block:: python
-
-    xcal.save_segmentation_plot(recon, targets, masks, 'review.png')
+With N targets in one scan, the demos threshold at the image
+quantile of the declared total target area, split the foreground
+into connected regions, and pair regions with targets in order of
+increasing material density.  Order the mask list like the targets
+list: ``masks[k]`` belongs to ``targets[k]``.  Always review the
+masks by overlaying them on the reconstruction; the demos share a
+small plotting helper for this in ``demo/demo_utils.py``.
 
 .. autofunction:: xcal.cylinder_masks
-
-.. autofunction:: xcal.save_segmentation_plot

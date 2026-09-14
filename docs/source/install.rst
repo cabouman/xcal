@@ -38,4 +38,8 @@ known ground truth, run:
 
 It simulates three scans of a calibration target set at different voltages,
 calibrates, and compares the estimated spectrum to the truth.  It
-takes about two minutes on a laptop CPU.
+takes about two minutes on a laptop.
+
+A second demo, ``demo/demo_2_als_measured.py``, calibrates measured
+synchrotron data from the XCal paper.  On first run it downloads the
+1.1 GB dataset; it takes about six minutes.

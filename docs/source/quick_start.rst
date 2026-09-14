@@ -24,8 +24,8 @@ xcal never touches scanner formats.
     # The calibration object: rods of known materials.
     targets = [
         xcal.Target(material='Ti', size=1.0),   # mm
-        xcal.Target(material='Al', diameter=0.5),
-        xcal.Target(material='Mg', diameter=0.5),
+        xcal.Target(material='Al', size=0.5),
+        xcal.Target(material='Mg', size=0.5),
     ]
 
     # The system description.  A plain value is known; xcal.estimate
@@ -43,7 +43,7 @@ xcal never touches scanner formats.
 
     # Reconstruct each scan and segment the targets.  Look at the
     # masks before calibrating.
-    cal = xcal.Calibrator(system, rods)
+    cal = xcal.Calibrator(system, targets)
     for sino, model, kv in [(sino_40, model_40, 40),
                             (sino_80, model_80, 80),
                             (sino_150, model_150, 150)]:

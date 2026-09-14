@@ -55,6 +55,9 @@ What the user provides
 3. A description of the system: the source type, the possible filters,
    and the possible scintillators.  Facts that are unknown are marked
    as estimated or left as candidate lists.
+4. A mask for each target, segmented from a reconstruction of each
+   scan.  Segmentation is the application's job; the demos show
+   working patterns.
 
 See :ref:`CalibrationScan` for guidance on the scans, and
 :ref:`QuickStart` for a complete script.

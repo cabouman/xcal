@@ -16,12 +16,12 @@ from .system import (estimate, Target, Filter, Scintillator,
 from .calibrator import Calibrator, CalibrationResult
 from .catalog import list_materials, add_materials
 from .simulate import simulate_scan
-from .segment import cylinder_masks, save_segmentation_plot
+from .segment import cylinder_masks
 
 __all__ = [
     'estimate', 'Target', 'Filter', 'Scintillator',
     'ReflectionSource', 'TransmissionSource', 'SynchrotronSource',
     'System', 'load_system', 'Calibrator', 'CalibrationResult',
     'list_materials', 'add_materials', 'simulate_scan',
-    'cylinder_masks', 'save_segmentation_plot',
+    'cylinder_masks',
 ]

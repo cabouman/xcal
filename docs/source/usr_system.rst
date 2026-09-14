@@ -48,8 +48,8 @@ The calibration object
 Each calibration target is a homogeneous object of one known
 material; its shape can be anything regular, and the shape lives in
 the target's mask, not in this class.  You state the material and an
-approximate size; xcal measures the actual shape, so the size only
-guides the segmentation.
+approximate size.  The size is for your segmentation to use, for
+example to validate the masks; xcal itself uses only the masks.
 
 .. code-block:: python
 

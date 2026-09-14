@@ -82,8 +82,8 @@ appear in.  After calibration, you ask for a spectrum the same way:
 
 .. code-block:: python
 
-    R_low  = result.effective_spectrum(filters=[si_filter])
-    R_high = result.effective_spectrum(filters=[si_filter, al_filter])
+    R_low  = cal_result.effective_spectrum(filters=[si_filter])
+    R_high = cal_result.effective_spectrum(filters=[si_filter, al_filter])
 
 There are no strings to match and no numbering to remember: the
 variables connect the declaration, the scans, and the results.  Two

@@ -125,9 +125,9 @@ class Target:
     Args:
         material (str): The target material: a catalog name or any
             chemical formula of elements 1 through 92, e.g. 'Ti'.
-        size (float): Approximate width of the target in mm.  Used
-            only to scale the segmentation search and validate its
-            result.
+        size (float): Approximate width of the target in mm, for
+            the application's segmentation to use.  xcal itself
+            uses only the masks.
         density (float, optional): Density in g/cm^3.  Required only for
             compound formulas whose density is not in the catalog.
     """

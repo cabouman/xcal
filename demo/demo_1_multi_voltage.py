@@ -20,6 +20,8 @@ import time
 import numpy as np
 import mbirtorch
 import xcal
+from demo_utils import (simulate_scanner, segment_targets,
+                        save_segmentation_plot)
 
 # ===================== User parameters =====================
 
@@ -53,33 +55,6 @@ OUTPUT_DIR = './output/demo_1_multi_voltage'
 # ===========================================================
 
 
-def simulate_scanner(gt_system, cal_target, voltage,
-                     n_views,
-                     n_det_rows, n_det_channels, pixel_mm, photons,
-                     seed):
-    """Stand in for the scanner and its preprocessing.
-
-    With real data, mbirtorch preprocessing reads the scanner file
-    and returns a sinogram and an mbirtorch CT model.  This function
-    returns the same pair for a simulated scan, plus the ground
-    truth (gt) masks, which only a simulation can know.
-    """
-    angles = np.linspace(0, np.pi, n_views,
-                         endpoint=False).astype(np.float32)
-    ct_model = mbirtorch.ParallelBeamModel(
-        (n_views, n_det_rows, n_det_channels), angles)
-    ct_model.set_params(delta_det_channel=pixel_mm,
-                        delta_det_row=pixel_mm,
-                        alu_unit='mm', alu_value=1.0)
-    ct_model.auto_set_recon_geometry()
-
-    gt_masks = xcal.cylinder_masks(cal_target, ct_model)
-    sino = xcal.simulate_scan(gt_system, cal_target, ct_model,
-                              voltage=voltage, target_masks=gt_masks,
-                              photons=photons, seed=seed)
-    return sino, ct_model, gt_masks
-
-
 if __name__ == '__main__':
     t0 = time.time()
     os.makedirs(f'{OUTPUT_DIR}/plots', exist_ok=True)
@@ -92,17 +67,13 @@ if __name__ == '__main__':
         detector=xcal.Scintillator(GT_SCINT_MATERIAL,
                                    thickness=GT_SCINT_THICKNESS),
     )
-    # The calibration target: the physical object that is scanned.
-    # Here it is a set of rods, one per specified material.
+    # The calibration target: a set of rods, one per material.
     cal_target = [xcal.Target(m, TARGET_DIAMETER)
                           for m in TARGET_MATERIALS]
 
-    # ---------------- The feasible systems ----------------
-    # The system with its unknowns marked: the set of systems the
-    # calibration may choose from.  Materials and thicknesses
-    # omitted: the candidates and their bounds come from the catalog
-    # (Al 0 to 10 mm, Cu 0 to 1 mm; the seven scintillators, 0.001
-    # to 0.5 mm).
+    # ---------------- The feasible system ----------------
+    # The system with its unknowns marked.  Omitted materials and
+    # thicknesses get their candidates and bounds from the catalog.
     feasible_system = xcal.System(
         source=xcal.ReflectionSource(takeoff_angle=xcal.estimate(5, 45)),
         filters=[xcal.Filter(material=['Al', 'Cu'])],
@@ -110,12 +81,8 @@ if __name__ == '__main__':
     )
 
     # ---------------- Acquire the scans ----------------
-    # Data collection is its own phase, separate from everything
-    # after it.  A real user gets each scan's sinogram and CT model
-    # from mbirtorch preprocessing of a scanner file; here the
-    # scanner itself is simulated.  This phase produces one list:
-    # the N scans, each holding (voltage, sinogram, ct_model,
-    # gt_masks).
+    # A real user gets each scan's sinogram and CT model from
+    # mbirtorch preprocessing.  Here the scanner is simulated.
     scans = []
     for i, kvp in enumerate(VOLTAGES):
         sino, ct_model, gt_masks = simulate_scanner(
@@ -125,50 +92,8 @@ if __name__ == '__main__':
         print(f'{kvp:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
 
     # ---------------- Get the target masks ----------------
-    # The masks are the calibration's third input, and making them
-    # is the application's job, not xcal's.  In this simulation the
-    # ground truth masks are available; with USE_GROUND_TRUTH_MASKS
-    # False, each scan is instead reconstructed and segmented here,
-    # in demo code, with mbirtorch's segmentation utility.
-    def segment_rods(recon, kvp):
-        """Multi-level Otsu segmentation of the N rods: N+1
-        intensity classes (background plus one per rod); the k-th
-        dimmest class is the rod with the k-th smallest attenuation
-        over this scan's energies.  Fails loudly when a class's
-        largest region is far from the declared rod size."""
-        import mbirtorch.preprocess as mtp
-        from scipy import ndimage
-        img = np.asarray(recon)[:, :, 0]
-        thresholds = mtp.multi_threshold_otsu(
-            img, classes=len(cal_target) + 1)
-        energies = feasible_system.energy_grid(kvp)
-        mu = [np.mean(xcal.utils.get_lin_att_c_vs_E(
-                  t.material.density, t.material.formula, energies))
-              for t in cal_target]
-        order = np.argsort(mu)          # target index, dimmest first
-        mm_per_voxel = float(ct_model.get_params('delta_voxel'))
-        masks = [None] * len(cal_target)
-        for k, ti in enumerate(order):
-            low = thresholds[k]
-            high = (thresholds[k + 1] if k + 1 < len(thresholds)
-                    else np.inf)
-            binary = (img >= low) & (img < high)
-            cc, n = ndimage.label(binary)
-            sizes = ndimage.sum(binary, cc, range(1, n + 1))
-            shape = ndimage.binary_fill_holes(
-                cc == int(np.argmax(sizes)) + 1)
-            diam = 2 * mm_per_voxel * np.sqrt(shape.sum() / np.pi)
-            name = cal_target[ti].material.name
-            if not 0.6 <= diam / cal_target[ti].size <= 1.6:
-                raise ValueError(
-                    f"segmentation failed: the class for {name} "
-                    f"yields a {diam:.3g} mm shape (declared "
-                    f"{cal_target[ti].size:g} mm).")
-            mask = np.zeros(np.asarray(recon).shape, np.float32)
-            mask[:, :, :] = shape[:, :, None]
-            masks[ti] = mask
-        return masks
-
+    # The masks identify where the calibration target is and must
+    # be provided to xcal.
     masks_per_scan = []
     for kvp, sino, ct_model, gt_masks in scans:
         if USE_GROUND_TRUTH_MASKS:
@@ -176,8 +101,10 @@ if __name__ == '__main__':
         else:
             print(f'reconstructing the {kvp:.0f} kV scan...')
             recon, _ = ct_model.recon(sino)
-            masks = segment_rods(recon, kvp)
-            xcal.save_segmentation_plot(
+            masks = segment_targets(
+                recon, cal_target,
+                float(ct_model.get_params('delta_voxel')))
+            save_segmentation_plot(
                 recon, cal_target, masks,
                 f'{OUTPUT_DIR}/plots/segmentation_{kvp:.0f}kV.png',
                 title=f'{kvp:.0f} kV reconstruction and masks')
@@ -189,11 +116,8 @@ if __name__ == '__main__':
         cal.add_scan(sino, ct_model, masks, voltage=kvp)
 
     # -------------------- Calibrate --------------------
-    # The central step of the whole demo.  The calibrator searches
-    # the feasible systems for the one whose predicted transmissions
-    # best match every scan, and returns the complete calibration
-    # result.  Its est_system property is the estimated system with
-    # every value filled in.
+    # The calibrator estimates the unknown scanner parameters by searching over the feasible parameter set
+    # for the values that minimize the reconstruction error.
     cal_result = cal.calibrate()
     est_system = cal_result.est_system
 
@@ -205,20 +129,16 @@ if __name__ == '__main__':
           f'{GT_FILTER_MATERIAL} filter {GT_FILTER_THICKNESS} mm; '
           f'{GT_SCINT_MATERIAL} scintillator {GT_SCINT_THICKNESS} mm')
 
-    # Save the whole calibration: summary.txt, the feasible and
-    # estimated systems as YAML, the fit data as HDF5, and plots.
+    # Save the whole calibration as one directory.
     cal_result.save(OUTPUT_DIR)
 
-    # In a simulation the ground truth exists, so redraw the
-    # spectrum plot with it for comparison.  (Paper Table 3 NRMSE:
-    # 0.0017, 0.0010, 0.0008.)
+    # The ground truth exists in simulation, so redraw the spectrum
+    # plot with it.  (Paper Table 3 NRMSE: 0.0017, 0.0010, 0.0008.)
     cal_result.save_plots(OUTPUT_DIR, compare_to=gt_system)
 
     # ---------------- Reuse the estimated parts ----------------
-    # The estimated components are ordinary values, so a new system
-    # can mix them with a different filtration: here, the estimated
-    # source and detector behind a 0.5 mm Cu filter that was never
-    # scanned.
+    # This section illustrates how estimated parameters can be combined with new pararmeters
+    # to determine the spectral response for a new system.
     cu_system = xcal.System(
         source=est_system.source,
         filters=[xcal.Filter('Cu', thickness=0.5)],
