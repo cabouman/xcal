@@ -43,9 +43,9 @@ MASK_SUBSAMPLING_FACTOR = 4     # mask voxel / detector pitch
 
 # Outlier detection: a pixel is kept when its value is within
 # OUTLIER_THRESHOLD_STD standard deviations of the mean of its
-# OUTLIER_WINDOW channel neighbors (Wenrui Li's method).
+# OUTLIER_WINDOW channel neighbors.
 OUTLIER_WINDOW = 51
-OUTLIER_THRESHOLD_STD = 0.1
+OUTLIER_THRESHOLD_STD = 1.0
 
 # Scan metadata: detector center offset of each scan in original
 # channels.  A real instrument provides these with the data.
