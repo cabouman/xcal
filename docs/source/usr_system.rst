@@ -42,21 +42,20 @@ object is ``xcal.estimate``, the marker for form 2:
 
 .. autoclass:: xcal.estimate
 
-The calibration object
+The calibration target
 ----------------------
 
 Each calibration target is a homogeneous object of one known
-material; its shape can be anything regular, and the shape lives in
-the target's mask, not in this class.  You state the material and an
-approximate size.  The size is for your segmentation to use, for
-example to validate the masks; xcal itself uses only the masks.
+material, such as a metal rod.  You state only its material; its
+shape is carried by its mask, which you provide, not by this
+class.
 
 .. code-block:: python
 
     targets = [
-        xcal.Target(material='Ti', size=1.0),   # mm
-        xcal.Target(material='Al', size=0.5),
-        xcal.Target(material='Mg', size=0.5),
+        xcal.Target(material='Ti'),
+        xcal.Target(material='Al'),
+        xcal.Target(material='Mg'),
     ]
 
 .. autoclass:: xcal.Target

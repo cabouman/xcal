@@ -18,7 +18,7 @@ def _make_result():
     system = xcal.System(
         source=xcal.ReflectionSource(takeoff_angle=xcal.estimate(5, 45)),
         filters=[f1], detector=det)
-    targets = [xcal.Target('Ti', 1.0)]
+    targets = [xcal.Target('Ti')]
     cal = xcal.Calibrator(system, targets)
     cal.scans = [{'voltage': 80.0, 'filters': [f1], 'targets': targets,
                   'weights': None}]

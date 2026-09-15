@@ -1,4 +1,4 @@
-"""The calibrator and its result.
+"""Defines the calibrator and its result.
 
 The :class:`Calibrator` is built from a :class:`~xcal.System` and a
 list of :class:`~xcal.Target` objects.  Each scan is added as three
@@ -61,7 +61,7 @@ class Calibrator:
     def add_scan(self, sinogram, ct_model, target_masks,
                  voltage=None, targets=None, filters=None,
                  weights=None, fit_views=None, valid_mask=None):
-        """Add one calibration scan.
+        """Adds one calibration scan to the calibrator.
 
         The sinogram and model are the pair returned by mbirtorch
         preprocessing, for example ``mtp.zeiss.get_sino_and_model(...)``.
@@ -202,7 +202,7 @@ class Calibrator:
 
     @staticmethod
     def _check_masks_inside_ror(target_masks, targets):
-        """A mask outside the projector's circular region of
+        """Refuses a mask outside the projector's circular region of
         reconstruction would be silently truncated by the forward
         projection; refuse it."""
         rows, cols, _ = target_masks[0].shape
@@ -227,7 +227,7 @@ class Calibrator:
             max(s['voltage'] for s in self.scans))
 
     def _source_term(self, scan, energies):
-        """Return the _fit source term for one scan: ('fixed', spec) or
+        """Returns the _fit source term for one scan: ('fixed', spec) or
         ('table', grid, table)."""
         source = self.system.source
         if isinstance(source, SynchrotronSource):
@@ -271,7 +271,7 @@ class Calibrator:
 
     def _select_rays(self, scan, path_lengths, num_fit_views,
                      num_fit_rows, edge_trim_percent):
-        """Choose the sinogram entries used in the fit: a subset of
+        """Chooses the sinogram entries used in the fit: a subset of
         views and center rows, rays through the target shadow with
         its edges trimmed, and finite positive transmission.
 
@@ -307,7 +307,7 @@ class Calibrator:
 
     @staticmethod
     def _trim_shadow_edges(hits, edge_trim_percent):
-        """Erode each view-row's contiguous shadow span by
+        """Erodes each view-row's contiguous shadow span by
         edge_trim_percent of its width at each end."""
         if edge_trim_percent <= 0:
             return hits
@@ -328,7 +328,7 @@ class Calibrator:
     def calibrate(self, learning_rate=0.02, max_iterations=5000,
                   stop_threshold=1e-6, num_fit_views=16, num_fit_rows=5,
                   edge_trim_percent=5.0, verbose=1):
-        """Run the calibration and return the result.
+        """Runs the calibration and returns the result.
 
         The steps are: forward project each scan's target masks to
         get per-ray path lengths in mm, then jointly fit the system
@@ -446,7 +446,7 @@ class Calibrator:
 
 
 class CalibrationResult:
-    """The output of :meth:`Calibrator.calibrate`.
+    """Holds the output of :meth:`Calibrator.calibrate`.
 
     The result returns data and functions; it does not plot.  The
     spectral quantities are returned as functions of energy that the
@@ -485,7 +485,7 @@ class CalibrationResult:
 
     @property
     def est_system(self):
-        """System: the estimated system, fully specified.
+        """Returns the estimated system, fully specified.
 
         A :class:`~xcal.System` with every estimated value filled
         in, usable exactly like a ground truth system.  The three
@@ -514,7 +514,7 @@ class CalibrationResult:
         return System(source=src, filters=filters, detector=det)
 
     def parameters(self):
-        """Return the full parameter table with provenance.
+        """Returns the full parameter table with provenance.
 
         One row per system parameter.  Each row is a dict with keys
         'name', 'value', 'units', 'origin', 'low', 'high', and
@@ -623,7 +623,7 @@ class CalibrationResult:
         return out
 
     def summary(self):
-        """Return the parameter table as a string, one row per
+        """Returns the parameter table as a string, one row per
         parameter with its value, origin, and bounds."""
         lines = ['System parameters:']
         for r in self.parameters():
@@ -684,7 +684,7 @@ class CalibrationResult:
         return prod
 
     def effective_spectrum(self, voltage=None, filters=None):
-        """Return the effective spectrum as a function of energy.
+        """Returns the effective spectrum as a function of energy.
 
         The returned function maps energy in keV to spectral density
         in 1/keV.  It accepts a scalar or a numpy array and returns
@@ -725,7 +725,8 @@ class CalibrationResult:
         return _physics.SpectralFunction(grid, values / area)
 
     def source_spectrum(self, voltage=None):
-        """Return the estimated source spectrum as a function of energy
+        """Returns the estimated source spectrum as a function of
+        energy
         in keV, normalized to unit area like the effective spectrum.
 
         Args:
@@ -741,7 +742,8 @@ class CalibrationResult:
         return _physics.SpectralFunction(grid, values / area)
 
     def filter_response(self, filt):
-        """Return one filter's estimated transmission as a function of
+        """Returns one filter's estimated transmission as a function
+        of
         energy in keV.  Values are between 0 and 1.
 
         Args:
@@ -763,7 +765,7 @@ class CalibrationResult:
         return response
 
     def detector_response(self):
-        """Return the estimated detector response as a function of
+        """Returns the estimated detector response as a function of
         energy in keV.  The scale is relative: only the shape is
         identifiable.
 
@@ -792,7 +794,8 @@ class CalibrationResult:
     # -- per-scan data ----------------------------------------------------
 
     def transmission_fit(self, scan):
-        """Return the measured and predicted transmission for the rays
+        """Returns the measured and predicted transmission for the
+        rays
         of one scan used in the fit.
 
         Args:
@@ -832,7 +835,7 @@ class CalibrationResult:
         return f'{v:g} kV' if v is not None else f'scan {scan}'
 
     def _ray_coordinates(self, scan):
-        """Return (view, row, channel, sinogram_shape) for the fit
+        """Returns (view, row, channel, sinogram_shape) for the fit
         rays of one scan, or None if unavailable."""
         if getattr(self, '_loaded', None) is not None:
             s = self._loaded[scan]
@@ -844,7 +847,7 @@ class CalibrationResult:
         return view, row, channel, sel.shape
 
     def save(self, directory):
-        """Save the calibration to a directory.
+        """Saves the calibration to a directory.
 
         The directory is the single saved object.  It holds
         summary.txt (the parameter report), feasible_system.yaml
@@ -901,7 +904,8 @@ class CalibrationResult:
         self.save_plots(directory)
 
     def _scan_spectrum(self, scan):
-        """Estimated effective spectrum of one scan, evaluated on
+        """Returns the estimated effective spectrum of one scan,
+        evaluated on
         the fit energy grid, normalized to integrate to one."""
         s = self._cal.scans[scan]
         R = self.effective_spectrum(voltage=s.get('voltage'),
@@ -909,7 +913,7 @@ class CalibrationResult:
         return R(self._energies)
 
     def save_plots(self, directory, compare_to=None):
-        """Write the calibration plots to <directory>/plots.
+        """Writes the calibration plots to <directory>/plots.
 
         Two files.  spectrum.png: the estimated effective spectrum
         of each scan; if ``compare_to`` is given, each scan's
@@ -978,7 +982,7 @@ class CalibrationResult:
 
     @classmethod
     def load(cls, directory):
-        """Load a calibration saved by :meth:`save`.
+        """Loads a calibration saved by :meth:`save`.
 
         The result is rebuilt from feasible_system.yaml,
         est_system.yaml, and fit_data.h5, so the parameter table,
@@ -1076,7 +1080,7 @@ class CalibrationResult:
         return result
 
     def show(self, block=True):
-        """Print the parameter table and plot the effective spectra
+        """Prints the parameter table and plots the effective spectra
         and the transmission fit.  Everything shown is also available
         as data through the methods on this class.  Rod masks are
         reviewed before calibration, at the segmentation step.

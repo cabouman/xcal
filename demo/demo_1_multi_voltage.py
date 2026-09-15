@@ -68,8 +68,8 @@ if __name__ == '__main__':
                                    thickness=GT_SCINT_THICKNESS),
     )
     # The calibration target: a set of rods, one per material.
-    cal_target = [xcal.Target(m, TARGET_DIAMETER)
-                          for m in TARGET_MATERIALS]
+    cal_target = [xcal.Target(m) for m in TARGET_MATERIALS]
+    diameters = [TARGET_DIAMETER] * len(TARGET_MATERIALS)
 
     # ---------------- The feasible system ----------------
     # The system with its unknowns marked.  Omitted materials and
@@ -86,8 +86,8 @@ if __name__ == '__main__':
     scans = []
     for i, kvp in enumerate(VOLTAGES):
         sino, ct_model, gt_masks = simulate_scanner(
-            gt_system, cal_target, kvp, N_VIEWS, N_DET_ROWS,
-            N_DET_CHANNELS, PIXEL_MM, PHOTONS, seed=i)
+            gt_system, cal_target, diameters, kvp, N_VIEWS,
+            N_DET_ROWS, N_DET_CHANNELS, PIXEL_MM, PHOTONS, seed=i)
         scans.append((kvp, sino, ct_model, gt_masks))
         print(f'{kvp:.0f} kV scan acquired ({time.time()-t0:.0f} s)')
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
             print(f'reconstructing the {kvp:.0f} kV scan...')
             recon, _ = ct_model.recon(sino)
             masks = segment_targets(
-                recon, cal_target,
+                recon, cal_target, diameters,
                 float(ct_model.get_params('delta_voxel')))
             save_segmentation_plot(
                 recon, cal_target, masks,

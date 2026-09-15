@@ -14,10 +14,11 @@ def test_estimate_validation():
 
 
 def test_rod_validation():
-    rod = xcal.Target(material='Ti', size=1.0)
+    rod = xcal.Target(material='Ti')
     assert rod.material.name == 'Ti'
-    with pytest.raises(ValueError, match='positive'):
-        xcal.Target(material='Ti', size=0)
+    # A chemical formula also resolves, with a density supplied.
+    assert xcal.Target('Gd2O2S', density=7.32).material.formula \
+        == 'Gd2O2S'
 
 
 def test_filter_defaults_come_from_catalog():

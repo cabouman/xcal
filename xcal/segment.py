@@ -1,4 +1,4 @@
-"""Calibration target masks.
+"""Builds and reviews calibration target masks.
 
 A mask set is a Python list with one float32 volume per calibration
 target, ordered like the targets list, so masks[k] belongs to
@@ -20,35 +20,34 @@ from . import _physics
 __all__ = ['cylinder_masks']
 
 
-def cylinder_masks(targets, ct_model, diameters=None, centers=None):
-    """Build ideal cylindrical masks for the targets.
+def cylinder_masks(targets, ct_model, diameters, centers=None):
+    """Builds an ideal cylindrical mask for each target.
 
     Boundary voxels hold coverage fractions, so the masks are
     accurate to a fraction of a voxel.  Simulations use these as
-    ground truth; a calibration may also use them when the target
-    geometry is trusted.  Other shapes get their own builders.
+    ground truth, and a calibration may also use them when the
+    target geometry is trusted.
 
     Args:
-        targets (list of Target): The targets.
-        ct_model (TomographyModel): The scan geometry; provides the
-            grid and voxel size.
-        diameters (list of float, optional): Cylinder diameters in
-            mm.  Defaults to each target's declared size.
-        centers (list of tuple, optional): (row, column) offsets of
-            each cylinder center from the rotation axis, in mm.
-            Defaults to evenly spaced positions on a circle inside
-            the field of view.
+        targets (list of Target): The calibration targets, in the
+            order the masks are returned.
+        ct_model (TomographyModel): The scan geometry, which
+            provides the reconstruction grid and voxel size.
+        diameters (list of float): The cylinder diameter of each
+            target, in mm.
+        centers (list of tuple, optional): The (row, column) offset
+            of each cylinder center from the rotation axis, in mm.
+            It defaults to evenly spaced positions on a circle
+            inside the field of view.
 
     Returns:
-        list of numpy.ndarray: One float32 mask volume per target, in
-        target order, values in [0, 1].
+        list of numpy.ndarray: One float32 mask volume per target,
+        in target order, with values in [0, 1].
     """
     scale = _physics.mm_per_alu(ct_model)
     rows, cols, slices = ct_model.get_params('recon_shape')
     mm_per_voxel = float(ct_model.get_params('delta_voxel')) * scale
 
-    if diameters is None:
-        diameters = [t.size for t in targets]
     if centers is None:
         fov_mm = 0.5 * min(rows, cols) * mm_per_voxel
         ring = 0.55 * fov_mm
@@ -73,8 +72,8 @@ def cylinder_masks(targets, ct_model, diameters=None, centers=None):
 
 
 def _antialiased_disk(rows, cols, cy, cx, radius_vox, supersample=4):
-    """A 2D float mask of a disk, boundary voxels holding coverage
-    fractions computed by supersampling."""
+    """Returns a 2D float mask of a disk, its boundary voxels
+    holding coverage fractions computed by supersampling."""
     disk = np.zeros((rows, cols), dtype=np.float32)
     r_out = int(np.ceil(radius_vox)) + 2
     r0 = max(0, int(cy) - r_out)

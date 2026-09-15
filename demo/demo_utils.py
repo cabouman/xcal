@@ -4,25 +4,28 @@ import numpy as np
 from scipy import ndimage
 
 
-def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
-    """Segment the calibration targets in a reconstruction.
+def segment_targets(recon, targets, diameters, mm_per_voxel,
+                    method='quantile'):
+    """Segments the calibration targets in a reconstruction.
 
-    Three methods.  'quantile': locate the N targets as the N
-    largest connected regions above the image quantile of the
-    declared total target area, re-measure each boundary with a
-    2-level Otsu threshold in a window around the region, and pair
-    regions with targets in order of increasing material density.
-    'otsu': 2-level Otsu threshold, largest connected region, holes
-    filled; single target only.
-    'disk': a disk of the declared diameter at the position where
-    the image is brightest under it (a matched filter); single
-    target only.
+    Three methods are available.  'quantile' locates the N targets
+    as the N largest connected regions above the image quantile of
+    the declared total target area, re-measures each boundary with
+    a 2-level Otsu threshold in a window around the region, and
+    pairs regions with targets in order of increasing material
+    density.  'otsu' takes the largest connected region above a
+    2-level Otsu threshold, holes filled, for a single target.
+    'disk' places a disk of the declared diameter at the position
+    where the image is brightest under it, for a single target.
 
     Args:
-        recon (numpy.ndarray): Volume with shape (rows, cols,
-            slices).
-        targets (list of Target): The declared targets.
-        mm_per_voxel (float): Voxel size in mm.
+        recon (numpy.ndarray): The reconstructed volume, with shape
+            (rows, cols, slices).
+        targets (list of Target): The calibration targets, in the
+            order the masks are returned.
+        diameters (list of float): The approximate diameter of each
+            target, in mm, used to size and validate the search.
+        mm_per_voxel (float): The voxel size in mm.
         method (str): 'quantile', 'otsu', or 'disk'.
 
     Returns:
@@ -35,8 +38,8 @@ def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
                          f"target, got {len(targets)}.")
 
     if method == 'quantile':
-        area = sum(np.pi * (0.5 * t.size / mm_per_voxel) ** 2
-                   for t in targets)
+        area = sum(np.pi * (0.5 * d / mm_per_voxel) ** 2
+                   for d in diameters)
         threshold = float(np.quantile(img, 1.0 - area / img.size))
         cc, n = ndimage.label(img >= threshold)
         if n < len(targets):
@@ -48,7 +51,7 @@ def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
         # threshold.  Fill the region solid, open with a small disk
         # to sever the streaks, and keep the largest piece.
         r_open = max(2, int(round(0.05 * min(
-            0.5 * t.size / mm_per_voxel for t in targets))))
+            0.5 * d / mm_per_voxel for d in diameters))))
         yk, xk = np.ogrid[-r_open:r_open + 1, -r_open:r_open + 1]
         element = yk**2 + xk**2 <= r_open**2
 
@@ -99,7 +102,7 @@ def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
             cc == int(np.argmax(sizes)) + 1)]
         order = [0]
     elif method == 'disk':
-        radius = 0.5 * targets[0].size / mm_per_voxel
+        radius = 0.5 * diameters[0] / mm_per_voxel
         r_k = int(round(radius))
         yk, xk = np.ogrid[-r_k:r_k + 1, -r_k:r_k + 1]
         kernel = (yk**2 + xk**2 <= r_k**2).astype(float)
@@ -115,11 +118,11 @@ def segment_targets(recon, targets, mm_per_voxel, method='quantile'):
     masks = [None] * len(targets)
     for shape, ti in zip(shapes, order):
         diam = 2 * mm_per_voxel * np.sqrt(shape.sum() / np.pi)
-        if not 0.6 <= diam / targets[ti].size <= 1.6:
+        if not 0.6 <= diam / diameters[ti] <= 1.6:
             raise ValueError(
                 f"segmentation failed: the region paired with "
                 f"{targets[ti].material.name} measures {diam:.3g} mm "
-                f"(declared {targets[ti].size:g} mm).")
+                f"(declared {diameters[ti]:g} mm).")
         mask = np.zeros(np.asarray(recon).shape, np.float32)
         mask[:, :, :] = shape[:, :, None]
         masks[ti] = mask
@@ -213,16 +216,16 @@ def remove_stripes_2d(sino, row_smooth=10, col_smooth=50):
     return sino.astype(np.float32)
 
 
-def simulate_scanner(gt_system, cal_target, voltage,
+def simulate_scanner(gt_system, cal_target, diameters, voltage,
                      n_views,
                      n_det_rows, n_det_channels, pixel_mm, photons,
                      seed):
-    """Stand in for the scanner and its preprocessing.
+    """Stands in for the scanner and its preprocessing.
 
     With real data, mbirtorch preprocessing reads the scanner file
-    and returns a sinogram and an mbirtorch CT model.  This function
-    returns the same pair for a simulated scan, plus the ground
-    truth (gt) masks, which only a simulation can know.
+    and returns a sinogram and an mbirtorch CT model.  This
+    function returns the same pair for a simulated scan, together
+    with the ground truth masks, which only a simulation knows.
     """
     import mbirtorch
     import xcal
@@ -235,7 +238,7 @@ def simulate_scanner(gt_system, cal_target, voltage,
                         alu_unit='mm', alu_value=1.0)
     ct_model.auto_set_recon_geometry()
 
-    gt_masks = xcal.cylinder_masks(cal_target, ct_model)
+    gt_masks = xcal.cylinder_masks(cal_target, ct_model, diameters)
     sino = xcal.simulate_scan(gt_system, cal_target, ct_model,
                               voltage=voltage, target_masks=gt_masks,
                               photons=photons, seed=seed)
@@ -308,19 +311,20 @@ def get_sino_and_model(path, center_offset_channels, snr_db, pixel_mm,
 
 def save_segmentation_plot(recon, targets, masks, filename,
                            title=None):
-    """Write a review image of a segmentation.
+    """Writes a review image of a segmentation.
 
-    The center slice of the reconstruction, with a colorbar, and
-    each target's mask outlined in its own color.  A legend outside
-    the image names each color's material and size.
+    The image is the center slice of the reconstruction, with a
+    colorbar, and each target's mask outlined in its own color.  A
+    legend outside the image names each color's material.
 
     Args:
-        recon (numpy.ndarray): Reconstructed volume with shape
+        recon (numpy.ndarray): The reconstructed volume, with shape
             (rows, cols, slices).
-        targets (list of Target): The targets, in mask order.
+        targets (list of Target): The calibration targets, in mask
+            order.
         masks (list of numpy.ndarray): One mask volume per target.
-        filename (str): Output image path.
-        title (str, optional): Title above the image.
+        filename (str): The output image path.
+        title (str, optional): A title above the image.
     """
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
@@ -336,8 +340,7 @@ def save_segmentation_plot(recon, targets, masks, filename,
         ax.contour(np.asarray(m)[:, :, s], levels=[0.5], colors=[c],
                    linewidths=0.9)
         handles.append(Line2D([0], [0], color=c,
-                              label=f'{tg.material.name} '
-                                    f'({tg.size:g} mm)'))
+                              label=f'{tg.material.name}'))
     ax.legend(handles=handles, loc='center left',
               bbox_to_anchor=(1.15, 0.5))
     if title:

@@ -1,4 +1,4 @@
-"""Internal material resolution.
+"""Resolves material specifications into materials.
 
 A user names a material either by a catalog name or by a chemical
 formula.  This module turns that name into a Material with a formula
@@ -13,16 +13,16 @@ from . import utils
 
 @dataclass(frozen=True)
 class Material:
-    """A resolved material: display name, chemical formula, density in
-    g/cm^3."""
+    """Represents a resolved material: its display name, chemical
+    formula, and density in g/cm^3."""
     name: str
     formula: str
     density: float
 
 
 def parse_formula(formula):
-    """Parse a chemical formula into an element -> count dict, raising
-    a plain error for unknown or unsupported elements."""
+    """Parses a chemical formula into an element -> count dict,
+    raising a plain error for unknown or unsupported elements."""
     parsed = utils.interpret_formula(formula)
     if not parsed:
         raise ValueError(f"'{formula}' is not a chemical formula.")
@@ -40,7 +40,7 @@ def parse_formula(formula):
 
 
 def resolve(spec, kind, density=None, context=''):
-    """Resolve a material specification into a Material.
+    """Resolves a material specification into a Material.
 
     Args:
         spec (str): A catalog name (for example 'GOS') or a chemical

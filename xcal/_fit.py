@@ -1,4 +1,4 @@
-"""Internal differentiable fit.
+"""Solves the differentiable fit for the continuous parameters.
 
 The calibrator hands this module a discretized problem: per scan, a
 forward matrix, measured transmissions, and weights; per component,
@@ -15,7 +15,8 @@ import torch
 
 
 class _ClampWithGrad(torch.autograd.Function):
-    """Clamp to [0, 1] in the forward pass, identity gradient in the
+    """Clamps to [0, 1] in the forward pass, with identity gradient
+    in the
     backward pass, so Adam converges onto the constraint set instead of
     stalling at the boundary."""
 
@@ -33,7 +34,8 @@ def _clamp01(x):
 
 
 class _Bounded:
-    """A continuous parameter with bounds, stored as a raw torch
+    """Represents a continuous parameter with bounds, stored as a
+    raw torch
     parameter whose clamped value maps linearly onto [low, high]."""
 
     def __init__(self, low, high, initial):
@@ -56,7 +58,7 @@ class _Bounded:
 
 
 def _make_bounded(spec):
-    """Build a _Bounded from a float (fixed) or an object with
+    """Builds a _Bounded from a float (fixed) or an object with
     low/high/initial attributes (xcal.estimate)."""
     if hasattr(spec, 'low'):
         return _Bounded(spec.low, spec.high, spec.initial)
@@ -64,7 +66,7 @@ def _make_bounded(spec):
 
 
 def _interp_row(grid, table, x):
-    """Differentiable linear interpolation of table rows at scalar x.
+    """Interpolates table rows differentiably at a scalar x.
 
     grid is a sorted 1D tensor, table is (len(grid), nE), x a scalar
     tensor.  x is clamped to the grid range.
@@ -79,7 +81,7 @@ def _interp_row(grid, table, x):
 
 
 class FitProblem:
-    """One discretized calibration problem.
+    """Represents one discretized calibration problem.
 
     Args:
         energies (numpy.ndarray): Energy grid in keV, shape (nE,).
@@ -124,7 +126,8 @@ class FitProblem:
         self.detector = detector
 
     def _combinations(self):
-        """All discrete material combinations: one candidate index per
+        """Returns all discrete material combinations, one candidate
+        index per
         filter plus one for the detector."""
         pools = [range(len(f['mu_candidates'])) for f in self.filters]
         pools.append(range(len(self.detector['curve_candidates'])))
@@ -206,7 +209,8 @@ class FitProblem:
 
     def solve(self, learning_rate=0.02, max_iterations=5000,
               stop_threshold=1e-6, verbose=1):
-        """Search all discrete combinations and return the best fit.
+        """Searches all discrete combinations and returns the best
+        fit.
 
         Returns:
             dict: 'cost', 'combo' (candidate index per filter plus

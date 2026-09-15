@@ -32,7 +32,7 @@ def test_calibrate_pipeline_recovers_thicknesses():
         filters=[xcal.Filter('Al', thickness=3.0)],
         detector=xcal.Scintillator('CsI', thickness=0.33),
     )
-    targets = [xcal.Target('Ti', 1.0)]
+    targets = [xcal.Target('Ti')]
     voltages = [60.0, 120.0]
 
     system = xcal.System(
@@ -45,7 +45,8 @@ def test_calibrate_pipeline_recovers_thicknesses():
     centers = [(-0.15, 0.12)]
     for i, voltage in enumerate(voltages):
         model = _make_model()
-        masks = xcal.cylinder_masks(targets, model, centers=centers)
+        masks = xcal.cylinder_masks(targets, model, [1.0],
+                                    centers=centers)
         sino = xcal.simulate_scan(truth, targets, model, voltage=voltage,
                                   target_masks=masks,
                                   photons=100000, seed=5 + i)
