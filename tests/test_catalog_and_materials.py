@@ -33,9 +33,9 @@ def test_add_materials_overrides_and_extends():
                                      delete=False) as f:
         f.write("filter_materials:\n"
                 "  - {name: Sn, formula: Sn, density: 7.31,"
-                " thickness_range: [0, 2]}\n"
+                " default_thickness_range: [0, 2]}\n"
                 "  - {name: Al, formula: Al, density: 2.70,"
-                " thickness_range: [0, 20]}\n")
+                " default_thickness_range: [0, 20]}\n")
         path = f.name
     try:
         xcal.add_materials(path)

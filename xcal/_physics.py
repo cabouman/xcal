@@ -1,4 +1,4 @@
-"""Internal physics: material coefficient curves, component responses,
+"""Computes material coefficient curves, component responses,
 and source spectrum tables.
 
 Everything here is numpy in, numpy out.  The differentiable fit layer
@@ -18,7 +18,7 @@ ENERGY_MAX_KEV = 20000.0
 
 
 def check_energies(energies):
-    """Validate an energy grid against the NIST table range.
+    """Validates an energy grid against the NIST table range.
 
     The tables cover 1 keV to 20 MeV.  Outside that range the
     interpolation would silently return wrong coefficients, so this
@@ -38,28 +38,28 @@ def check_energies(energies):
 
 
 def default_energy_grid(max_voltage):
-    """Return the default fit grid: 1 keV bins from 1.5 keV to just
+    """Returns the default fit grid: 1 keV bins from 1.5 keV to just
     below the highest voltage, the convention used in the XCal paper."""
     max_voltage = int(round(max_voltage))
     return np.linspace(1.5, max_voltage - 0.5, max_voltage - 1)
 
 
 def attenuation_coefficients(material, energies):
-    """Return the linear attenuation coefficient curve of a resolved
+    """Returns the linear attenuation coefficient curve of a resolved
     Material, in 1/mm."""
     energies = check_energies(energies)
     return get_lin_att_c_vs_E(material.density, material.formula, energies)
 
 
 def filter_transmission(material, thickness, energies):
-    """Return a filter's transmission exp(-mu * t) for thickness in
+    """Returns a filter's transmission exp(-mu * t) for thickness in
     mm."""
     mu = attenuation_coefficients(material, energies)
     return np.exp(-mu * thickness)
 
 
 def scintillator_curves(material, energies):
-    """Return the two coefficient curves the scintillator response is
+    """Returns the two coefficient curves the scintillator response is
     built from: (mu, mu_en_over_mu_times_E).
 
     The response for thickness t is
@@ -75,7 +75,7 @@ def scintillator_curves(material, energies):
 
 
 def scintillator_response(material, thickness, energies):
-    """Return a scintillator's response for thickness in mm."""
+    """Returns a scintillator's response for thickness in mm."""
     mu, ratio_e = scintillator_curves(material, energies)
     return ratio_e * (1.0 - np.exp(-mu * thickness))
 
@@ -83,7 +83,7 @@ def scintillator_response(material, thickness, energies):
 
 
 def mm_per_alu(ct_model):
-    """Return how many mm one of the model's length units (ALU)
+    """Returns how many mm one of the model's length units (ALU)
     represents, from its alu_unit and alu_value parameters.  Warns
     when the model declares no unit, because silent unit mistakes
     corrupt every path length."""
@@ -107,7 +107,7 @@ def mm_per_alu(ct_model):
 # ---------------------------------------------------------------------------
 
 def reflection_source_table(voltage, takeoff_angles, energies):
-    """Generate reflection source spectra with Spekpy at one voltage
+    """Generates reflection source spectra with Spekpy at one voltage
     over a grid of takeoff angles.
 
     Args:
@@ -135,7 +135,7 @@ _SOURCE_MODELS_DIR = os.path.join(
 
 
 def available_transmission_models():
-    """Return the physics model names of the shipped transmission
+    """Returns the physics model names of the shipped transmission
     source tables (files transmission_<model>.csv in
     xcal/source_models)."""
     import glob
@@ -147,7 +147,7 @@ def available_transmission_models():
 
 def transmission_source_table(apex_angle=10.0,
                               physics_model='G4EmLivermorePhysics'):
-    """Load one transmission source table.
+    """Loads one transmission source table.
 
     Each physics model is one CSV file
     xcal/source_models/transmission_<model>.csv with columns
@@ -207,7 +207,8 @@ def transmission_source_table(apex_angle=10.0,
 
 
 class SpectralFunction:
-    """A spectral quantity as a function of energy in keV.
+    """Represents a spectral quantity as a function of energy in
+    keV.
 
     Calling it with a scalar or array of energies returns the density
     at those energies, zero outside the tabulated support.
@@ -225,7 +226,8 @@ class SpectralFunction:
 
 
 def prepare_for_interpolation(spec_list):
-    """Extend each spectrum below the next-higher voltage's endpoint so
+    """Extends each spectrum below the next-higher voltage's endpoint
+    so
     that linear interpolation between voltages keeps the interpolated
     spectrum zero above the interpolated voltage.
 
@@ -252,7 +254,7 @@ def prepare_for_interpolation(spec_list):
 
 
 def interpolate_rows(x_grid, table, x):
-    """Linearly interpolate the rows of a table at one coordinate.
+    """Linearly interpolates the rows of a table at one coordinate.
 
     Args:
         x_grid (numpy.ndarray): Sorted coordinates, one per table row.
@@ -272,7 +274,7 @@ def interpolate_rows(x_grid, table, x):
 
 
 def available_synchrotron_spectra():
-    """Return the names of the shipped synchrotron spectra (files
+    """Returns the names of the shipped synchrotron spectra (files
     synchrotron_<name>.csv in xcal/source_models)."""
     import glob
     paths = glob.glob(os.path.join(_SOURCE_MODELS_DIR,
@@ -282,7 +284,8 @@ def available_synchrotron_spectra():
 
 
 def synchrotron_source_table(spectrum='als_bm832'):
-    """Load one synchrotron spectrum, rebinned to uniform 1 keV bins.
+    """Loads one synchrotron spectrum, rebinned to uniform 1 keV
+    bins.
 
     A spectrum is one CSV file
     xcal/source_models/synchrotron_<name>.csv with columns

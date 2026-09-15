@@ -35,9 +35,7 @@ TARGET_DIAMETER = 1.0       # mm
 # The two filtration conditions and which filters each scan saw.
 FILTRATIONS = ['low', 'high']       # low: Si only; high: Si + Al
 
-# Scan geometry.  One full-resolution sinogram per scan; the
-# reconstruction that makes the masks uses voxels
-# MASK_SUBSAMPLING_FACTOR times the detector pitch, for speed.
+# CT parameters
 PIXEL_MM = 0.00065              # detector pixel pitch
 MASK_SUBSAMPLING_FACTOR = 4     # mask voxel / detector pitch
 
@@ -47,13 +45,11 @@ MASK_SUBSAMPLING_FACTOR = 4     # mask voxel / detector pitch
 OUTLIER_WINDOW = 51
 OUTLIER_THRESHOLD_STD = 2.0
 
-# Fraction (percent) of each target shadow's width dropped from
-# each edge before fitting, since edge rays carry the most
-# segmentation error.
+# Percentage of each target shadow's width dropped from fitting.
+# This can reduce errors at edges due to partial volume and other effects.
 EDGE_TRIM_PERCENT = 1.0
 
-# Scan metadata: detector center offset of each scan in original
-# channels.  A real instrument provides these with the data.
+# Center offsets for each scan.
 CENTER_OFFSETS = {
     ('low', 'V'): -31, ('low', 'Ti'): -24,
     ('low', 'Mg'): -35, ('low', 'Al'): -10,
@@ -95,11 +91,11 @@ if __name__ == '__main__':
     feasible_system = xcal.System(
         source=xcal.SynchrotronSource(),
         filters=[si_filter, al_filter],
-        detector=xcal.Scintillator(),
+        detector=xcal.Scintillator('LuAG',
+                                   thickness=xcal.estimate(0.001, 0.5)),
     )
     # The calibration target: one rod per material, scanned alone.
-    cal_target = {m: xcal.Target(m, TARGET_DIAMETER)
-                  for m in TARGET_MATERIALS}
+    cal_target = {m: xcal.Target(m) for m in TARGET_MATERIALS}
 
     # ---------------- Acquire the CT sinograms and models ----------------
     # A real user gets each scan's sinogram and CT model from
@@ -136,7 +132,7 @@ if __name__ == '__main__':
                   f'{material} rod scan...')
             recon, _ = ct_model.recon(sino, print_logs=False)
             target_masks = segment_targets(
-                recon, [cal_target[material]],
+                recon, [cal_target[material]], [TARGET_DIAMETER],
                 float(ct_model.get_params('delta_voxel')),
                 method='otsu')
             save_segmentation_plot(

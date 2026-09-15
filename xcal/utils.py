@@ -1,4 +1,4 @@
-"""Utility functions: physical parameter access and data helpers.
+"""Provides physical-parameter access and data helpers.
 
 The physical parameters live as data files in xcal/physical_params
 (the periodic table, the NIST attenuation tables, the materials
@@ -17,7 +17,7 @@ _periodic_table_cache = None
 
 
 def periodic_table():
-    """Return the periodic table as {symbol: {'atomic_weight',
+    """Returns the periodic table as {symbol: {'atomic_weight',
     'density'}}, atomic weight in g/mol and density in g/cm^3, read
     once from physical_params/periodic_table.yaml."""
     global _periodic_table_cache
@@ -30,13 +30,13 @@ def periodic_table():
 
 
 def atomic_weights():
-    """Return {element symbol: atomic weight in g/mol}."""
+    """Returns {element symbol: atomic weight in g/mol}."""
     return {s: e['atomic_weight'] for s, e in periodic_table().items()}
 
 
 def element_densities():
-    """Return {element symbol: density in g/cm^3} for elements that
-    have one."""
+    """Returns {element symbol: density in g/cm^3} for the elements
+    that have one."""
     return {s: e['density'] for s, e in periodic_table().items()
             if 'density' in e}
 
@@ -45,7 +45,7 @@ _nist_tables_cache = None
 
 
 def nist_tables():
-    """Return the NIST tables as {element: array of shape (n, 3)}
+    """Returns the NIST tables as {element: array of shape (n, 3)}
     with columns energy in keV, mass attenuation, and mass
     energy-absorption in cm^2/g, read once from
     physical_params/nist_attenuation.csv."""
@@ -67,14 +67,14 @@ def nist_tables():
 
 
 def nist_element_symbols():
-    """Return the set of element symbols covered by the NIST tables
+    """Returns the set of element symbols the NIST tables cover
     (hydrogen through uranium, plus 'Air')."""
     return set(nist_tables().keys())
 
 
 def interpret_formula(formula):
-    """Return a chemical formula as an {element: count} dict.  A dict
-    passes through unchanged."""
+    """Returns a chemical formula as an {element: count} dict.  A
+    dict passes through unchanged."""
     if isinstance(formula, dict):
         return formula
     import chemparse
@@ -82,15 +82,16 @@ def interpret_formula(formula):
 
 
 def molecular_mass(formula):
-    """Return the molecular mass of a formula in g/mol."""
+    """Returns the molecular mass of a formula in g/mol."""
     weights = atomic_weights()
     return sum(count * weights[element]
                for element, count in interpret_formula(formula).items())
 
 
 def _mass_coefficient(formula, energies, column):
-    """Mass-weighted NIST coefficient curve for a compound, in
-    cm^2/g, log-log interpolated at the given energies in keV."""
+    """Returns the mass-weighted NIST coefficient curve of a
+    compound, in cm^2/g, log-log interpolated at the given
+    energies in keV."""
     parsed = interpret_formula(formula)
     weights = atomic_weights()
     total_mass = molecular_mass(parsed)
@@ -107,7 +108,7 @@ def _mass_coefficient(formula, energies, column):
 
 
 def get_lin_att_c_vs_E(density, formula, energies):
-    """Return the linear attenuation coefficient curve in 1/mm.
+    """Returns the linear attenuation coefficient curve in 1/mm.
 
     Args:
         density (float): Material density in g/cm^3.
@@ -120,7 +121,8 @@ def get_lin_att_c_vs_E(density, formula, energies):
 
 
 def get_lin_absp_c_vs_E(density, formula, energies):
-    """Return the linear energy-absorption coefficient curve in 1/mm.
+    """Returns the linear energy-absorption coefficient curve in
+    1/mm.
 
     Args:
         density (float): Material density in g/cm^3.
@@ -137,7 +139,7 @@ def get_lin_absp_c_vs_E(density, formula, energies):
 # ---------------------------------------------------------------------------
 
 def detect_inliers(sinogram, window_size, threshold_std=3):
-    """Mask the inliers of an attenuation sinogram (Wenrui Li's
+    """Masks the inliers of an attenuation sinogram (Wenrui Li's
     method from xcal 1).  The sinogram is converted to
     transmission, exp(-sinogram), and each value is compared with
     the mean of its channel neighborhood.  A value is an inlier
@@ -171,7 +173,7 @@ def detect_inliers(sinogram, window_size, threshold_std=3):
 
 
 def only_center_mask(data, window_size=None):
-    """Mask keeping, per view and row, a window of channels centered
+    """Masks, per view and row, a window of channels centered
     on the darkest region, which is where the calibration target is
     (Wenrui Li's method from xcal 1).
 

@@ -1,4 +1,4 @@
-"""The materials catalog.
+"""Reads and holds the materials catalog.
 
 The catalog lists the named materials a user can select from, with the
 parameters the software needs: chemical formula, density, and a default
@@ -31,7 +31,7 @@ def _shipped_catalog_path():
 
 
 def _load():
-    """Return the session catalog, loading the shipped file once."""
+    """Returns the session catalog, loading the shipped file once."""
     global _catalog
     if _catalog is None:
         with open(_shipped_catalog_path()) as f:
@@ -43,14 +43,14 @@ def _load():
 
 
 def _reset():
-    """Discard user additions and reload the shipped catalog.  Used by
-    tests."""
+    """Discards user additions and reloads the shipped catalog, for
+    use by tests."""
     global _catalog
     _catalog = None
 
 
 def list_materials(kind=None):
-    """List the materials in the catalog.
+    """Lists the materials in the catalog.
 
     Args:
         kind (str, optional): 'filter', 'target', or 'scintillator' to
@@ -76,7 +76,7 @@ def list_materials(kind=None):
 
 
 def add_materials(filename):
-    """Add materials from a user catalog file.
+    """Adds materials from a user catalog file.
 
     The file uses the same YAML layout as the shipped catalog.  Entries
     with new names are added; entries that reuse a shipped name override
@@ -119,8 +119,8 @@ def _validate_entry(entry, section, filename):
 
 
 def _find(kind, name):
-    """Return the catalog entry of one kind with the given name, or
-    None."""
+    """Returns the catalog entry of one kind with the given name,
+    or None."""
     for entry in _load()[_KIND_KEYS[kind]]:
         if entry['name'] == name:
             return copy.deepcopy(entry)
@@ -128,10 +128,11 @@ def _find(kind, name):
 
 
 def _default_candidates(kind):
-    """Return the default candidate entries for one component type."""
+    """Returns the default candidate entries for one component
+    type."""
     return list_materials(kind)
 
 
 def _defaults():
-    """Return the catalog defaults section."""
+    """Returns the catalog defaults section."""
     return copy.deepcopy(_load()['defaults'])

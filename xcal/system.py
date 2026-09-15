@@ -1,4 +1,5 @@
-"""Classes that describe the X-ray system and the calibration object.
+"""Defines the classes that describe the X-ray system and the
+calibration target.
 
 A user builds a :class:`System` from a source, a list of filters, and a
 detector, and describes the calibration object as a list of
@@ -24,7 +25,7 @@ __all__ = ['estimate', 'Target', 'Filter', 'Scintillator', 'ReflectionSource',
 
 
 class estimate:
-    """Mark a parameter as estimated within bounds.
+    """Marks a parameter as estimated by the calibration within bounds.
 
     Args:
         low (float): Lower bound.
@@ -59,7 +60,7 @@ class estimate:
 
 
 def _check_scalar_or_estimate(value, what):
-    """Validate a continuous parameter: a number or an estimate."""
+    """Validates a continuous parameter: a number or an estimate."""
     if isinstance(value, estimate):
         return value
     if isinstance(value, (int, float)):
@@ -73,7 +74,7 @@ def _check_scalar_or_estimate(value, what):
 
 
 def _resolve_candidates(material, kind, density, context):
-    """Turn a material argument (None, str, or list) into a list of
+    """Turns a material argument (None, str, or list) into a list of
     Material candidates."""
     if material is None:
         entries = catalog._default_candidates(kind)
@@ -97,12 +98,12 @@ def _resolve_candidates(material, kind, density, context):
 
 
 def _default_thickness_estimate(kind, materials):
-    """Build a thickness estimate from the catalog's ranges for these
+    """Builds a thickness estimate from the catalog's ranges for these
     candidate materials."""
     lows, highs = [], []
     for mat in materials:
         entry = catalog._find(kind, mat.name)
-        rng = (entry or {}).get('thickness_range')
+        rng = (entry or {}).get('default_thickness_range')
         if rng is not None:
             lows.append(float(rng[0]))
             highs.append(float(rng[1]))
@@ -115,39 +116,35 @@ def _default_thickness_estimate(kind, materials):
 
 
 class Target:
-    """One calibration target: a homogeneous object of one material.
+    """Represents one calibration target.
 
-    The calibration assumes only that the target is made of a single
-    known material.  Its shape is whatever its mask says; the shape
-    is measured by segmentation or, in simulation, built by a mask
-    builder such as :func:`~xcal.cylinder_masks`.
+    A calibration target is a homogeneous object made of a single
+    known material, for example a metal rod.  The calibration uses
+    only the target's material and its mask; the target's shape is
+    carried by the mask, which segmentation measures from a
+    reconstruction or, in simulation, a mask builder such as
+    :func:`~xcal.cylinder_masks` produces.
 
     Args:
-        material (str): The target material: a catalog name or any
-            chemical formula of elements 1 through 92, e.g. 'Ti'.
-        size (float): Approximate width of the target in mm, for
-            the application's segmentation to use.  xcal itself
-            uses only the masks.
-        density (float, optional): Density in g/cm^3.  Required only for
-            compound formulas whose density is not in the catalog.
+        material (str): The target's material, as a string.  It is
+            either a name in the materials catalog, such as 'V' or
+            'Ti', or a chemical formula of elements 1 through 92,
+            such as 'Gd2O2S'.
+        density (float, optional): The material's density in g/cm^3.
+            It is needed only for a compound formula whose density
+            is not in the catalog.
     """
 
-    def __init__(self, material, size, density=None):
+    def __init__(self, material, density=None):
         self.material = _materials.resolve(material, 'target', density,
                                            context='Target')
-        size = float(size)
-        if size <= 0:
-            raise ValueError(f"Target size must be positive mm, got "
-                             f"{size}.")
-        self.size = size
 
     def __repr__(self):
-        return (f"Target(material='{self.material.name}', "
-                f"size={self.size})")
+        return f"Target(material='{self.material.name}')"
 
 
 class Filter:
-    """A beam filter modeled by Beer's law.
+    """Represents a beam filter, modeled by Beer's law.
 
     Args:
         material (str or list, optional): A catalog name or any
@@ -204,7 +201,7 @@ class Filter:
 
 
 class Scintillator(Filter):
-    """An energy-integrating scintillated detector.
+    """Represents an energy-integrating scintillator detector.
 
     The response is the scintillator's absorption efficiency times the
     deposited photon energy, computed from the NIST attenuation and
@@ -226,8 +223,9 @@ class Scintillator(Filter):
 
 
 class ReflectionSource:
-    """An X-ray tube with a thick angled tungsten anode.  Spectra are
-    generated at run time by Spekpy; the anode is tungsten only.
+    """Represents an X-ray tube with a thick angled tungsten anode.
+    Spectra are generated at run time by Spekpy; the anode is
+    tungsten only.
     The per-scan voltage is given to :meth:`Calibrator.add_scan`.
 
     Args:
@@ -248,7 +246,8 @@ class ReflectionSource:
 
 
 class TransmissionSource:
-    """An X-ray tube with a thin tungsten transmission target.
+    """Represents an X-ray tube with a thin tungsten transmission
+    target.
     Spectra come from lookup tables, one CSV file per physics
     model in xcal/source_models (files transmission_<model>.csv).
     The shipped files (Geant4, tungsten target on a 250 um diamond
@@ -289,7 +288,8 @@ class TransmissionSource:
 
 
 class SynchrotronSource:
-    """A source with a known, exact spectrum and no parameters:
+    """Represents a source with a known, exact spectrum and no
+    parameters:
     nothing about it is estimated, and there is no per-scan voltage.
     Spectra come from CSV files, one per spectrum, in
     xcal/source_models (files synchrotron_<name>.csv).  To add a
@@ -312,8 +312,8 @@ class SynchrotronSource:
         self.spectrum = spectrum
 
     def table(self):
-        """Return the spectrum as an (energies, counts) pair of
-        arrays, energies in keV."""
+        """Returns the spectrum as an (energies, counts) pair of
+        arrays, with energies in keV."""
         return _physics.synchrotron_source_table(self.spectrum)
 
     def __repr__(self):
@@ -321,7 +321,7 @@ class SynchrotronSource:
 
 
 class System:
-    """The complete description of the X-ray system to calibrate.
+    """Represents the complete X-ray system to calibrate.
 
     Args:
         source: One of :class:`ReflectionSource`,
@@ -364,7 +364,7 @@ class System:
 
 
     def save(self, filename):
-        """Save this system to a small readable YAML file.
+        """Saves this system to a small, readable YAML file.
 
         The file uses the same value notation as the API: a plain
         number is a given value, an ``estimate:`` entry carries
@@ -440,7 +440,7 @@ class System:
                     f"materials.  Name one material.")
 
     def effective_spectrum(self, voltage=None, filters=None):
-        """Return this system's effective spectrum as a function of
+        """Returns this system's effective spectrum as a function of
         energy, for a fully specified System (no estimates, no
         candidate lists).  The form matches
         CalibrationResult.effective_spectrum, so a simulated truth
@@ -510,7 +510,7 @@ class System:
         return _physics.SpectralFunction(grid, values / area)
 
     def energy_grid(self, voltage=None):
-        """Return the X-ray energies this system operates over.
+        """Returns the X-ray energies this system operates over.
 
         The one rule that turns "system + setting" into an energy
         grid, shared by the calibration and the segmentation.  For a
@@ -535,14 +535,15 @@ class System:
         return _physics.default_energy_grid(float(voltage))
 
     def _filters_note(self):
-        """Short description of the filtration, e.g. 'Al 5 mm'."""
+        """Returns a short description of the filtration, for
+        example 'Al 5 mm'."""
         if not self.filters:
             return 'no filter'
         return ', '.join(f'{f.materials[0].name} {f.thickness:.3g} mm'
                          for f in self.filters)
 
     def save_plot(self, filename, voltage=None, compare_to=None):
-        """Write a plot of this system's effective spectrum.
+        """Writes a plot of this system's effective spectrum.
 
         One curve per voltage.  With ``compare_to``, that system's
         spectrum is drawn dashed at the same voltages; the legend
@@ -587,7 +588,7 @@ class System:
         plt.close(fig)
 
     def filter_label(self, filt):
-        """Return the display label of one filter, for example
+        """Returns the display label of one filter, for example
         'filter 1 (Si)'."""
         index = [id(f) for f in self.filters].index(id(filt))
         label = f"filter {index + 1}"
@@ -599,7 +600,7 @@ class System:
 
 
 def load_system(filename):
-    """Read a system saved by :meth:`System.save`.
+    """Reads a system saved by :meth:`System.save`.
 
     Args:
         filename (str): Path to a system YAML file.

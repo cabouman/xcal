@@ -23,9 +23,9 @@ xcal never touches scanner formats.
 
     # The calibration object: rods of known materials.
     targets = [
-        xcal.Target(material='Ti', size=1.0),   # mm
-        xcal.Target(material='Al', size=0.5),
-        xcal.Target(material='Mg', size=0.5),
+        xcal.Target(material='Ti'),   # mm
+        xcal.Target(material='Al'),
+        xcal.Target(material='Mg'),
     ]
 
     # The system description.  A plain value is known; xcal.estimate

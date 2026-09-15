@@ -45,7 +45,7 @@ import xcal
 
 sino_80, model_80 = mtp.zeiss.get_sino_and_model('scan_080kV.txrm')
 
-targets = [xcal.Target('Ti', 1.0), xcal.Target('Al', 0.5)]
+targets = [xcal.Target('Ti'), xcal.Target('Al')]
 system = xcal.System(
     source=xcal.TransmissionSource(target_thickness=xcal.estimate(0.001, 0.007)),
     filters=[xcal.Filter(material=['Al', 'Cu'], thickness=xcal.estimate(0, 10))],

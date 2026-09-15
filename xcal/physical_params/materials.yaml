@@ -2,7 +2,7 @@
 #
 # Each entry names a material a user can select, with the parameters
 # the software needs.  Units, used everywhere in this file:
-#   density is in g/cm^3; thickness_range and size_range are in mm.
+#   density is in g/cm^3; default_thickness_range is in mm.
 # The entries under each kind form the default candidate list that is
 # searched when the user omits the material.
 #
@@ -11,25 +11,25 @@
 # Any chemical formula of elements 1 through 92 is a legal material;
 # this catalog only provides the named defaults.
 
-filter_materials:                 # density g/cm^3, thickness_range mm
-  - {name: Al, formula: Al, density: 2.702, thickness_range: [0, 10]}
-  - {name: Cu, formula: Cu, density: 8.92,  thickness_range: [0, 1]}
-  - {name: Si, formula: Si, density: 2.329, thickness_range: [0, 5]}
+filter_materials:                 # density g/cm^3, default_thickness_range mm
+  - {name: Al, formula: Al, density: 2.702, default_thickness_range: [0, 10]}
+  - {name: Cu, formula: Cu, density: 8.92,  default_thickness_range: [0, 1]}
+  - {name: Si, formula: Si, density: 2.329, default_thickness_range: [0, 5]}
 
-calibration_target_materials:     # density g/cm^3, size_range mm
-  - {name: V,  formula: V,  density: 6.11, size_range: [0.1, 5]}
-  - {name: Ti, formula: Ti, density: 4.507, size_range: [0.1, 5]}
-  - {name: Al, formula: Al, density: 2.702, size_range: [0.1, 5]}
-  - {name: Mg, formula: Mg, density: 1.738, size_range: [0.1, 5]}
+calibration_target_materials:     # density g/cm^3
+  - {name: V,  formula: V,  density: 6.11}
+  - {name: Ti, formula: Ti, density: 4.507}
+  - {name: Al, formula: Al, density: 2.702}
+  - {name: Mg, formula: Mg, density: 1.738}
 
-scintillator_materials:           # density g/cm^3, thickness_range mm
-  - {name: CsI,    formula: CsI,          density: 4.51, thickness_range: [0.001, 0.5]}
-  - {name: GAGG,   formula: Gd3Al2Ga3O12, density: 6.63, thickness_range: [0.001, 0.5]}
-  - {name: LuAG,   formula: Lu3Al5O12,    density: 6.73, thickness_range: [0.001, 0.5]}
-  - {name: CdWO4,  formula: CdWO4,        density: 7.90, thickness_range: [0.001, 0.5]}
-  - {name: YAG,    formula: Y3Al5O12,     density: 4.56, thickness_range: [0.001, 0.5]}
-  - {name: BGO,    formula: Bi4Ge3O12,    density: 7.13, thickness_range: [0.001, 0.5]}
-  - {name: GOS,    formula: Gd2O2S,       density: 7.32, thickness_range: [0.001, 0.5]}
+scintillator_materials:           # density g/cm^3, default_thickness_range mm
+  - {name: CsI,    formula: CsI,          density: 4.51, default_thickness_range: [0.001, 0.5]}
+  - {name: GAGG,   formula: Gd3Al2Ga3O12, density: 6.63, default_thickness_range: [0.001, 0.5]}
+  - {name: LuAG,   formula: Lu3Al5O12,    density: 6.73, default_thickness_range: [0.001, 0.5]}
+  - {name: CdWO4,  formula: CdWO4,        density: 7.90, default_thickness_range: [0.001, 0.5]}
+  - {name: YAG,    formula: Y3Al5O12,     density: 4.56, default_thickness_range: [0.001, 0.5]}
+  - {name: BGO,    formula: Bi4Ge3O12,    density: 7.13, default_thickness_range: [0.001, 0.5]}
+  - {name: GOS,    formula: Gd2O2S,       density: 7.32, default_thickness_range: [0.001, 0.5]}
 
 defaults:
   takeoff_angle_range: [5, 45]       # degrees, reflection sources

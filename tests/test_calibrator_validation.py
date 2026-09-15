@@ -25,16 +25,16 @@ def _system():
 
 def test_add_scan_requires_voltage_for_tube():
     system, _ = _system()
-    cal = xcal.Calibrator(system, [xcal.Target('Ti', 1.0)])
+    cal = xcal.Calibrator(system, [xcal.Target('Ti')])
     with pytest.raises(ValueError, match='voltage'):
         cal.add_scan(np.zeros((4, 1, 8)), None, [])
 
 
 def test_add_scan_rejects_foreign_objects():
     system, f = _system()
-    rod = xcal.Target('Ti', 1.0)
+    rod = xcal.Target('Ti')
     cal = xcal.Calibrator(system, [rod])
-    other_rod = xcal.Target('Ti', 1.0)
+    other_rod = xcal.Target('Ti')
     with pytest.raises(ValueError, match='targets list'):
         cal.add_scan(np.zeros((4, 1, 8)), None, [], voltage=80,
                      targets=[other_rod])
@@ -46,7 +46,7 @@ def test_add_scan_rejects_foreign_objects():
 
 def test_add_scan_shape_checks():
     system, _ = _system()
-    cal = xcal.Calibrator(system, [xcal.Target('Ti', 1.0)])
+    cal = xcal.Calibrator(system, [xcal.Target('Ti')])
     with pytest.raises(ValueError, match='views, rows, channels'):
         cal.add_scan(np.zeros((4, 8)), None, [], voltage=80)
     with pytest.raises(ValueError, match='weights shape'):
@@ -56,7 +56,7 @@ def test_add_scan_shape_checks():
 
 def test_calibrate_requires_scans_and_used_filters():
     system, f = _system()
-    cal = xcal.Calibrator(system, [xcal.Target('Ti', 1.0)])
+    cal = xcal.Calibrator(system, [xcal.Target('Ti')])
     with pytest.raises(ValueError, match='no scans'):
         cal.calibrate()
     # A filter that appears in no scan is an error: unused = extra
@@ -66,7 +66,7 @@ def test_calibrate_requires_scans_and_used_filters():
                           filters=[f, unused],
                           detector=xcal.Scintillator(material='CsI',
                                                      thickness=0.3))
-    cal2 = xcal.Calibrator(system2, [xcal.Target('Ti', 1.0)])
+    cal2 = xcal.Calibrator(system2, [xcal.Target('Ti')])
     cal2.add_scan(np.zeros((4, 1, 8)), _StubShape(), _dummy_masks(1), voltage=80, filters=[f])
     with pytest.raises(ValueError, match='appears in no scan'):
         cal2.calibrate()

@@ -38,7 +38,7 @@ A calibration in one screen
        filters=[xcal.Filter(material=['Al', 'Cu'],
                             thickness=xcal.estimate(0, 10))],
        detector=xcal.Scintillator())          # material searched
-   targets = [xcal.Target('Ti', 1.0), xcal.Target('Al', 0.5)]
+   targets = [xcal.Target('Ti'), xcal.Target('Al')]
 
    # Add each scan with its masks, then calibrate.
    cal = xcal.Calibrator(system, targets)

@@ -22,7 +22,7 @@ In outline, every calibration script looks like this:
 .. code-block:: python
 
     # 1. Describe.
-    targets = [xcal.Target(material='Ti', size=1.0), ...]
+    targets = [xcal.Target(material='Ti'), ...]
     system = xcal.System(source=..., filters=[...], detector=...)
 
     # 2. Reconstruct, segment, and add each scan.

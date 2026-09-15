@@ -1,4 +1,4 @@
-"""Simulation of calibration scans.
+"""Simulates calibration scans.
 
 A simulation needs a fully specified :class:`~xcal.System`, one whose
 facts are all plain values.  :func:`simulate_scan` then generates the
@@ -19,7 +19,7 @@ __all__ = ['simulate_scan']
 def simulate_scan(system, targets, ct_model, voltage=None,
                   filters=None, target_masks=None, photons=40000,
                   seed=0):
-    """Simulate the sinogram of one calibration scan.
+    """Simulates the sinogram of one calibration scan.
 
     The signature mirrors :meth:`~xcal.Calibrator.add_scan`: the same
     system, rods, model, voltage, and filters describe a scan on both
