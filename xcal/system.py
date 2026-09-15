@@ -147,19 +147,28 @@ class Filter:
     """Represents a beam filter, modeled by Beer's law.
 
     Args:
-        material (str or list, optional): A catalog name or any
-            chemical formula of elements 1 through 92, a list of
-            candidates, or omitted to search the catalog's standard
-            filter materials.
-        thickness (float or estimate, optional): Thickness in mm, known
-            or estimated.  Omitted, the catalog's default thickness
-            range for the candidate materials is used.
-        name (str, optional): Label used in results, for example in
-            the keys of ``result.params``.  Defaults to the filter's
-            position, 'filter 1', 'filter 2', and so on.
-        density (float, optional): Density in g/cm^3, needed only when
-            the material is a compound formula that is not in the
-            catalog.
+        material (str or list, optional): The filter material, as a
+            string: either a name in the materials catalog, such as
+            'Al', or a chemical formula of elements 1 through 92,
+            such as 'Al' or 'GaAs'.  A list of such strings gives
+            candidates the calibration searches over.  Omitting it
+            searches the catalog's standard filter materials.  Any
+            formula works, because the transmission is computed from
+            the NIST attenuation table of each element, combined by
+            mass fraction using atomic weights from the periodic
+            table.
+        thickness (float or estimate, optional): The thickness in
+            mm, either a known value or an :class:`estimate`.
+            Omitting it uses the catalog's default thickness range
+            for the candidate materials.
+        name (str, optional): A label used in results, for example
+            in the keys of ``result.params``.  It defaults to the
+            filter's position, 'filter 1', 'filter 2', and so on.
+        density (float, optional): The material's density in g/cm^3.
+            A catalog name and a single element carry their own
+            density, so this is needed only for a compound formula
+            that is not in the catalog; the density of a compound
+            cannot be derived from the periodic table.
 
     Example:
         >>> al = xcal.Filter(material=['Al', 'Cu'], thickness=xcal.estimate(0, 10))
@@ -208,15 +217,27 @@ class Scintillator(Filter):
     energy-absorption tables.
 
     Args:
-        material (str or list, optional): A catalog name or any
-            chemical formula of elements 1 through 92, a list of
-            candidates, or omitted to search the catalog's standard
-            scintillators.
-        thickness (float or estimate, optional): Thickness in mm, known
-            or estimated.  Omitted, the catalog's default thickness
-            range is used.
-        name (str, optional): Label used in results.  Defaults to
-            'detector'.
+        material (str or list, optional): The scintillator
+            material, as a string: either a name in the materials
+            catalog, such as 'LuAG', or a chemical formula of
+            elements 1 through 92, such as 'Lu3Al5O12'.  A list of
+            such strings gives candidates the calibration searches
+            over.  Omitting it searches the catalog's standard
+            scintillators.  Any formula works, because the response
+            is computed from the NIST tables of each element,
+            combined by mass fraction using atomic weights from the
+            periodic table.
+        thickness (float or estimate, optional): The thickness in
+            mm, either a known value or an :class:`estimate`.
+            Omitting it uses the catalog's default thickness range
+            for the candidate materials.
+        name (str, optional): A label used in results.  It defaults
+            to 'detector'.
+        density (float, optional): The material's density in g/cm^3.
+            A catalog name and a single element carry their own
+            density, so this is needed only for a compound formula
+            that is not in the catalog; the density of a compound
+            cannot be derived from the periodic table.
     """
 
     _kind = 'scintillator'
