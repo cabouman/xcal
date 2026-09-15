@@ -136,23 +136,28 @@ def get_lin_absp_c_vs_E(density, formula, energies):
 # Measurement masking helpers (used with the measured ALS data)
 # ---------------------------------------------------------------------------
 
-def detect_outliers(data, window_size, threshold_std=3):
-    """Mask outliers in a radiograph stack (Wenrui Li's method from
-    xcal 1).  Each value is compared with the mean of its channel
-    neighborhood; deviations beyond threshold_std standard
-    deviations of that row's deviations are outliers.
+def detect_inliers(sinogram, window_size, threshold_std=3):
+    """Mask the inliers of an attenuation sinogram (Wenrui Li's
+    method from xcal 1).  The sinogram is converted to
+    transmission, exp(-sinogram), and each value is compared with
+    the mean of its channel neighborhood.  A value is an inlier
+    when its deviation is within threshold_std standard deviations
+    of that row's deviations.
 
     Args:
-        data (numpy.ndarray): Shape (views, rows, channels).
+        sinogram (numpy.ndarray): Attenuation sinogram with shape
+            (views, rows, channels), that is, the negative log of
+            the transmission.
         window_size (int): Width of the neighborhood.
         threshold_std (float): Deviation threshold in standard
             deviations.
 
     Returns:
-        numpy.ndarray: Boolean array, False where a value is an
-        outlier.
+        numpy.ndarray: Boolean array, True where a value is an
+        inlier.
     """
     from scipy.ndimage import convolve1d
+    data = np.exp(-np.asarray(sinogram))    # to transmission
     kernel = np.full(window_size, -1 / (window_size - 1))
     kernel[window_size // 2] = 1
     mask = np.zeros_like(data, dtype=bool)
