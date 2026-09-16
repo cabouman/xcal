@@ -25,6 +25,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.viewcode',
     'sphinx_copybutton',
+    'sphinxext.opengraph',
 ]
 
 templates_path = ['_templates']
@@ -47,3 +48,14 @@ html_theme_options = {
 }
 html_title = 'xcal'
 html_static_path = ['_static']
+
+# Open Graph / social link preview.  Pasting a documentation URL into a
+# chat, a post, or a message shows the card in _static/og_card.png, made
+# by dev_scripts/make_social_card.py.  ogp_site_url makes the card and
+# page URLs absolute, which link-preview crawlers require.
+ogp_site_url = 'https://xcal.readthedocs.io/en/latest/'
+ogp_image = 'https://xcal.readthedocs.io/en/latest/_static/og_card.png'
+ogp_image_alt = 'xCal: model-based X-ray CT spectral calibration'
+ogp_type = 'website'
+ogp_enable_meta_description = True
+ogp_social_cards = {'enable': False}    # use og_card.png, not per-page cards
