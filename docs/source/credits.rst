@@ -11,9 +11,9 @@ For details on the XCAL algorithm, see the following:
 XCAL Development Team
 ---------------------
 
-The XCAL Development Team is listed below in alphabetical order:
+The XCAL Development Team is listed below:
 
-    Charles A. Bouman, Gregery T. Buzzard, Jean-Baptiste Forien, K. Aditya Mohan, Saransh Singh, Venkatesh Sridhar, Wenrui Li, Xin Liu
+    Wenrui Li, K. Aditya Mohan, Venkatesh Sridhar, Xin Liu, Jean-Baptiste Forien, Joseph Bendahan, Saransh Singh, Gregery T. Buzzard, Charles A. Bouman
 
 
 XCAL Sponsors
@@ -31,10 +31,13 @@ Citation
 Please use the following Bibtex citation when referencing this software.
 ::
 
-    @Misc {xcal-2025,
-    author = {XCAL Development Team},
+    @Misc {xcal,
+    author = {Wenrui Li and K. Aditya Mohan and Venkatesh Sridhar and
+              Xin Liu and Jean-Baptiste Forien and Joseph Bendahan and
+              Saransh Singh and Gregery T. Buzzard and Charles A. Bouman},
     title =	{{X-ray Spectrum Calibration}},
     howpublished = {Software library available from \url{https://github.com/cabouman/xcal}},
-    year = 2025
+    note = {Version 0.2.0},
+    year = 2026
     }
 

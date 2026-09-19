@@ -67,3 +67,35 @@ R = est_system.effective_spectrum(voltage=80)   # a function of energy in keV
 See the [Quick Start](https://xcal.readthedocs.io) for the complete
 workflow, and `demo/demo_1_multi_voltage.py` for a runnable
 simulated calibration with known ground truth.
+
+## Citation
+
+Please cite the paper when referencing the method.
+
+```bibtex
+@article{li2025xcal,
+  title = {{XCal}: model-based approach to {X}-ray {CT} spectral calibration},
+  author = {Wenrui Li and K. Aditya Mohan and Venkatesh Sridhar and Xin Liu and Jean-Baptiste Forien and Joseph Bendahan and Saransh Singh and Gregery T. Buzzard and Charles A. Bouman},
+  journal = {Optics Express},
+  volume = {33},
+  number = {15},
+  pages = {30875--30896},
+  year = {2025},
+  doi = {10.1364/OE.566319}
+}
+```
+
+Please cite the software itself when referencing this package.
+
+```bibtex
+@misc{xcal,
+  title = {{X}-ray {S}pectrum {C}alibration},
+  author = {Wenrui Li and K. Aditya Mohan and Venkatesh Sridhar and Xin Liu and Jean-Baptiste Forien and Joseph Bendahan and Saransh Singh and Gregery T. Buzzard and Charles A. Bouman},
+  howpublished = {Software library available from \url{https://github.com/cabouman/xcal}},
+  note = {Version 0.2.0},
+  year = 2026
+}
+```
+
+GitHub's "Cite this repository" button on the repository page generates the
+paper citation from `CITATION.cff`.

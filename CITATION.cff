@@ -1,0 +1,58 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "xcal: X-ray CT spectral calibration"
+type: software
+authors:
+  - family-names: Li
+    given-names: Wenrui
+  - family-names: Mohan
+    given-names: K. Aditya
+  - family-names: Sridhar
+    given-names: Venkatesh
+  - family-names: Liu
+    given-names: Xin
+  - family-names: Forien
+    given-names: Jean-Baptiste
+  - family-names: Bendahan
+    given-names: Joseph
+  - family-names: Singh
+    given-names: Saransh
+  - family-names: Buzzard
+    given-names: Gregery T.
+  - family-names: Bouman
+    given-names: Charles A.
+version: 0.2.0
+date-released: 2026-09-15
+url: "https://xcal.readthedocs.io"
+repository-code: "https://github.com/cabouman/xcal"
+license: BSD-3-Clause
+preferred-citation:
+  type: article
+  title: "XCal: model-based approach to X-ray CT spectral calibration"
+  authors:
+    - family-names: Li
+      given-names: Wenrui
+    - family-names: Mohan
+      given-names: K. Aditya
+    - family-names: Sridhar
+      given-names: Venkatesh
+    - family-names: Liu
+      given-names: Xin
+    - family-names: Forien
+      given-names: Jean-Baptiste
+    - family-names: Bendahan
+      given-names: Joseph
+    - family-names: Singh
+      given-names: Saransh
+    - family-names: Buzzard
+      given-names: Gregery T.
+    - family-names: Bouman
+      given-names: Charles A.
+  journal: "Optics Express"
+  volume: 33
+  issue: 15
+  start: 30875
+  end: 30896
+  year: 2025
+  month: 7
+  doi: "10.1364/OE.566319"
