@@ -57,5 +57,6 @@ ogp_site_url = 'https://xcal.readthedocs.io/en/latest/'
 ogp_image = 'https://xcal.readthedocs.io/en/latest/_static/og_card.png'
 ogp_image_alt = 'xCal: model-based X-ray CT spectral calibration'
 ogp_type = 'website'
-ogp_enable_meta_description = True
+ogp_enable_meta_description = False
+ogp_description_length = 0
 ogp_social_cards = {'enable': False}    # use og_card.png, not per-page cards
