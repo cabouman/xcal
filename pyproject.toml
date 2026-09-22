@@ -26,7 +26,7 @@ dependencies = [
 # Reflection tube sources generate their lookup tables with Spekpy.
 spekpy = ["spekpy"]
 test = ["pytest"]
-docs = ["sphinx", "sphinx_book_theme", "sphinx-copybutton"]
+docs = ["sphinx", "sphinx_book_theme", "sphinx-copybutton", "sphinxext-opengraph"]
 
 [project.urls]
 Homepage = "https://github.com/cabouman/xcal"
