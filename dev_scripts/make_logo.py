@@ -1,7 +1,19 @@
 """Generate XCal logo candidates in the mbirtorch/mbirjax house style:
-bold sans wordmark, black base, colored accent, glossy reflection."""
+bold sans wordmark, black base, colored accent, glossy reflection.
+
+The logos are written into docs/source/_static/, where the docs use
+them, so running this script updates the real assets in place.
+"""
+
+import os
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
+
+# The docs static directory, resolved from this script's own location so
+# the output goes to the same place no matter where the script is run.
+STATIC = os.path.normpath(os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    "..", "docs", "source", "_static"))
 
 FONT = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 260)
 CANVAS = (1500, 560)
@@ -93,5 +105,6 @@ for name, spec in variants.items():
         return vertical_gradient(val)
     img = text_layer(spec, color_fn)
     img = add_reflection(img)
-    img.save(f"{name}.png")
-    print("wrote", name + ".png")
+    out = os.path.join(STATIC, f"{name}.png")
+    img.save(out)
+    print("wrote", out)
