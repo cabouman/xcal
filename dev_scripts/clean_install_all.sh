@@ -3,9 +3,6 @@
 # the documentation.  Works from any directory: it locates its own
 # folder and the repository root rather than relying on the caller's
 # working directory.
-#
-# mbirtorch is a separate install: it is not on PyPI, so install it
-# from its repository before using xcal with real scanner data.
 
 set -eo pipefail
 
@@ -51,8 +48,4 @@ echo " "
 echo "Use"
 echo "${red}   conda activate xcal   ${reset}"
 echo "to activate the conda environment."
-echo " "
-echo "mbirtorch is not on PyPI.  Install it separately from"
-echo "   https://github.com/cabouman/mbirtorch"
-echo "to run xcal on scanner data."
 echo " "

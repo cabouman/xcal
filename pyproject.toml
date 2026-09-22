@@ -16,6 +16,7 @@ dependencies = [
     "numpy",
     "scipy",
     "torch",
+    "mbirtorch",
     "h5py",
     "pyyaml",
     "chemparse",

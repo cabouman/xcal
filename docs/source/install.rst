@@ -10,14 +10,12 @@ xcal is installed from source:
    cd xcal
    pip install .
 
-This installs the Python dependencies (numpy, scipy, torch, h5py,
-pyyaml, chemparse, matplotlib) automatically.
+This installs the Python dependencies (numpy, scipy, torch, mbirtorch,
+h5py, pyyaml, chemparse, matplotlib) automatically.  mbirtorch reads
+the scanner data and provides the tomography models.
 
-Two dependencies are separate:
+One dependency is separate:
 
-* **mbirtorch** reads the scanner data and provides the tomography
-  models.  It is not on PyPI; install it from
-  `its repository <https://github.com/cabouman/mbirtorch>`_.
 * **Spekpy** generates reflection tube source spectra.  It is needed
   only for :class:`~xcal.ReflectionSource`:
   ``pip install spekpy``.
