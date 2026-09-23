@@ -37,7 +37,7 @@ Please use the following Bibtex citation when referencing this software.
               Saransh Singh and Gregery T. Buzzard and Charles A. Bouman},
     title =	{{X-ray Spectrum Calibration}},
     howpublished = {Software library available from \url{https://github.com/cabouman/xcal}},
-    note = {Version 0.2.0},
+    note = {Version 0.2.1},
     year = 2026
     }
 

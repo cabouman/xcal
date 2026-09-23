@@ -85,7 +85,7 @@ Please cite the software itself when referencing this package.
   title = {{X}-ray {S}pectrum {C}alibration},
   author = {Wenrui Li and K. Aditya Mohan and Venkatesh Sridhar and Xin Liu and Jean-Baptiste Forien and Joseph Bendahan and Saransh Singh and Gregery T. Buzzard and Charles A. Bouman},
   howpublished = {Software library available from \url{https://github.com/cabouman/xcal}},
-  note = {Version 0.2.0},
+  note = {Version 0.2.1},
   year = 2026
 }
 ```
