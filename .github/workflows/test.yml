@@ -19,6 +19,6 @@ jobs:
       - name: Install
         run: |
           pip install --index-url https://download.pytorch.org/whl/cpu torch
-          pip install . pytest
+          pip install ".[test,spekpy]"
       - name: Run tests
         run: pytest tests/ -q
